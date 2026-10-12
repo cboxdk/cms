@@ -28,6 +28,9 @@ use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAdded;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved;
+use Cbox\Cms\Core\Structure\Domain\LocaleChangeKind;
 use Cbox\Cms\Core\Tests\Events\Fixtures\CounterRaised;
 use Cbox\Cms\Core\Tests\Fragments\InvalidationWorld;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
@@ -212,12 +215,31 @@ it('purges the entry and the node of placement.visibility_changed softly when th
     'expired' => [Visibility::Live, Visibility::Expired, PurgeMode::Hard],
 ]);
 
+it('purges the site root\'s node key of a site locale event, softly for an added locale and hard for a removed one, and acknowledges origin', function (LocaleChangeKind $kind, PurgeMode $mode): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $world->writeUnderNode('missing:harbour', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored($kind === LocaleChangeKind::Added ? InvalidationWorld::localeAdded(2) : InvalidationWorld::localeRemoved(2), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->not->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('missing:harbour')))->toBeNull()
+        ->and($world->fragments->fragmentsOf(InvalidationWorld::nodeKey()))->toBe([])
+        ->and($world->writeUnderNode('missing:harbour', 100))->toBeInstanceOf(FragmentFenced::class)
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::nodeKey()], $mode)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+})->with([
+    'locale added' => [LocaleChangeKind::Added, PurgeMode::Soft],
+    'locale removed' => [LocaleChangeKind::Removed, PurgeMode::Hard],
+]);
+
 it('subscribes on the critical lane to every event that changes what a fragment shows, and acknowledges origin', function (): void {
     $world = new InvalidationWorld;
     $world->handle($world->stored(InvalidationWorld::revised(2), $world->changeset('origin'), 100));
     $subscription = new ReflectionClass(InvalidateFragments::class)->getAttributes(Subscription::class)[0]->newInstance();
 
-    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeLabelChanged::class, NodeMoved::class])
+    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeLabelChanged::class, NodeMoved::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe(InvalidateFragments::PROJECTION);
 });

@@ -7,7 +7,7 @@ namespace Cbox\Cms\Core\Structure\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 
 /**
- * What cms:sites:sync did with one configured site (PRD 11.14).
+ * What cms:sites:sync did with one configured site (PRD 11.14), or would do in a dry run.
  */
 #[Internal]
 enum SiteSyncOutcome: string
@@ -18,10 +18,10 @@ enum SiteSyncOutcome: string
     /** The site is registered with the configured locales; nothing was written. */
     case Unchanged = 'unchanged';
 
-    /** The site is registered with other locales than the configured; nothing was written. */
-    case Drifted = 'drifted';
+    /** The site was registered with other locales, and every locale change committed. */
+    case Reconciled = 'reconciled';
 
-    /** The database lacked the site, and the pipeline rejected site.register; nothing was written. */
+    /** The pipeline rejected site.register, or one of the site's locale changes; the rest of the site is as the lines say. */
     case Rejected = 'rejected';
 
     /**
@@ -29,6 +29,6 @@ enum SiteSyncOutcome: string
      */
     public function synced(): bool
     {
-        return $this === self::Registered || $this === self::Unchanged;
+        return $this !== self::Rejected;
     }
 }

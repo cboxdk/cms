@@ -40,7 +40,9 @@ import { validateCreatePlacementV1 } from '../../../../workbench/resources/js/cm
 import { validateSetPlacementWindowV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetPlacementWindowV1';
 import { validateCreateRoleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateRoleV1';
 import { validateSetRolePermissionsV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetRolePermissionsV1';
+import { validateAddSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/AddSiteLocaleV1';
 import { validateRegisterSiteV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RegisterSiteV1';
+import { validateRemoveSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RemoveSiteLocaleV1';
 import { validateReleaseVariantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV1';
 
 /** Where the kernel's command schemas are, the files ProtocolSchemas::commands() binds. */
@@ -72,7 +74,9 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'placement.set_window.v1.json': validateSetPlacementWindowV1,
   'role.create.v1.json': validateCreateRoleV1,
   'role.set_permissions.v1.json': validateSetRolePermissionsV1,
+  'site.add_locale.v1.json': validateAddSiteLocaleV1,
   'site.register.v1.json': validateRegisterSiteV1,
+  'site.remove_locale.v1.json': validateRemoveSiteLocaleV1,
   'variant.release.v1.json': validateReleaseVariantV1,
 };
 

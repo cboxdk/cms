@@ -42,6 +42,8 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `RolePermissionsSet(role, permissions)` | the role | the role's permissions become the list given, each once |
 | `GrantRoleContentChanged(grant)` | the grant | the grant's role changed what it gives; the grant moves to its next version and keeps everything else |
 | `SiteRegistered(site, handle, root, locales)` | the site | the site is registered (PRD 5.9, 11.14) with its handle, a new root node of kind site at the top of the tree, and its `Locale`s, at least one and each once, each with the route `/` to the root node |
+| `SiteLocaleAdded(site, root, locale)` | the site | the site publishes in one more `Locale` (PRD 5.9, 11.14), with the route `/` to its root node in it when it has none there; a retired locale comes back with its routes |
+| `SiteLocaleRemoved(site, root, locale)` | the site | the site no longer publishes in the `Locale` (PRD 5.9, 11.14): its row is retired with its routes, never removed, and the public resolves nothing in it |
 | `NodeCreated(node, parent, kind, path)` | the node | a node of the kind `section`, `page`, `list` or `storage` is created below the parent (PRD 5.8), on the `NodePath` of the parent with the node's own label below it |
 | `NodeArchived(node)` | the node | the node becomes read-only structure (PRD 6.4): nothing is created below it, it takes no route, and what is placed below it keeps its visibility |
 | `NodeRouteSet(node, site, locale, route)` | the node | the node gets the route on the site in the language (PRD 5.9), the path the public asks for; it always makes content public, so an agent may not plan it (invariant 18) |

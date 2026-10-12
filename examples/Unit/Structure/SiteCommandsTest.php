@@ -5,13 +5,20 @@ declare(strict_types=1);
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Errors\ExitCode;
+use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Events\DatumKind;
 use Cbox\Cms\Contracts\Events\EventDatum;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\SiteId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Contracts\Plans\Mutations\SiteLocaleRemoved;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved as SiteLocaleRemovedEvent;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemovedV1;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteRegistered;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteRegisteredV1;
 
@@ -45,10 +52,39 @@ it('tells about a registered site with ids and locales alone', function (): void
         ->and(array_map(static fn (EventDatum $locale): string => $locale->asIdentifier()->value, $locales->items()))->toBe(['da', 'en']);
 });
 
-it('reports a site whose configured locales drifted as a data error that a retry does not fix', function (): void {
-    $drift = ErrorCode::SiteLocalesDrift->entry();
+// Later the configuration adds German and drops English. cms:sites:sync reads the site at version 1
+// and runs site.add_locale for de, then site.remove_locale for en at version 2; a caller on a
+// surface sends the same commands with the version it read. Both expect the site at that version.
 
-    expect($drift->exit)->toBe(ExitCode::DataErr)
-        ->and($drift->exit->value)->toBe(65)
-        ->and($drift->retryable)->toBeFalse();
+it('adds and removes a locale of a registered site, expecting the site at the version read', function (): void {
+    $site = SiteId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000a01');
+    $add = new AddSiteLocale($site, new AggregateVersion(1), new Locale('de'));
+    $remove = new RemoveSiteLocale($site, new AggregateVersion(2), new Locale('en'));
+
+    expect(array_map(static fn (ReadVersion $read): string => $read->aggregate->aggregateKey().' '.($read->version->value ?? '-'), $add->expectedVersions()->reads))
+        ->toBe(['site:01936f5e-8a2b-7c3d-9e4f-000000000a01 1'])
+        ->and(array_map(static fn (ReadVersion $read): string => $read->aggregate->aggregateKey().' '.($read->version->value ?? '-'), $remove->expectedVersions()->reads))
+        ->toBe(['site:01936f5e-8a2b-7c3d-9e4f-000000000a01 2']);
+});
+
+it('tells about a removed locale with the site, its root node and the locale, which the invalidation purges the root node\'s key for', function (): void {
+    $site = SiteId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000a01');
+    $root = NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000a02');
+    $mutation = new SiteLocaleRemoved($site, $root, new Locale('en'));
+    $event = new SiteLocaleRemovedEvent(3, new SiteLocaleRemovedV1($site, $root, new Locale('en')));
+
+    expect($mutation->aggregate()->aggregateKey())->toBe('site:01936f5e-8a2b-7c3d-9e4f-000000000a01')
+        ->and(SiteLocaleRemovedEvent::type()->name)->toBe('site.locale_removed')
+        ->and($event->aggregate()->version)->toBe(3)
+        ->and($event->payload()->data()->get('root')->asIdentifier()->value)->toBe($root->toString())
+        ->and($event->payload()->data()->get('locale')->asIdentifier()->value)->toBe('en');
+});
+
+it('refuses to retire a locale a placement still uses as a conflict that a retry does not fix', function (): void {
+    $inUse = ErrorCode::SiteLocaleInUse->entry();
+
+    expect($inUse->http)->toBe(HttpStatus::Conflict)
+        ->and($inUse->exit)->toBe(ExitCode::DataErr)
+        ->and($inUse->exit->value)->toBe(65)
+        ->and($inUse->retryable)->toBeFalse();
 });

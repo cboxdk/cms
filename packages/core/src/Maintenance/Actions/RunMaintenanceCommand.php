@@ -70,6 +70,7 @@ final readonly class RunMaintenanceCommand
             $operator,
             $call->unitOfWork,
             new CorrelationId($this->ids->next()->value),
+            dryRun: $call->dryRun,
         );
 
         return $this->pipeline->run(new CommandCall($call->command, $envelope, $access));

@@ -135,10 +135,12 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\ListedNode;
@@ -699,11 +701,21 @@ final readonly class ProtocolSchemas
                 '#/properties/role' => $id(RoleId::class),
                 '#/properties/version' => $version,
             ]),
+            self::command('site.add_locale.v1.json', 'AddSiteLocaleCodecV1', AddSiteLocale::class, [
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/site' => $id(SiteId::class),
+                '#/properties/version' => $version,
+            ]),
             self::command('site.register.v1.json', 'RegisterSiteCodecV1', RegisterSite::class, [
                 '#/properties/handle' => ValueBinding::value(SiteHandle::class),
                 '#/properties/locales/items' => ValueBinding::value(Locale::class),
                 '#/properties/root' => $id(NodeId::class),
                 '#/properties/site' => $id(SiteId::class),
+            ]),
+            self::command('site.remove_locale.v1.json', 'RemoveSiteLocaleCodecV1', RemoveSiteLocale::class, [
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/site' => $id(SiteId::class),
+                '#/properties/version' => $version,
             ]),
             self::command('variant.release.v1.json', 'ReleaseVariantCodecV1', ReleaseVariant::class, [
                 '#/properties/entry' => $id(EntryId::class),

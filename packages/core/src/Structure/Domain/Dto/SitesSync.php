@@ -9,7 +9,8 @@ use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
 
 /**
  * The sites to sync (PRD 11.14): the configured sites of `cbox-cms.sites`, in the configured order,
- * each with the locales it publishes in.
+ * each with the locales it publishes in, and whether the sync is a dry run, which reports the
+ * diff and writes nothing.
  */
 #[Internal]
 final readonly class SitesSync
@@ -17,5 +18,8 @@ final readonly class SitesSync
     /**
      * @param  list<ConfiguredSite>  $sites
      */
-    public function __construct(public array $sites) {}
+    public function __construct(
+        public array $sites,
+        public bool $dryRun = false,
+    ) {}
 }

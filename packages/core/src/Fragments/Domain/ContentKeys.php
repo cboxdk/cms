@@ -26,6 +26,8 @@ use Cbox\Cms\Contracts\Ids\NodeId;
  * - A node event, which carries no entry, is about the node its datum "node" names: its key is
  *   n-{node}. A move is also about every node below it, which the invalidation reads page by page
  *   (SubtreeNodes), because the event lists no descendant.
+ * - A site's locale event carries no entry and the site's root node as its datum "root", so its
+ *   key is n-{root}: what the public resolves below the root in the locale changed.
  */
 #[Internal]
 final readonly class ContentKeys
@@ -36,23 +38,30 @@ final readonly class ContentKeys
     /** The datum a placement event carries the node its placement sits under in. */
     public const string NODE = 'node';
 
+    /** The datum a site's locale event carries the site's root node in. */
+    public const string ROOT = 'root';
+
     /**
      * @return non-empty-list<DependencyKey>
      *
-     * @throws InvalidEvent when the event carries neither an entry id nor a node id
+     * @throws InvalidEvent when the event carries neither an entry id, a node id nor a site's root node
      * @throws InvalidUuid7 when the entry or node id is not a UUIDv7
      */
     public static function of(StoredEvent $event): array
     {
-        if (! $event->data->has(self::ENTRY)) {
-            return [DependencyKey::node(self::node($event))];
+        $keys = [];
+
+        if ($event->data->has(self::ENTRY)) {
+            $keys[] = DependencyKey::entry(EntryId::fromString($event->data->get(self::ENTRY)->asIdentifier()->toString()));
         }
 
-        $entry = DependencyKey::entry(EntryId::fromString($event->data->get(self::ENTRY)->asIdentifier()->toString()));
+        foreach ([self::NODE, self::ROOT] as $datum) {
+            if ($event->data->has($datum)) {
+                $keys[] = DependencyKey::node(NodeId::fromString($event->data->get($datum)->asIdentifier()->toString()));
+            }
+        }
 
-        return $event->data->has(self::NODE)
-            ? [$entry, DependencyKey::node(self::node($event))]
-            : [$entry];
+        return $keys === [] ? throw InvalidEvent::missingField(self::ENTRY) : $keys;
     }
 
     /**

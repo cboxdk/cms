@@ -27,10 +27,12 @@ use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Tests\Support\SurfaceContract\SampleDocument;
@@ -70,7 +72,9 @@ function kernelCommandClasses(): array
         'placement.set_window' => SetPlacementWindow::class,
         'role.create' => CreateRole::class,
         'role.set_permissions' => SetRolePermissions::class,
+        'site.add_locale' => AddSiteLocale::class,
         'site.register' => RegisterSite::class,
+        'site.remove_locale' => RemoveSiteLocale::class,
         'variant.release' => ReleaseVariant::class,
     ];
 }

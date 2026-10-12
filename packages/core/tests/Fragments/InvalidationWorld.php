@@ -47,6 +47,10 @@ use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChangedV1;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMovedV1;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAdded;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAddedV1;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemovedV1;
 use Cbox\Cms\Core\Tests\Fragments\Fakes\FakeSubtreeNodes;
 use Cbox\Cms\Testkit\Cache\FakeFragmentStore;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
@@ -221,6 +225,22 @@ final readonly class InvalidationWorld
             null,
             null,
         ));
+    }
+
+    /**
+     * site.locale_added of the world's site, whose root is NODE, in en.
+     */
+    public static function localeAdded(int $version): SiteLocaleAdded
+    {
+        return new SiteLocaleAdded($version, new SiteLocaleAddedV1(SiteId::fromString(self::SITE), NodeId::fromString(self::NODE), new Locale('en')));
+    }
+
+    /**
+     * site.locale_removed of the world's site, whose root is NODE, in en.
+     */
+    public static function localeRemoved(int $version): SiteLocaleRemoved
+    {
+        return new SiteLocaleRemoved($version, new SiteLocaleRemovedV1(SiteId::fromString(self::SITE), NodeId::fromString(self::NODE), new Locale('en')));
     }
 
     public static function created(string $entry = self::ENTRY): EntryCreated

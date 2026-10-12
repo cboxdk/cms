@@ -8,7 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Results\CatalogError;
 
 /**
- * What cms:sites:sync did (PRD 11.14): one SiteSync per configured site, in the configured order.
+ * What cms:sites:sync did (PRD 11.14), or would do in a dry run: one SiteSync per configured site,
+ * in the configured order.
  */
 #[Internal]
 final readonly class SitesSyncReport
@@ -16,7 +17,10 @@ final readonly class SitesSyncReport
     /**
      * @param  list<SiteSync>  $sites
      */
-    public function __construct(public array $sites) {}
+    public function __construct(
+        public array $sites,
+        public bool $dryRun = false,
+    ) {}
 
     /**
      * The first error of the first site that did not sync, or null when every site synced.
@@ -24,8 +28,10 @@ final readonly class SitesSyncReport
     public function firstError(): ?CatalogError
     {
         foreach ($this->sites as $site) {
-            if ($site->errors !== []) {
-                return $site->errors[0];
+            $errors = $site->allErrors();
+
+            if ($errors !== []) {
+                return $errors[0];
             }
         }
 

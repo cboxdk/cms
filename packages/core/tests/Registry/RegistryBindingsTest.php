@@ -61,17 +61,21 @@ use Cbox\Cms\Core\Registry\Infrastructure\AttributeScanner;
 use Cbox\Cms\Core\Routing\Actions\ResolvePathAction;
 use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
+use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\RegisterSiteAction;
+use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
@@ -162,7 +166,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'role.create@1 '.CreateRole::class,
             'role.set_permissions@1 '.SetRolePermissions::class,
             'seed.entries@1 '.SeedEntries::class,
+            'site.add_locale@1 '.AddSiteLocale::class,
             'site.register@1 '.RegisterSite::class,
+            'site.remove_locale@1 '.RemoveSiteLocale::class,
             'variant.release@1 '.ReleaseVariant::class,
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
@@ -194,7 +200,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'role.list@1 '.ListRolesAction::class.' query',
             'role.set_permissions@1 '.SetRolePermissionsAction::class.' write',
             'seed.entries@1 '.SeedEntriesAction::class.' write',
+            'site.add_locale@1 '.AddSiteLocaleAction::class.' write',
             'site.register@1 '.RegisterSiteAction::class.' write',
+            'site.remove_locale@1 '.RemoveSiteLocaleAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
@@ -205,11 +213,13 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateRole::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(SetRolePermissions::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
         ->and($registry->actionFor(RegisterSite::class)?->surfaces)->toBe([])
+        ->and($registry->actionFor(AddSiteLocale::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli])
+        ->and($registry->actionFor(RemoveSiteLocale::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli])
         ->and($registry->actionFor(GrantBootstrapRole::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([29, 0, 22, 0, 15, 23, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([31, 0, 24, 0, 15, 25, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

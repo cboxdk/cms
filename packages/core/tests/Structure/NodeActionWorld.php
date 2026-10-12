@@ -40,14 +40,18 @@ use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\StoredNode;
@@ -69,6 +73,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Structure\Fakes\FakeNodeReader;
 use Cbox\Cms\Core\Tests\Structure\Fakes\FakeSiteDirectory;
+use Cbox\Cms\Core\Tests\Structure\Fakes\FakeSiteLocaleUse;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencyStore;
@@ -81,10 +86,11 @@ use DateTimeImmutable;
 use LogicException;
 
 /**
- * The node actions, node.create, node.archive, node.set_route, node.move and node.set_label, in the
- * command pipeline with the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an
- * active editor, a FakeNodeReader, a FakeSiteDirectory and a committer that records what it is
- * asked to commit. Nothing touches a database. The clock stands at NOW.
+ * The structure actions, node.create, node.archive, node.set_route, node.move, node.set_label,
+ * site.add_locale and site.remove_locale, in the command pipeline with the fakes of its ports and
+ * of the contracts it reads (GUARDRAILS 9): an active editor, a FakeNodeReader, a
+ * FakeSiteDirectory, a FakeSiteLocaleUse and a committer that records what it is asked to commit.
+ * Nothing touches a database. The clock stands at NOW.
  *
  * The reader knows the site NORTH on the root ROOT, publishing in da and en, with the section
  * SECTION at version SECTION_VERSION, the archived section ARCHIVED, the mount MOUNT and the
@@ -92,7 +98,7 @@ use LogicException;
  * of the site SOUTH, which the editor's regions do not reach, with the section FAR_CHILD below it,
  * and WEST_ROOT, the root of the site WEST, which they do reach. The routes are `/` to ROOT in da
  * and en and `/nyheder` to SECTION in da, the placement LIVE below SECTION is live without an end,
- * and so is SPARE_LIVE below SPARE.
+ * and so is SPARE_LIVE below SPARE, so NORTH has placements in da and none in en.
  */
 final class NodeActionWorld
 {
@@ -141,6 +147,8 @@ final class NodeActionWorld
 
     public readonly FakeSiteDirectory $sites;
 
+    public readonly FakeSiteLocaleUse $use;
+
     public readonly FakeClock $clock;
 
     public FakeChangesetCommitter $committer;
@@ -167,6 +175,7 @@ final class NodeActionWorld
         $this->committer = new FakeChangesetCommitter;
         $this->nodes = new FakeNodeReader;
         $this->sites = new FakeSiteDirectory;
+        $this->use = new FakeSiteLocaleUse()->withPlacements(self::site(self::NORTH), new Locale('da'), 1);
 
         $this->root = $this->nodes->withNode(self::node(self::ROOT), kind: NodeKind::Site);
         $this->section = $this->nodes->withNode(self::node(self::SECTION), $this->root, version: self::SECTION_VERSION);
@@ -250,7 +259,17 @@ final class NodeActionWorld
         return $this->run(new SetNodeLabel(self::node($node), new AggregateVersion($version), new Locale($locale), new NodeLabel($label)), $agent);
     }
 
-    public function run(Command $command, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
+    public function addLocale(string $locale = 'de', int $version = 1, string $site = self::NORTH): WriteResult
+    {
+        return $this->run(new AddSiteLocale(self::site($site), new AggregateVersion($version), new Locale($locale)));
+    }
+
+    public function removeLocale(string $locale = 'en', int $version = 1, string $site = self::NORTH): WriteResult
+    {
+        return $this->run(new RemoveSiteLocale(self::site($site), new AggregateVersion($version), new Locale($locale)));
+    }
+
+    public function run(Command $command, bool $agentCredential = false, bool $agentEnvelope = false, bool $dryRun = false): WriteResult
     {
         $clock = new FakeClock;
         $keys = new FakeIdempotencyStore($clock)->session();
@@ -264,6 +283,8 @@ final class NodeActionWorld
                 SetNodeRoute::class => $this->binding('node.set_route', new SetNodeRouteAction($this->nodes, $this->sites)),
                 MoveNode::class => $this->binding('node.move', new MoveNodeAction($this->nodes, $this->clock)),
                 SetNodeLabel::class => $this->binding('node.set_label', new SetNodeLabelAction($this->nodes)),
+                AddSiteLocale::class => $this->binding('site.add_locale', new AddSiteLocaleAction($this->sites)),
+                RemoveSiteLocale::class => $this->binding('site.remove_locale', new RemoveSiteLocaleAction($this->sites, $this->use)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,
@@ -288,6 +309,7 @@ final class NodeActionWorld
             $this->editor,
             new IdempotencyKey('node-call-'.++$this->keys),
             new CorrelationId('node-correlation'),
+            dryRun: $dryRun,
         );
 
         return $pipeline->run(new CommandCall($command, $envelope, new AccessContext(

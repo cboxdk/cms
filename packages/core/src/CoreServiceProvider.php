@@ -266,11 +266,16 @@ use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteDirectory;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteHandleLock;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteLocaleUse;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteLocaleUseLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Structure\Adapter\SiteLocaleAddedWriter;
+use Cbox\Cms\Core\Structure\Adapter\SiteLocaleRemovedWriter;
 use Cbox\Cms\Core\Structure\Adapter\SiteRegisteredWriter;
 use Cbox\Cms\Core\Structure\Domain\NodeListing;
 use Cbox\Cms\Core\Structure\Domain\NodeReader;
 use Cbox\Cms\Core\Structure\Domain\SiteDirectory;
+use Cbox\Cms\Core\Structure\Domain\SiteLocaleUse;
 use Cbox\Cms\Core\Subscriptions\Adapter\PostgresSubscriptionLog;
 use Cbox\Cms\Core\Subscriptions\Adapter\RegistryLaneSubscribers;
 use Cbox\Cms\Core\Subscriptions\Adapter\SystemPacing;
@@ -603,6 +608,12 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(SiteDirectory::class, PostgresSiteDirectory::class);
         $this->app->tag([PostgresSiteHandleLock::class], VersionLocks::TAG);
         $this->app->tag([SiteRegisteredWriter::class], MutationWriters::TAG);
+        // site.add_locale and site.remove_locale (PRD 5.9, 11.14): the count of a site's placements
+        // in a locale past the actor's regions, the lock of a site's use of a locale, and the
+        // writers, which add a locale with its root route and retire one.
+        $this->app->bind(SiteLocaleUse::class, PostgresSiteLocaleUse::class);
+        $this->app->tag([PostgresSiteLocaleUseLock::class], VersionLocks::TAG);
+        $this->app->tag([SiteLocaleAddedWriter::class, SiteLocaleRemovedWriter::class], MutationWriters::TAG);
 
         // node.create, node.archive and node.set_route (PRD 5.8, 5.9, 6.4): the reads of a node,
         // of a route's holder and of the placements below a node, each past the actor's regions,

@@ -80,9 +80,11 @@ use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
+use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
@@ -94,10 +96,16 @@ use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteDirectory;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteLocaleUse;
+use Cbox\Cms\Core\Structure\Adapter\PostgresSiteLocaleUseLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
+use Cbox\Cms\Core\Structure\Adapter\SiteLocaleAddedWriter;
+use Cbox\Cms\Core\Structure\Adapter\SiteLocaleRemovedWriter;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\NodeLabel;
@@ -128,13 +136,13 @@ use Illuminate\Database\ConnectionResolverInterface;
 use LogicException;
 
 /**
- * The real command pipeline on Postgres for node.create, node.archive, node.set_route, node.move
- * and node.set_label, with entry.create, variant.release, placement.create and
- * placement.set_window to put live content below a node (PRD 5.8, 5.9, 6.2, 6.4), on the default
- * connection or the one named: the command
- * transaction, the Postgres stores, the actor directory, the entry, placement and node readers, the
- * site directory, and the PostgresChangesetCommitter with the locks and writers of entries,
- * placements and nodes. Fakes, so a test decides what they answer: the authorizer, which allows,
+ * The real command pipeline on Postgres for node.create, node.archive, node.set_route, node.move,
+ * node.set_label, site.add_locale and site.remove_locale, with entry.create, variant.release,
+ * placement.create and placement.set_window to put live content below a node (PRD 5.8, 5.9, 6.2,
+ * 6.4, 11.14), on the default connection or the one named: the command transaction, the Postgres
+ * stores, the actor directory, the entry, placement and node readers, the site directory and the
+ * site's locale use, and the PostgresChangesetCommitter with the locks and writers of entries,
+ * placements, nodes and sites. Fakes, so a test decides what they answer: the authorizer, which allows,
  * the content hasher and the hooks.
  *
  * seed() writes the structure through the testkit's structure fixtures: the site NORTH, publishing
@@ -279,6 +287,16 @@ final class NodeWorld
         return $this->run(new SetNodeLabel($node, new AggregateVersion($version), new Locale($locale), new NodeLabel($label)), $key);
     }
 
+    public function addLocale(StructureSite $site, string $locale, string $key, int $version = 1): WriteResult
+    {
+        return $this->run(new AddSiteLocale($site->id, new AggregateVersion($version), new Locale($locale)), $key);
+    }
+
+    public function removeLocale(StructureSite $site, string $locale, string $key, int $version = 1): WriteResult
+    {
+        return $this->run(new RemoveSiteLocale($site->id, new AggregateVersion($version), new Locale($locale)), $key);
+    }
+
     public function run(Command $command, string $key, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
     {
         $envelope = Envelope::external(
@@ -313,13 +331,15 @@ final class NodeWorld
             new FakeWriteActions([
                 CreateEntry::class => $this->binding('entry.create', new CreateEntryAction(new PostgresEntryReader($connections, $this->connection))),
                 ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction(new PostgresEntryReader($connections, $this->connection), new VariantReleasePlanner)),
-                CreatePlacement::class => $this->binding('placement.create', new CreatePlacementAction($placements, $this->clock)),
+                CreatePlacement::class => $this->binding('placement.create', $this->interleaved(new CreatePlacementAction($placements, $this->clock))),
                 SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $types, $this->clock)),
                 CreateNode::class => $this->binding('node.create', $this->interleaved(new CreateNodeAction($nodes))),
                 ArchiveNode::class => $this->binding('node.archive', $this->interleaved(new ArchiveNodeAction($nodes, $this->clock))),
                 SetNodeRoute::class => $this->binding('node.set_route', $this->interleaved(new SetNodeRouteAction($nodes, $sites))),
                 MoveNode::class => $this->binding('node.move', $this->interleaved(new MoveNodeAction($nodes, $this->clock))),
                 SetNodeLabel::class => $this->binding('node.set_label', $this->interleaved(new SetNodeLabelAction($nodes))),
+                AddSiteLocale::class => $this->binding('site.add_locale', $this->interleaved(new AddSiteLocaleAction($sites))),
+                RemoveSiteLocale::class => $this->binding('site.remove_locale', $this->interleaved(new RemoveSiteLocaleAction($sites, new PostgresSiteLocaleUse($connections, $this->connection)))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             new FakeCommandAuthorizer,
@@ -342,6 +362,7 @@ final class NodeWorld
                     new PostgresCanonicalPlacementLock($connections, $this->connection),
                     new PostgresEntryReleaseLock($connections, $this->connection),
                     new PostgresNodeRouteLock($connections, $this->connection),
+                    new PostgresSiteLocaleUseLock($connections, $this->connection),
                 ),
                 new MutationWriters(
                     new EntryCreatedWriter($connections, $this->connection),
@@ -357,6 +378,8 @@ final class NodeWorld
                     new NodeRouteSetWriter($connections, $this->connection),
                     new NodeMovedWriter($connections, $this->connection),
                     new NodeLabelSetWriter($connections, $this->connection),
+                    new SiteLocaleAddedWriter($connections, $this->connection),
+                    new SiteLocaleRemovedWriter($connections, $this->connection),
                 ),
                 app(AffectedProjections::class),
                 new PostgresReceiptStore($connections, $this->clock, $this->connection),

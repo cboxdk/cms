@@ -45,6 +45,7 @@ use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ActivateActorCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\AddSiteLocaleCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\AssignGrantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreateEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\CreatePlacementCodecV1;
@@ -55,6 +56,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\PublishEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterActorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RegisterSiteCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReleaseVariantCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\RemoveSiteLocaleCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReviseEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RevokeGrantCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\SetPlacementWindowCodecV1;
@@ -74,7 +76,9 @@ use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Generators\Protocol\Domain\ProtocolSchemas;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
@@ -402,6 +406,8 @@ it('decodes every command it encodes into an equal command', function (JsonCodec
     'site.register in one locale' => [new RegisterSiteCodecV1, new RegisterSite(SiteId::fromString(COMMAND_SITE), new SiteHandle('north'), NodeId::fromString(COMMAND_NODE), [new Locale('da')])],
     'access.bootstrap' => [new GrantBootstrapRoleCodecV1, new GrantBootstrapRole(GrantId::fromString(COMMAND_PLACEMENT), ActorId::fromString(COMMAND_ACTOR), NodeId::fromString(COMMAND_NODE), RoleId::fromString(COMMAND_TYPE), new RoleHandle('administrator'), ClassificationAccess::Sensitive, [new CommandName('entry.create'), new CommandName('grant.assign')])],
     'site.register in three locales' => [new RegisterSiteCodecV1, new RegisterSite(SiteId::fromString(COMMAND_SITE), new SiteHandle('north_2'), NodeId::fromString(COMMAND_NODE), [new Locale('en-GB'), new Locale('da'), new Locale('sr-Latn-RS')])],
+    'site.add_locale' => [new AddSiteLocaleCodecV1, new AddSiteLocale(SiteId::fromString(COMMAND_SITE), new AggregateVersion(2), new Locale('en-GB'))],
+    'site.remove_locale' => [new RemoveSiteLocaleCodecV1, new RemoveSiteLocale(SiteId::fromString(COMMAND_SITE), new AggregateVersion(3), new Locale('da'))],
 ]);
 
 it('reads the fields of entry.create as JSON gives them, and writes them back in the same form', function (): void {
@@ -666,6 +672,26 @@ it('refuses every rule of site.register that its JSON Schema states, as the Type
         'a locale that is a number' => [commandJson($register, ['locales' => [7]]), 'locales[0]'],
     ]);
 });
+
+it('refuses every rule of site.add_locale and site.remove_locale that their JSON Schemas state, as the TypeScript validator and the schema do', function (string $schema, JsonCodec $codec): void {
+    $document = ['site' => COMMAND_SITE, 'version' => 2, 'locale' => 'da'];
+
+    commandCrossCheck($codec, $schema, [
+        'a locale of a site' => [commandJson($document), null],
+        'a locale with a region' => [commandJson($document, ['locale' => 'en-GB']), null],
+        'an unknown key' => [commandJson($document, ['root' => COMMAND_NODE]), ''],
+        ...idFixtures($document, 'site'),
+        ...versionFixtures($document, 'version'),
+        'the locale missing' => [commandJson($document, omit: ['locale']), 'locale'],
+        'a locale of one letter' => [commandJson($document, ['locale' => 'd']), 'locale'],
+        'a locale with a space' => [commandJson($document, ['locale' => 'da DK']), 'locale'],
+        'a locale that is a number' => [commandJson($document, ['locale' => 7]), 'locale'],
+        'a locale of null' => [commandJson($document, ['locale' => null]), 'locale'],
+    ]);
+})->with([
+    'site.add_locale' => ['site.add_locale.v1.json', new AddSiteLocaleCodecV1],
+    'site.remove_locale' => ['site.remove_locale.v1.json', new RemoveSiteLocaleCodecV1],
+]);
 
 it('refuses every rule of access.bootstrap that its JSON Schema states, as the TypeScript validator and the schema do', function (): void {
     $bootstrap = ['grant' => COMMAND_PLACEMENT, 'actor' => COMMAND_ACTOR, 'node' => COMMAND_NODE, 'role' => COMMAND_TYPE, 'handle' => 'administrator', 'ceiling' => 'sensitive', 'permissions' => ['entry.create', 'grant.assign']];

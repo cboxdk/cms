@@ -36,7 +36,7 @@ function structureSignature(string $method): string
 }
 
 it('keeps the signatures its callers build their trees with', function (): void {
-    expect(structureSignature('__construct'))->toBe('__construct(Illuminate\Database\ConnectionResolverInterface $connections, Cbox\Cms\Contracts\Clock $clock, Cbox\Cms\Contracts\IdGenerator $ids, string $ownerConnection = "pgsql_owner"): mixed')
+    expect(structureSignature('__construct'))->toBe('__construct(Illuminate\Database\ConnectionResolverInterface $connections, Cbox\Cms\Contracts\Clock $clock, Cbox\Cms\Contracts\IdGenerator $ids): mixed')
         ->and(structureSignature('site'))->toBe('site(string $handle, array $locales): Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureSite')
         ->and(structureSignature('node'))->toBe('node(Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode $parent, string $kind = "section"): Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode')
         ->and(structureSignature('mount'))->toBe('mount(Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode $parent, Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode $source): Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureNode')

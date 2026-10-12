@@ -24,10 +24,12 @@ use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeLabel;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Tests\Registry\Fixtures\Valid\CreateNote;
@@ -123,15 +125,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 31',
+            'actions: 33',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 23',
+            'commands: 25',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 25',
+            'rest: 27',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -148,7 +150,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 33', 'addons: 1', 'commands: 24', 'hooks: 5', 'panel: 16', 'rest: 26'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 35', 'addons: 1', 'commands: 26', 'hooks: 5', 'panel: 16', 'rest: 28'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -260,8 +262,18 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [
+            'class' => AddSiteLocale::class,
+            'name' => 'site.add_locale',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
             'class' => RegisterSite::class,
             'name' => 'site.register',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => RemoveSiteLocale::class,
+            'name' => 'site.remove_locale',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

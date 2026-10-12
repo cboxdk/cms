@@ -24,14 +24,14 @@ use InvalidArgumentException;
  * placements, routing and access against real Postgres: sites with their locales, nodes below them,
  * mounts and node routes.
  *
- * It writes each table the way the kernel writes it. `sites` and `site_locales` are written by a
- * site's registration as the owner role, through the `<table>_owner_write` policies, so the
- * fixtures write them on the owner connection. `nodes` and `node_routes` are written by the node
- * commands as the app role under an actor context, through `nodes_actor` and `node_routes_write`,
- * so the fixtures write them on the app connection in a transaction of their own, with the context
- * of ACTOR and the one region the row needs set for that transaction, exactly as a command's
- * actor context is set (PRD 5.10). A fixture therefore writes no row the kernel's own policies
- * would refuse.
+ * It writes each table the way the kernel writes it: as the app role under an actor context, on the
+ * app connection in a transaction of their own, with the context of ACTOR and the one region the
+ * row needs set for that transaction, exactly as a command's actor context is set (PRD 5.10).
+ * `nodes` and `node_routes` go through `nodes_actor` and `node_routes_write`, as the node commands
+ * write them, and `sites` and `site_locales` through `sites_write` and `site_locales_write`, which
+ * take the rows of a site whose root node the actor's regions reach, as the site commands write
+ * them for an actor granted on the root. A fixture therefore writes no row the kernel's own
+ * policies would refuse.
  *
  * A node's path is the labels of its ancestors' ids and its own, each the id's 32 hex digits, as
  * the core's `nodes` table requires; a site's root is a node of kind `site` with the route `/` in
@@ -71,7 +71,6 @@ final readonly class PostgresStructureFixtures
         private ConnectionResolverInterface $connections,
         private Clock $clock,
         private IdGenerator $ids,
-        private string $ownerConnection = 'pgsql_owner',
     ) {}
 
     /**
@@ -91,8 +90,8 @@ final readonly class PostgresStructureFixtures
         $root = $this->write(null, 'site', null);
         $now = $this->now();
 
-        $this->owner()->transaction(function (ConnectionInterface $owner) use ($site, $handle, $root, $locales, $now): void {
-            $owner->table(self::SITES)->insert([
+        $this->asActor($root->path, static function (ConnectionInterface $db) use ($site, $handle, $root, $locales, $now): bool {
+            $db->table(self::SITES)->insert([
                 'id' => $site->toString(),
                 'handle' => $handle,
                 'root_node_id' => $root->id->toString(),
@@ -100,10 +99,11 @@ final readonly class PostgresStructureFixtures
                 'created_at' => $now,
             ]);
 
-            $owner->table(self::SITE_LOCALES)->insert(array_map(static fn (Locale $locale): array => [
+            return $db->table(self::SITE_LOCALES)->insert(array_map(static fn (Locale $locale): array => [
                 'site_id' => $site->toString(),
                 'locale' => $locale->value,
                 'created_at' => $now,
+                'retired_at' => null,
             ], $locales));
         });
 
@@ -191,10 +191,5 @@ final readonly class PostgresStructureFixtures
     private function now(): string
     {
         return $this->clock->now()->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d H:i:s.uP');
-    }
-
-    private function owner(): ConnectionInterface
-    {
-        return $this->connections->connection($this->ownerConnection);
     }
 }

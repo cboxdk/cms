@@ -258,7 +258,7 @@ enum ErrorCode: string
     case SignalReplayed = 'signal_replayed';
     case SignalSubjectMissing = 'signal_subject_missing';
     case SignalSubjectUnsupported = 'signal_subject_unsupported';
-    case SiteLocalesDrift = 'site_locales_drift';
+    case SiteLocaleInUse = 'site_locale_in_use';
     case StepUpRequired = 'step_up_required';
     case SubscriptionIdentityInvalid = 'subscription_identity_invalid';
     case SubscriptionNotParked = 'subscription_not_parked';
@@ -1155,10 +1155,10 @@ enum ErrorCode: string
                 ExitCode::DataErr,
                 'The security event was refused: it does not name its subject as an iss_sub of the connection\'s issuer (RFC 9493, PRD 5.16). The core finds an actor only by its IdP identity, the connection, the issuer and the subject, never by an email address or a phone number alone. Nothing was ended or changed. Configure the transmitter to send iss_sub subjects.',
             ),
-            self::SiteLocalesDrift => $this->caller(
+            self::SiteLocaleInUse => $this->caller(
                 HttpStatus::Conflict,
                 ExitCode::DataErr,
-                'The site is registered already, and the locales cbox-cms.sites configures for it are not the locales it publishes in (PRD 11.14). cms:sites:sync registers sites the database lacks and never rewrites one that exists, so nothing of this site was changed; the other configured sites were still synced. Revert the site\'s locales in the configuration to the ones the error lists, or wait for the locale commands of a later block, which add and remove a site\'s locales through the pipeline.',
+                'The site still has placements in the locale (PRD 5.9, 11.14): a placement locale that is not withdrawn, hidden, scheduled, live or expired, would be left pointing at a locale the site no longer publishes in, so nothing was committed. The error says how many there are. Withdraw them, or move the content to another locale, and run the command again.',
             ),
             self::StepUpRequired => $this->caller(
                 HttpStatus::Forbidden,

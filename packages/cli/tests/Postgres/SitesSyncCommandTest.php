@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Cli\Tests\Postgres;
 
+use Cbox\Cms\Cli\Boundary\SitesSyncOutput;
 use Cbox\Cms\Cli\Tests\Console\WorkbenchRegistry;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\IdGenerator;
@@ -24,8 +25,10 @@ use RuntimeException;
  * registered through site.register as the installation operator, one changeset with its audit row
  * and its site.registered event per site, each with a root node of kind site, its locales and the
  * route / in each. A second run writes nothing, and path.resolve finds each site by a host of its
- * origin. A site whose configured locales differ from the registered is site_locales_drift, exit
- * 65: nothing of it is rewritten, and a second configured site is still synced.
+ * origin. A site whose configured locales differ from the registered is reconciled through
+ * site.add_locale and site.remove_locale as the operator, one changeset per locale, while a second
+ * configured site is still registered; a third run then writes nothing again; and --dry-run prints
+ * the diff and writes nothing.
  */
 
 const SITES_NOW = '2026-03-10T12:00:00Z';
@@ -184,7 +187,7 @@ it('registers the configured sites with their root nodes and locales, writes not
         ->and(explainedSite('https://south.example/', 'da'))->toMatchArray(['handle' => 'south', 'host' => 'south.example', 'locale' => 'da', 'locale_published' => true, 'site' => $south['id']]);
 });
 
-it('reports a site whose configured locales drifted as site_locales_drift, exit 65, leaves it unchanged and still syncs the other site', function (): void {
+it('adds a newly configured locale, retires a removed one, writes nothing on the next run, and prints the diff of a dry run without writing', function (): void {
     syncedInstallation(['north' => ['origin' => 'https://north.example', 'locales' => ['da', 'en']]]);
     [$first, $firstOutput] = artisanRun('cms:sites:sync');
     $north = registeredSite('north');
@@ -194,25 +197,51 @@ it('reports a site whose configured locales drifted as site_locales_drift, exit 
         'north' => ['origin' => 'https://north.example', 'locales' => ['da', 'de']],
         'south' => ['origin' => 'https://south.example', 'locales' => ['da']],
     ]);
+    [$dryStatus, $dryOutput] = artisanRun('cms:sites:sync', ['--dry-run' => true]);
+    $afterDry = siteRows();
+
     [$status, $output] = artisanRun('cms:sites:sync');
+    $reconciled = registeredSite('north');
     $south = registeredSite('south');
+    $after = siteRows();
+    $superuser = StorageTables::superuser();
+    $changesets = $superuser->table('changesets')->whereIn('command', ['site.add_locale', 'site.remove_locale'])->orderBy('changeset_id')->pluck('command')->all();
+    $events = $superuser->table('events')->where('type', 'like', 'site.locale_%')->orderBy('event_id')->get(['type', 'aggregate_version'])->map(static fn (object $row): string => implode(' ', array_map(static fn (mixed $value): string => is_string($value) || is_int($value) ? (string) $value : '', (array) $row)))->all();
+    $retired = $superuser->table('site_locales')->where('site_id', $north['id'])->whereNotNull('retired_at')->pluck('locale')->all();
+
+    [$again, $againOutput] = artisanRun('cms:sites:sync');
 
     expect($first)->toBe(0, $firstOutput)
-        ->and($status)->toBe(65, $output)
-        ->and($output)->toContain(sprintf('drifted north: site %s publishes in da, en, the configuration says da, de; left unchanged', $north['id']))
-        ->and($output)->toContain('[site_locales_drift] north: The site north is registered with the locales da, en, and cbox-cms.sites configures da, de. Nothing of the site was changed.')
+        ->and($dryStatus)->toBe(0, $dryOutput)
+        ->and($dryOutput)->toContain(SitesSyncOutput::DRY_RUN)
+        ->and($dryOutput)->toContain(sprintf('would reconcile north: site %s, root node %s, add de, remove en', $north['id'], $north['root']))
+        ->and($dryOutput)->toContain('would register south: locales da')
+        ->and($afterDry)->toBe($before)
+        ->and($status)->toBe(0, $output)
+        ->and($output)->toContain(sprintf('reconciled north: site %s, root node %s, added de (changeset ', $north['id'], $north['root']))
+        ->and($output)->toContain('), removed en (changeset ')
+        ->and($output)->toContain('), locales da, de')
         ->and($output)->toContain(sprintf('registered south: site %s, root node %s, locales da, changeset ', $south['id'], $south['root']))
-        ->and(registeredSite('north'))->toBe($north)
-        ->and($south['locales'])->toBe(['da'])
-        ->and(siteRows())->toBe(array_merge($before, [
+        ->and($reconciled['locales'])->toBe(['da', 'de', 'en'])
+        ->and($retired)->toBe(['en'])
+        ->and($reconciled['version'])->toBe(3)
+        ->and($reconciled['routes'])->toBe(["da / {$north['root']}", "de / {$north['root']}", "en / {$north['root']}"])
+        ->and($changesets)->toBe(['site.add_locale', 'site.remove_locale'])
+        ->and($events)->toBe(['site.locale_added 2', 'site.locale_removed 3'])
+        ->and($after)->toBe(array_merge($before, [
             'nodes' => $before['nodes'] + 1,
             'sites' => $before['sites'] + 1,
-            'site_locales' => $before['site_locales'] + 1,
-            'node_routes' => $before['node_routes'] + 1,
-            'changesets' => $before['changesets'] + 1,
-            'audit' => $before['audit'] + 1,
-            'events' => $before['events'] + 1,
-        ]));
+            'site_locales' => $before['site_locales'] + 2,
+            'node_routes' => $before['node_routes'] + 2,
+            'changesets' => $before['changesets'] + 3,
+            'audit' => $before['audit'] + 3,
+            'events' => $before['events'] + 3,
+        ]))
+        ->and($again)->toBe(0, $againOutput)
+        ->and($againOutput)->toContain(sprintf('unchanged north: site %s, root node %s, locales da, de', $north['id'], $north['root']))
+        ->and(siteRows())->toBe($after)
+        ->and(explainedSite('https://north.example/', 'de'))->toMatchArray(['handle' => 'north', 'locale' => 'de', 'locale_published' => true])
+        ->and(explainedSite('https://north.example/', 'en'))->toMatchArray(['handle' => 'north', 'locale' => 'en', 'locale_published' => false]);
 });
 
 it('rejects every site with installation_operator_missing before cms:install, and writes nothing', function (): void {

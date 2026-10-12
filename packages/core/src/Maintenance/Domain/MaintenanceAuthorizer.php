@@ -38,11 +38,11 @@ final readonly class MaintenanceAuthorizer implements CommandAuthorizer
 {
     /**
      * The commands the operator may run to set up an installation: the actor commands and the
-     * command of the first site.
+     * site commands cms:sites:sync applies the configuration with.
      *
      * @var list<string>
      */
-    public const array COMMANDS = ['actor.activate', 'actor.register', 'site.register'];
+    public const array COMMANDS = ['actor.activate', 'actor.register', 'site.add_locale', 'site.register', 'site.remove_locale'];
 
     /**
      * The commands the operator may run in the one-time access bootstrap alone (PRD 5.10):

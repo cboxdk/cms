@@ -37,17 +37,19 @@ use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAdded;
+use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved;
 use DateTimeImmutable;
 use Override;
 
 /**
  * The invalidation subscriber (PRD 7.6, 8.4, 8.12, 9.4), on the critical lane: for each content
  * event (an entry created, a variant revised, released or unreleased, a placement created or its
- * window set, which covers publishing and unpublishing, a node moved or given a label) it purges
- * the fragments of the content keys the event affects, then purges the same keys at the edge
- * through the CDN driver, then acknowledges the projection "origin" on the receipt of the event's
- * changeset, so a caller waiting at the wait level origin learns that the server fragments are
- * invalidated.
+ * window set, which covers publishing and unpublishing, a node moved or given a label, a site's
+ * locale added or removed) it purges the fragments of the content keys the event affects, then
+ * purges the same keys at the edge through the CDN driver, then acknowledges the projection
+ * "origin" on the receipt of the event's changeset, so a caller waiting at the wait level origin
+ * learns that the server fragments are invalidated.
  *
  * - The fragment purge goes through the store's purge fence at the event's commit position (PRD
  *   8.12 point 1): until the fence ends, the store refuses a fragment of the key that was built by
@@ -58,9 +60,11 @@ use Override;
  *   placement is created or opened there. A node event's key is the node's; a move is about the
  *   whole subtree, whose nodes the subscriber reads BATCH at a time (SubtreeNodes) and purges
  *   batch by batch, so a move of thousands of nodes holds no list of them in memory and sends the
- *   edge one purge per batch, which the driver splits further by its own limit.
+ *   edge one purge per batch, which the driver splits further by its own limit. For a site's
+ *   locale event they are the site's root node's, so what was resolved below the root in the
+ *   locale is purged.
  * - The edge purge is soft for a change, which may be served stale while it is rebuilt (PRD 8.12
- *   point 3), and hard for a removal, an unrelease or a placement no longer live, which may never
+ *   point 3), and hard for a removal, an unrelease, a placement no longer live or a locale removed, which may never
  *   be served again (point 4, EdgePurge); a driver without soft purges applies every purge hard.
  *   The fragments are purged first, so an edge that refetches gets a fresh origin.
  * - The acknowledgement runs in the runner's batch transaction, so it commits with the
@@ -71,7 +75,7 @@ use Override;
  * Each step is idempotent and a fence never moves down, so an event handled twice, or an older
  * version handled after a newer one, changes nothing more.
  */
-#[Subscription(self::NAME, events: [EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeMoved::class, NodeLabelChanged::class], lane: Lane::Critical, projection: self::PROJECTION)]
+#[Subscription(self::NAME, events: [EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeMoved::class, NodeLabelChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class], lane: Lane::Critical, projection: self::PROJECTION)]
 #[Internal]
 final readonly class InvalidateFragments implements Subscriber
 {
@@ -93,8 +97,8 @@ final readonly class InvalidateFragments implements Subscriber
     ) {}
 
     /**
-     * @throws InvalidEvent when the event carries neither an entry id nor a node id, or a window's
-     *                      event no state after
+     * @throws InvalidEvent when the event carries neither an entry id, a node id nor a site root, or
+     *                      a window's event no state after
      * @throws CdnUnavailable when the CDN does not take the purge
      */
     #[Override]

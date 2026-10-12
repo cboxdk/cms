@@ -48,7 +48,8 @@ use PHPUnit\Framework\AssertionFailedError;
  * is purged through the CDN driver, and origin is acknowledged on the receipt. The CDN driver is
  * the testkit's fake, bound as an application binds its driver. A node moved with its subtree and
  * a node given a label are invalidated the same way, by the n- key of the node and, for a move,
- * of every node below it.
+ * of every node below it; a site.remove_locale purges the site root's node key the same way, hard
+ * at the edge.
  */
 
 const INVALIDATION_NODE = '0192a0c0-0000-7000-8000-0000000009a1';
@@ -201,6 +202,33 @@ it('lists origin pending on a revise\'s receipt and acknowledges it once the run
         ->and($fragments->write(invalidationFragment('page:measurement', $stale, $world)))->toBeInstanceOf(FragmentFenced::class)
         ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::entry(EntryWorld::entry())) : null)->toBe(PurgeMode::Soft)
         ->and(app(SubscriptionLog::class)->cursor(new SubscriptionName(InvalidateFragments::NAME), EventStream::Interactive)->xid)->toBe((int) $revise->receipt->position?->value);
+});
+
+it('purges the site root\'s node key when a locale of the site is removed, hard at the edge, and acknowledges origin', function (): void {
+    $world = invalidationWorld();
+    $structure = NodeWorld::seed();
+    $nodes = new NodeWorld([$structure->north->root], seed: 5);
+    $root = DependencyKey::node($structure->north->root->id);
+    $fragments = app(FragmentStore::class);
+    $stale = invalidationReadPosition();
+    $fragment = new Fragment(new FragmentKey('path:north:en:/'), '<nav>en</nav>', [$root], $stale, $world->clock->now()->add(new DateInterval('PT1H')));
+    expect($fragments->write($fragment))->toBeInstanceOf(FragmentStored::class);
+
+    $removed = $nodes->removeLocale($structure->north, 'en', 'remove-en-origin');
+    $changeset = invalidationChangeset($removed);
+
+    expect($removed->receipt->projections)->toEqual([ProjectionStatus::pending(new ProjectionName('origin'))])
+        ->and($fragments->read(new FragmentKey('path:north:en:/')))->not->toBeNull();
+
+    $world->clock->advance(new DateInterval('PT2S'));
+    invalidationRunUntilOrigin($changeset);
+    $cdn = app(CdnDriver::class);
+
+    expect(invalidationOrigin($changeset)?->state)->toBe(ProjectionState::Acknowledged)
+        ->and($fragments->read(new FragmentKey('path:north:en:/')))->toBeNull()
+        ->and($fragments->fragmentsOf($root))->toBe([])
+        ->and($fragments->write($fragment))->toBeInstanceOf(FragmentFenced::class)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith($root) : null)->toBe(PurgeMode::Hard);
 });
 
 it('lets a fragment built after the revise committed into the store', function (): void {

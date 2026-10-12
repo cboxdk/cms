@@ -66,10 +66,12 @@ The operator holds no grant, so the kernel's own authorizer refuses it every com
 | `actor.register` | block B1, task 4; run by `cms:staff:create` | a staff or service actor, pending |
 | `actor.activate` | block B1, task 4; run by `cms:staff:create` | a pending actor, active |
 | `site.register` | block B1, task 6 | a site with its root node and locales, from `cbox-cms.sites`, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
+| `site.add_locale` | block B2, task 65 | a locale `cbox-cms.sites` names and the site lacks, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
+| `site.remove_locale` | block B2, task 65 | a locale the site publishes in and `cbox-cms.sites` no longer names, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
 
 `access.bootstrap` is not on the list, and neither are `role.create` and `grant.assign`. Only the access bootstrap runs `access.bootstrap`, through a pipeline of its own whose authorizer allows it and nothing else (`MaintenanceAuthorizer::BOOTSTRAP_COMMANDS`); see [the access bootstrap](#the-access-bootstrap).
 
-The list names all three, also the commands a later task of block B1 builds; a name the registry does not know never reaches the authorizer, because the pipeline finds no action for it. A task that builds one of them adds, in the same change:
+The list names all five; a name the registry does not know never reaches the authorizer, because the pipeline finds no action for it. A task that builds one of them adds, in the same change:
 
 1. its console command in the cli, which builds the command and its stable unit of work and calls `RunMaintenanceCommand`, in the maintenance process only;
 2. its case in `packages/core/tests/Actions/MaintenanceAuthorizerTest.php` and a Postgres test of the console command, with a rerun that replays;

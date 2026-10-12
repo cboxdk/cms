@@ -46,10 +46,10 @@ use PHPUnit\Framework\ExpectationFailedException;
  */
 final class SurfaceContractTest extends TestCase
 {
-    /** The commands of M1 point 3 and the node commands of B2 that the kernel exposes on every surface. */
+    /** The commands of M1 point 3 and the node and site locale commands of B2 that the kernel exposes on every surface. */
     private const array EXPOSED = [
         'entry.create', 'entry.publish', 'entry.revise', 'entry.unpublish', 'node.archive', 'node.create', 'node.move', 'node.set_label',
-        'node.set_route', 'placement.create', 'placement.set_window', 'variant.release',
+        'node.set_route', 'placement.create', 'placement.set_window', 'site.add_locale', 'site.remove_locale', 'variant.release',
     ];
 
     /**

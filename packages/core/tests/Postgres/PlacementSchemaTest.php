@@ -56,28 +56,40 @@ function placementSchemaAs(?AccessContext $context, callable $call): mixed
     }
 }
 
-function placementSchemaActor(): AccessContext
+/**
+ * A staff member whose one region is the node, the site's root by default; a region below the root
+ * reaches the site's content but not its root.
+ */
+function placementSchemaActor(string $region = StorageTables::ROOT): AccessContext
 {
     $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
-    $actor = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(clock: $clock))->addActor(ActorClass::Staff)->id;
+    $actor = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(seed: crc32($region), clock: $clock))->addActor(ActorClass::Staff)->id;
+    $path = $region === StorageTables::ROOT ? StorageTables::label(StorageTables::ROOT) : StorageTables::label(StorageTables::ROOT).'.'.StorageTables::label($region);
 
     return new AccessContext(
         new ActorPrincipal($actor, [], IssuerKind::Service, ClassificationAccess::Sensitive),
-        [new AccessRegion(new NodePath(StorageTables::label(StorageTables::ROOT)))],
+        [new AccessRegion(new NodePath($path))],
         ClassificationAccess::Internal,
     );
 }
 
-it('lets every context read the sites and their locales, and no context write them', function (): void {
+it('lets every context read the sites and their locales, and only an actor that reaches the site\'s root write them', function (): void {
     $actor = placementSchemaActor();
+    $stranger = placementSchemaActor(StorageTables::SECTION);
     $read = static fn (): array => DB::connection()->table('site_locales')->pluck('locale')->all();
+    $bump = static fn (): int => DB::connection()->table('sites')->where('id', StorageTables::SITE)->update(['version' => 2]);
+    $insert = static fn (): bool => DB::connection()->table('site_locales')->insert(['site_id' => StorageTables::SITE, 'locale' => 'en', 'created_at' => StorageTables::CREATED_AT]);
+    $add = static fn (): string => StorageTables::sqlState($insert);
 
     expect(placementSchemaAs(null, $read))->toBe([])
         ->and(placementSchemaAs(AccessContext::anonymous(), $read))->toBe(['da'])
         ->and(placementSchemaAs($actor, $read))->toBe(['da'])
-        ->and(placementSchemaAs($actor, static fn (): int => DB::connection()->table('sites')->where('id', StorageTables::SITE)->update(['version' => 2])))->toBe(0)
-        ->and(StorageTables::superuser()->table('sites')->value('version'))->toBe(1)
-        ->and(placementSchemaAs($actor, static fn (): string => StorageTables::sqlState(static fn () => DB::connection()->table('site_locales')->insert(['site_id' => StorageTables::SITE, 'locale' => 'en', 'created_at' => StorageTables::CREATED_AT]))))->toBe('42501');
+        ->and(placementSchemaAs(AccessContext::anonymous(), $bump))->toBe(0)
+        ->and(placementSchemaAs($stranger, $bump))->toBe(0)
+        ->and(placementSchemaAs($stranger, $add))->toBe('42501')
+        ->and(placementSchemaAs($actor, $bump))->toBe(1)
+        ->and(placementSchemaAs($actor, $insert))->toBeTrue()
+        ->and(StorageTables::superuser()->table('sites')->value('version'))->toBe(1);
 });
 
 it('runs the owner functions only under an actor context, and sets the canonical flag only for a changeset of this transaction', function (): void {

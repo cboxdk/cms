@@ -120,6 +120,7 @@ it('forces row level security on the access tables, gives the app role SELECT on
     expect(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = any ('{audit,grants,role_permissions,roles}'::regclass[]) order by 1"))
         ->toBe(['audit true true', 'grants true true', 'role_permissions true true', 'roles true true'])
         ->and(StorageTables::texts($owner, "select tablename::text || ' ' || policyname::text || ' ' || cmd::text || ' ' || array_to_string(roles, ',') || ' ' || coalesce(qual, '-') || ' ' || coalesce(with_check, '-') as value from pg_policies where tablename = any ('{audit,grants,role_permissions,roles}'::text[]) order by 1"))->toBe([
+            'audit audit_owner_read SELECT '.$ownerRole.' true -',
             'audit audit_write INSERT public - (actor_id = cms_access_actor())',
             'grants grants_owner_write ALL '.$ownerRole.' true true',
             'grants grants_read SELECT public (actor_id = cms_access_actor()) -',

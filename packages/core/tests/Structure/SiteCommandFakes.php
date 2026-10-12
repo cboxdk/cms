@@ -4,11 +4,13 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Structure;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
 use Cbox\Cms\Contracts\Envelope\IssuingSurface;
 use Cbox\Cms\Contracts\Envelope\UnitOfWork;
+use Cbox\Cms\Contracts\Events\Event;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\ActorClass;
@@ -18,8 +20,12 @@ use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
+use Cbox\Cms\Contracts\Plans\Mutation;
+use Cbox\Cms\Contracts\Plans\Mutations\SiteLocaleAdded;
+use Cbox\Cms\Contracts\Plans\Mutations\SiteLocaleRemoved;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
@@ -32,9 +38,14 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
+use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\RegisterSiteAction;
+use Cbox\Cms\Core\Structure\Actions\RemoveSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\SyncSites;
+use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\RegisterSite;
+use Cbox\Cms\Core\Structure\Domain\Commands\RemoveSiteLocale;
+use Cbox\Cms\Core\Structure\Domain\Dto\StoredSite;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Maintenance\Fakes\FakeInstallationOperator;
@@ -48,7 +59,9 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
+use Cbox\Cms\Core\Tests\Structure\Fakes\FakeNodeReader;
 use Cbox\Cms\Core\Tests\Structure\Fakes\FakeSiteDirectory;
+use Cbox\Cms\Core\Tests\Structure\Fakes\FakeSiteLocaleUse;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\Idempotency\FakeIdempotencySession;
@@ -63,11 +76,13 @@ use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
 
 /**
- * site.register through the maintenance pipeline with the fakes of the ports and contracts it reads
- * (GUARDRAILS 9): the identity with an active service actor as the installation operator, the
- * MaintenanceAuthorizer, the sites a test adds to the FakeSiteDirectory, the committer a test
- * chooses, and the fake idempotency and receipt stores, kept across runs so a rerun of a unit of
- * work replays. Nothing touches a database.
+ * site.register, site.add_locale and site.remove_locale through the maintenance pipeline with the
+ * fakes of the ports and contracts they read (GUARDRAILS 9): the identity with an active service
+ * actor as the installation operator, the MaintenanceAuthorizer, the sites a test adds to the
+ * FakeSiteDirectory, their root nodes in the FakeNodeReader, the placements a test says a site has
+ * in a locale in the FakeSiteLocaleUse, the committer a test chooses, and the fake idempotency and
+ * receipt stores, kept across runs so a rerun of a unit of work replays. Nothing touches a
+ * database.
  */
 final class SiteCommandFakes
 {
@@ -76,6 +91,10 @@ final class SiteCommandFakes
     public readonly ActorId $operator;
 
     public readonly FakeSiteDirectory $sites;
+
+    public readonly FakeNodeReader $nodes;
+
+    public readonly FakeSiteLocaleUse $use;
 
     public readonly FakeClock $clock;
 
@@ -92,18 +111,48 @@ final class SiteCommandFakes
         $this->identity = new FakeIdentity;
         $this->operator = $this->identity->addActor(ActorClass::Service)->id;
         $this->sites = new FakeSiteDirectory;
+        $this->nodes = new FakeNodeReader;
+        $this->use = new FakeSiteLocaleUse;
         $this->clock = new FakeClock;
         $this->ids = new FakeIdGenerator(clock: $this->clock);
         $this->keys = new FakeIdempotencyStore($this->clock)->session();
         $this->receipts = new FakeReceiptStore($this->clock)->session();
-        $this->committer = new FakeChangesetCommitter(receipts: $this->receipts, ids: $this->ids);
+        $this->committer = new FakeChangesetCommitter(receipts: $this->receipts, ids: $this->ids, events: $this->applied(...));
     }
 
     /**
-     * Runs site.register as the operator on an envelope of the maintenance issuer for the unit of
+     * Keeps the FakeSiteDirectory as a commit leaves a site, as the Postgres directory reads it
+     * after one: a locale added or retired, at the version the commit gives the site. The fake
+     * commit gives no events.
+     *
+     * @return list<Event>
+     */
+    private function applied(Mutation $mutation, AggregateVersion $version): array
+    {
+        if (! $mutation instanceof SiteLocaleAdded && ! $mutation instanceof SiteLocaleRemoved) {
+            return [];
+        }
+
+        $this->sites->sites = array_map(function (StoredSite $site) use ($mutation, $version): StoredSite {
+            if (! $site->id->equals($mutation->site)) {
+                return $site;
+            }
+
+            $locales = $mutation instanceof SiteLocaleAdded
+                ? [...$site->locales, $mutation->locale]
+                : array_values(array_filter($site->locales, static fn (Locale $locale): bool => ! $locale->equals($mutation->locale)));
+
+            return new StoredSite($site->id, $site->handle, $site->root, $version, $locales);
+        }, $this->sites->sites);
+
+        return [];
+    }
+
+    /**
+     * Runs a site command as the operator on an envelope of the maintenance issuer for the unit of
      * work given.
      */
-    public function run(RegisterSite $command, string $unit = 'sites:test', bool $dryRun = false): WriteResult
+    public function run(RegisterSite|AddSiteLocale|RemoveSiteLocale $command, string $unit = 'sites:test', bool $dryRun = false): WriteResult
     {
         $envelope = Envelope::internal(IssuingSurface::Maintenance, EnvelopeIssuer::System, $this->operator, new UnitOfWork($unit), new CorrelationId('site-command'), dryRun: $dryRun);
 
@@ -143,15 +192,15 @@ final class SiteCommandFakes
     }
 
     /**
-     * The binding of site.register, version 1, as the registry gives it: it takes any write action.
+     * The binding of a site command, version 1, as the registry gives it: it takes any write action.
      */
-    private function binding(object $action): ActionBinding
+    private function binding(string $command, object $action): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName('site.register'), 1, $action);
+        return new ActionBinding(new CommandName($command), 1, $action);
     }
 
     private function pipeline(): CommandPipeline
@@ -159,7 +208,11 @@ final class SiteCommandFakes
         $types = new FakeTypeCatalog;
 
         return new CommandPipeline(
-            new FakeWriteActions([RegisterSite::class => $this->binding(new RegisterSiteAction($this->sites))]),
+            new FakeWriteActions([
+                RegisterSite::class => $this->binding('site.register', new RegisterSiteAction($this->sites)),
+                AddSiteLocale::class => $this->binding('site.add_locale', new AddSiteLocaleAction($this->sites)),
+                RemoveSiteLocale::class => $this->binding('site.remove_locale', new RemoveSiteLocaleAction($this->sites, $this->use)),
+            ]),
             $this->identity,
             new MaintenanceAuthorizer(new FakeInstallationOperator($this->operator)),
             $types,

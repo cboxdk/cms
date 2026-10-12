@@ -124,7 +124,7 @@ it('refuses a command that is not on its list, also by the operator on a mainten
 
     expect($result->outcome())->toBe(Outcome::Rejected)
         ->and(ActorCommandFakes::errors($result))->toBe(['unauthorized'])
-        ->and($result->errors[0]->message)->toBe('A maintenance command runs only actor.activate, actor.register, site.register, not actor.deactivate.')
+        ->and($result->errors[0]->message)->toBe('A maintenance command runs only actor.activate, actor.register, site.add_locale, site.register, site.remove_locale, not actor.deactivate.')
         ->and($world->committer->pending)->toBe([]);
 });
 
@@ -209,6 +209,6 @@ it('allows access.bootstrap only to the access bootstrap\'s authorizer, which al
     expect(array_map(static fn (string $command): bool => $decide($setup, $command), ['actor.register', 'access.bootstrap', 'role.create', 'grant.assign']))->toBe([true, false, false, false])
         ->and(array_map(static fn (string $command): bool => $decide($bootstrap, $command), ['actor.register', 'site.register', 'role.create', 'grant.assign', 'access.bootstrap']))->toBe([false, false, false, false, true])
         ->and($setup->authorize(maintenanceAccess($operator), new CommandName('access.bootstrap'), $grant, $aggregates, maintenanceEnvelope($operator))->reason)
-        ->toBe('A maintenance command runs only actor.activate, actor.register, site.register, not access.bootstrap.')
+        ->toBe('A maintenance command runs only actor.activate, actor.register, site.add_locale, site.register, site.remove_locale, not access.bootstrap.')
         ->and($bootstrap->authorize(maintenanceAccess($operator), new CommandName('access.bootstrap'), $grant, $aggregates, maintenanceEnvelope($world->admin))->allowed())->toBeFalse();
 });

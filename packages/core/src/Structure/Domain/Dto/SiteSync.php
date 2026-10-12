@@ -15,9 +15,11 @@ use Cbox\Cms\Core\Structure\Domain\SiteSyncOutcome;
 
 /**
  * The sync of one configured site (PRD 11.14): its handle, what happened, the site and its root
- * node when the site is registered (null for a rejection), the changeset that registered it now,
- * the locales configured and the locales registered (empty for a rejection), and the errors of a
- * drift or a rejection, each with its catalog code.
+ * node when the site is registered (null for a rejected registration), the changeset that
+ * registered it now, the locales configured and the locales the site publishes in after the sync
+ * (empty for a rejected registration), the errors of a rejected registration, each with its
+ * catalog code, and the locale changes of a registered site, each with its changeset or its
+ * errors.
  */
 #[Internal]
 final readonly class SiteSync
@@ -26,6 +28,7 @@ final readonly class SiteSync
      * @param  list<Locale>  $configured
      * @param  list<Locale>  $registered
      * @param  list<CatalogError>  $errors
+     * @param  list<LocaleChange>  $changes
      */
     public function __construct(
         public SiteHandle $handle,
@@ -36,5 +39,22 @@ final readonly class SiteSync
         public array $configured,
         public array $registered,
         public array $errors = [],
+        public array $changes = [],
     ) {}
+
+    /**
+     * The errors of the registration and of every locale change, in order.
+     *
+     * @return list<CatalogError>
+     */
+    public function allErrors(): array
+    {
+        $errors = $this->errors;
+
+        foreach ($this->changes as $change) {
+            $errors = [...$errors, ...$change->errors];
+        }
+
+        return $errors;
+    }
 }

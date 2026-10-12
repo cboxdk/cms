@@ -68,7 +68,7 @@ final readonly class PostgresPlacementReader implements PlacementReader
     public const string SITE = <<<'SQL'
         select s.version, s.root_node_id, (
             select coalesce(array_to_json(array_agg(l.locale order by l.locale)), '[]'::json)::text
-            from site_locales as l where l.site_id = s.id
+            from site_locales as l where l.site_id = s.id and l.retired_at is null
         ) as locales
         from sites as s
         where s.id = ?::uuid

@@ -62,7 +62,7 @@ final readonly class PostgresRouteReader implements RouteReader
 {
     public const string ROUTE = <<<'SQL'
         select s.id::text as site_id,
-               exists (select 1 from site_locales as l where l.site_id = s.id and l.locale = ?) as published,
+               exists (select 1 from site_locales as l where l.site_id = s.id and l.locale = ? and l.retired_at is null) as published,
                r.route, r.node_id::text as node_id, n.kind, n.mount_source_id::text as mount_source_id
         from sites as s
         left join lateral (
