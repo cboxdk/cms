@@ -43,6 +43,7 @@ use Cbox\Cms\Core\Seeding\Domain\Dto\SeededEntry;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedEntriesAggregates;
 use Cbox\Cms\Core\Seeding\Domain\SeedAuthorizer;
 use Cbox\Cms\Core\Seeding\Domain\SeedTypes;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use Override;
@@ -146,6 +147,15 @@ it('skips a type with a required field it cannot write, naming the field by its 
         ->and($secret->skipped)->toBe(['The type test:ghost requires secret, which the seeding actor cannot write: a field above its classification access internal, or stored encrypted.'])
         ->and($extension->skipped)->toBe(['The type test:ghost requires hidden, which the seeding actor cannot write: a field above its classification access internal, or stored encrypted.'])
         ->and($encrypted->skipped)->toBe(['The type test:ghost requires locked, which the seeding actor cannot write: a field above its classification access sensitive, or stored encrypted.']);
+});
+
+it('seeds a type with localization variants through its shared variant: the rules of its shared fields alone, so a required translatable field never blocks it (PRD 10.1)', function (): void {
+    $catalog = SeedTypes::of([LocalizedProbeType::definition()], new FakeTypeValidators(new LocalizedProbeType), ClassificationAccess::Internal);
+
+    expect($catalog->skipped)->toBe([])
+        ->and(array_map(static fn (SeedableType $type): string => $type->definition->name->value, $catalog->types))->toBe(['test:localized_probe'])
+        ->and(array_map(static fn (FieldRules $rules): string => $rules->handle->value, $catalog->types[0]->rules->fields))->toBe(['rank'])
+        ->and($catalog->types[0]->releasable)->toBeTrue();
 });
 
 it('releases the entries of a type with full history and a release stage only', function (): void {

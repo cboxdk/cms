@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Schema;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\FieldTypes\FieldBase;
@@ -27,8 +28,13 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
  *   `sortable` are what the blueprint declares; an extension field's `required` is enforced when an
  *   entry is published, never when it is written (PRD 11.12, point 1).
  * - A top-level field has its column in the type table. A group's nested fields, in `fields`, have
- *   none, because the group is one column; they take the group's namespace, classification and
- *   encryption, and are sorted by handle.
+ *   none, because the group is one column; they take the group's namespace, classification,
+ *   encryption, `translatable` and `fallback`, and are sorted by handle.
+ * - `translatable` says which variant of an entry holds the field in a type with
+ *   `localization: variants` (PRD 10.1): a language's variant when it is true, the shared variant
+ *   when it is false. A type with `localization: none` has only the shared variant, so none of its
+ *   fields is translatable. `fallback` is how a translatable field falls back when the reader's
+ *   language has no value for it (PRD 10.3): with its variant, or on its own.
  */
 #[Experimental]
 final readonly class FieldDefinition
@@ -41,6 +47,8 @@ final readonly class FieldDefinition
     /**
      * @param  list<FieldDefinition>  $fields  the nested fields of a group, each once
      * @param  ?FieldBase  $base  the core field type an addon's field type takes the form of; null for a core field type
+     * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
+     * @param  FieldFallback  $fallback  how a translatable field falls back; Variant for every other field
      */
     public function __construct(
         public ?FieldNamespace $namespace,
@@ -55,6 +63,8 @@ final readonly class FieldDefinition
         public ?ColumnDefinition $column,
         array $fields = [],
         public ?FieldBase $base = null,
+        public bool $translatable = false,
+        public FieldFallback $fallback = FieldFallback::Variant,
     ) {
         if (preg_match(self::FIELD_TYPE, $fieldType) !== 1) {
             throw InvalidTypeDefinition::fieldType($fieldType);
@@ -68,6 +78,10 @@ final readonly class FieldDefinition
             throw InvalidTypeDefinition::agents($this->address(), $classification);
         }
 
+        if ($fallback !== FieldFallback::Variant && ! $translatable) {
+            throw InvalidTypeDefinition::fallback($this->address());
+        }
+
         $byHandle = [];
 
         foreach ($fields as $field) {
@@ -77,7 +91,9 @@ final readonly class FieldDefinition
 
             if ($field->namespace?->value !== $namespace?->value
                 || $field->classification !== $classification
-                || $field->encrypted !== $encrypted) {
+                || $field->encrypted !== $encrypted
+                || $field->translatable !== $translatable
+                || $field->fallback !== $fallback) {
                 throw InvalidTypeDefinition::nestedField($field->handle->value, $this->address());
             }
 
@@ -102,6 +118,19 @@ final readonly class FieldDefinition
     public function readableBy(ClassificationAccess $access, bool $agent): bool
     {
         return $access->allows($this->classification) && (! $agent || $this->agents);
+    }
+
+    /**
+     * Whether the variant holds the field (PRD 10.1): in a type with localization variants, a
+     * language's variant holds the translatable fields and the shared variant the others; in a type
+     * without localization the shared variant holds every field.
+     */
+    public function heldBy(VariantKey $variant, Localization $localization): bool
+    {
+        return match ($localization) {
+            Localization::None => $variant->isShared(),
+            Localization::Variants => $this->translatable !== $variant->isShared(),
+        };
     }
 
     /**

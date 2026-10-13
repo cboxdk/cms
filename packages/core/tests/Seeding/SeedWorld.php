@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\IdGenerator;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Seeding\Actions\SeedDataset;
@@ -96,6 +97,44 @@ final readonly class SeedWorld
         sort($tables, SORT_STRING);
 
         return $tables;
+    }
+
+    /**
+     * The table of every type of the catalog with localization variants, sorted: the seeder writes
+     * the shared variant alone, and such a table holds a row per language (PRD 10.1), so it stays
+     * empty until the languages are seeded (T90).
+     *
+     * @return list<string>
+     */
+    public static function localizedTypeTables(): array
+    {
+        $tables = [];
+
+        foreach (app(TypeCatalog::class)->all() as $type) {
+            if ($type->capabilities->localization === Localization::Variants) {
+                $tables[] = $type->name->table();
+            }
+        }
+
+        sort($tables, SORT_STRING);
+
+        return $tables;
+    }
+
+    /**
+     * How many seeded entries are of a type with localization variants.
+     */
+    public static function localizedEntries(): int
+    {
+        $ids = [];
+
+        foreach (app(TypeCatalog::class)->all() as $type) {
+            if ($type->capabilities->localization === Localization::Variants) {
+                $ids[] = $type->id->toString();
+            }
+        }
+
+        return $ids === [] ? 0 : StorageTables::superuser()->table('entries')->whereIn('type_id', $ids)->count();
     }
 
     /**

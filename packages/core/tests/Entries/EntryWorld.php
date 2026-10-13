@@ -228,9 +228,9 @@ final class EntryWorld
 
         return new CommandPipeline(
             new FakeWriteActions([
-                CreateEntry::class => $this->binding('entry.create', $this->interleaved(new CreateEntryAction($reader))),
-                ReviseEntry::class => $this->binding('entry.revise', $this->interleaved(new ReviseEntryAction($reader))),
-                ReleaseVariant::class => $this->binding('variant.release', $this->interleaved(new ReleaseVariantAction($reader, new VariantReleasePlanner))),
+                CreateEntry::class => $this->binding('entry.create', $this->interleaved(new CreateEntryAction($reader, $types))),
+                ReviseEntry::class => $this->binding('entry.revise', $this->interleaved(new ReviseEntryAction($reader, $types))),
+                ReleaseVariant::class => $this->binding('variant.release', $this->interleaved(new ReleaseVariantAction($reader, $types, new VariantReleasePlanner))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             new FakeCommandAuthorizer,

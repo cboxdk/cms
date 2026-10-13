@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Validation\Presence;
 
 /**
@@ -33,6 +34,11 @@ use Cbox\Cms\Contracts\Validation\Presence;
  *   as the generated TypeScript module of the record declares it, so a form validates with the
  *   same interpreter; it is null for a group, whose object or list rule the form builds from the
  *   nested fields and `repeat`.
+ * - `translatable` says which variant holds the field in a type with `localization: variants`
+ *   (PRD 10.1): a language's variant when it is true, the shared variant when it is false, so a
+ *   form shows the field once per language or once for every language; a nested field takes its
+ *   group's. `fallback` is how a translatable field falls back (PRD 10.3), and Variant for every
+ *   other field.
  */
 #[Experimental]
 final readonly class EditorField
@@ -45,6 +51,8 @@ final readonly class EditorField
 
     /**
      * @param  list<EditorChoice>  $choices  the options of a select, each value once
+     * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
+     * @param  FieldFallback  $fallback  how a translatable field falls back; Variant for every other field
      *
      * @throws InvalidTypeEditor when the field breaks its rules
      */
@@ -64,6 +72,8 @@ final readonly class EditorField
         public array $choices,
         public ?EditorRepeat $repeat,
         public ?JsonDocument $rule,
+        public bool $translatable = false,
+        public FieldFallback $fallback = FieldFallback::Variant,
     ) {
         $expected = ($parent === null ? ($namespace instanceof FieldNamespace ? 'ext.'.$namespace->value.'.' : '') : $parent.'.').$handle->value;
 
@@ -107,6 +117,10 @@ final readonly class EditorField
 
         if (($base === EditorBase::Group) === ($rule instanceof JsonDocument)) {
             throw InvalidTypeEditor::rule($path);
+        }
+
+        if ($fallback !== FieldFallback::Variant && ! $translatable) {
+            throw InvalidTypeEditor::fallback($path);
         }
     }
 

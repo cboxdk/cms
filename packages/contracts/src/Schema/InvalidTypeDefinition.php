@@ -70,7 +70,7 @@ final class InvalidTypeDefinition extends InvalidArgumentException
     public static function nestedField(string $address, string $group): self
     {
         return new self(sprintf(
-            'The field "%s" of the group "%s" differs from its group in namespace, classification or encryption, which a nested field takes from its group.',
+            'The field "%s" of the group "%s" differs from its group in namespace, classification, encryption, translatable or fallback, which a nested field takes from its group.',
             $address,
             $group,
         ));
@@ -103,6 +103,16 @@ final class InvalidTypeDefinition extends InvalidArgumentException
             $address,
             $classification->value,
         ));
+    }
+
+    public static function fallback(string $address): self
+    {
+        return new self(sprintf('The field "%s" has a field fallback and is not translatable; only a translatable field falls back on its own (PRD 10.3).', $address));
+    }
+
+    public static function translatable(string $address, string $type): self
+    {
+        return new self(sprintf('The field "%s" is translatable, and the type %s has localization none, whose one shared variant holds every field (PRD 10.1).', $address, $type));
     }
 
     public static function duplicateType(string $what): self

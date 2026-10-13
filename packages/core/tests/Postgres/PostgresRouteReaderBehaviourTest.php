@@ -18,6 +18,7 @@ use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Routing\Adapter\PostgresRouteReader;
 use Cbox\Cms\Core\Routing\Domain\RouteReader;
 use Cbox\Cms\Core\Tests\Routing\RouteReaderBehaviour;
+use Cbox\Cms\Core\Tests\TypeTables\PostgresTypeTables;
 use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
@@ -33,7 +34,8 @@ use Override;
 /**
  * RouteReaderBehaviour against PostgresRouteReader on real Postgres, as the app role inside a
  * transaction under the actor context of a staff member whose regions are ROOT and FAR. The rows
- * are written as the superuser, ENTRY's released row in the workbench's fixture measurement table.
+ * are written as the superuser, ENTRY's released row in the workbench's fixture measurement table
+ * and its released row of da in the scratch table of the localized type (PostgresTypeTables).
  */
 final class PostgresRouteReaderBehaviourTest extends TestCase
 {
@@ -110,6 +112,11 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
             ...TypeTableColumns::encode($this->releasedType(), self::released()),
             'cms_entry_id' => self::ENTRY, 'cms_locale' => 'shared', 'cms_stage' => 'released', 'cms_home_node' => self::SECTION,
         ]);
+        PostgresTypeTables::create($this->localizedType());
+        $superuser->table($this->localizedType()->name->table())->insert([
+            ...TypeTableColumns::encode($this->localizedType(), self::localized()),
+            'cms_entry_id' => self::ENTRY, 'cms_locale' => 'da', 'cms_stage' => 'released', 'cms_home_node' => self::SECTION,
+        ]);
 
         $clock = new FakeClock(new DateTimeImmutable('2026-03-10T12:00:00Z'));
         $actor = new PostgresIdentitySeeder(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(clock: $clock))->addActor(ActorClass::Staff)->id;
@@ -126,6 +133,7 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
     protected function tearDown(): void
     {
         DB::connection()->rollBack();
+        PostgresTypeTables::drop($this->localizedType());
         DB::purge(StorageTables::SUPERUSER);
 
         parent::tearDown();
@@ -135,6 +143,12 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
     protected function routeReader(): RouteReader
     {
         return new PostgresRouteReader(app(ConnectionResolverInterface::class));
+    }
+
+    #[Override]
+    protected function localizedType(): TypeDefinition
+    {
+        return self::localizedDefinition();
     }
 
     #[Override]

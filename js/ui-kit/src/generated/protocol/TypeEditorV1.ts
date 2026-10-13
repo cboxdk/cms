@@ -24,11 +24,14 @@ export type EditorBase =
   | 'select'
   | 'text';
 
+/** The values of FieldFallback. */
+export type FieldFallback = 'variant' | 'field';
+
 /** The values of History. */
 export type History = 'full' | 'audit-only' | 'none';
 
 /** The values of Localization. */
-export type Localization = 'none';
+export type Localization = 'none' | 'variants';
 
 /** The values of Presence. */
 export type Presence = 'required' | 'required_on_release' | 'optional';
@@ -88,7 +91,11 @@ export interface TypeEditorV1 {
 export interface TypeCapabilitiesV1 {
   /** How much of the type's history is kept: every revision, the audit trail only, or nothing. */
   history: History;
-  /** How the type is localized. */
+  /**
+   * How the type is localized (PRD 10.1): none, one shared variant with every field, or variants, a
+   * variant per language that holds the translatable fields and the shared variant that holds the
+   * others.
+   */
   localization: Localization;
   /** Whether the type's entries have routes. */
   routable: boolean;
@@ -127,6 +134,11 @@ export interface EditorFieldV1 {
   description: string | null;
   /** Whether the value is stored as ciphertext (PRD 12.2). */
   encrypted: boolean;
+  /**
+   * How a translatable field falls back when the reader's language has no value for it (PRD 10.3):
+   * with its whole variant, or on its own; variant for every field that is not translatable.
+   */
+  fallback: FieldFallback;
   /** The handle of the field, as the blueprint declares it. */
   handle: string;
   /** The label of the field, as its blueprint gives it. */
@@ -163,6 +175,12 @@ export interface EditorFieldV1 {
    * it and repeat.
    */
   rule: JsonObject | null;
+  /**
+   * Which variant holds the field in a type with localization variants (PRD 10.1): a language's
+   * variant when true, so a form shows the field once per language, and the shared variant when
+   * false; always false in a type without localization. A nested field takes its group's.
+   */
+  translatable: boolean;
   /**
    * The field type as the blueprint names it: a core field type such as text, or
    * <namespace>:<handle> for a field type an addon contributes (PRD 13.1).
@@ -269,6 +287,12 @@ const editorFieldV1Rule: ObjectRule = {
     },
     { key: 'repeat', presence: 'present', value: { kind: 'object', object: editorRepeatV1Rule } },
     { key: 'rule', presence: 'present', value: { kind: 'document' } },
+    { key: 'translatable', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'fallback',
+      presence: 'required',
+      value: { kind: 'enum', values: ['variant', 'field'] },
+    },
   ],
 };
 
@@ -295,7 +319,11 @@ const typeCapabilitiesV1Rule: ObjectRule = {
       presence: 'required',
       value: { kind: 'enum', values: ['none', 'draft-release'] },
     },
-    { key: 'localization', presence: 'required', value: { kind: 'enum', values: ['none'] } },
+    {
+      key: 'localization',
+      presence: 'required',
+      value: { kind: 'enum', values: ['none', 'variants'] },
+    },
     { key: 'routable', presence: 'required', value: { kind: 'boolean' } },
   ],
 };

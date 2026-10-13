@@ -4,6 +4,24 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Queries;
 
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Fields\DateValue;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldMap;
+use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Identity\AccessRegion;
+use Cbox\Cms\Contracts\Identity\ActorPrincipal;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\IssuerKind;
+use Cbox\Cms\Contracts\Identity\NodePath;
+use Cbox\Cms\Contracts\Ids\ActorId;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\TypeTables\EntryRecord;
+use Cbox\Cms\Contracts\TypeTables\InvalidTypeTableQuery;
+use Cbox\Cms\Contracts\TypeTables\RecordPage;
 use Cbox\Cms\Generators\Descriptor\Domain\DescriptorCompiler;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
@@ -17,7 +35,13 @@ use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\Descriptor\ComprehensiveExample;
+use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Localized\Generated\GeneratedTypeCatalog as LocalizedGeneratedTypeCatalog;
+use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Localized\Generated\QueryBuilders\BlogPost\BlogPostQuery;
+use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Localized\Generated\QueryBuilders\BlogPost\BlogPostSortField;
+use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Localized\Generated\Records\BlogPost\BlogPostFactory;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
+use Cbox\Cms\Testkit\TypeTables\FakeTypeTableReader;
+use Cbox\Cms\Testkit\TypeTables\TypeTableSeed;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Symfony\Component\Process\Process;
 use Symfony\Component\Yaml\Yaml;
@@ -129,6 +153,27 @@ it('generates the committed golden query builder of the comprehensive example', 
         'Generated/QueryBuilders/ShopProduct/ShopProductSortField.php',
     ])
         ->and($generated)->toBe($golden);
+});
+
+it('gives the builder of a type with localization variants a locale, reads that locale\'s rows, and refuses to page without one (PRD 10.1)', function (): void {
+    $catalog = new LocalizedGeneratedTypeCatalog;
+    $type = $catalog->all()[0];
+    $entry = EntryId::fromString('0192a0c0-0000-7000-8000-00000000c001');
+    $home = new NodePath('0192a0c0000070008000000000c0a1');
+    $row = static fn (string $locale, string $title): TypeTableSeed => new TypeTableSeed($entry, $home, new FieldValues(new FieldMap(
+        new NamedValue(new FieldHandle('title'), new TextValue($title)),
+        new NamedValue(new FieldHandle('published_on'), new DateValue('2026-03-10')),
+    )), null, new Locale($locale));
+    $reader = new FakeTypeTableReader($catalog)->with($type, $row('da', 'Havnen'), $row('en', 'The harbour'));
+    $access = new AccessContext(new ActorPrincipal(ActorId::fromString('0192a0c0-0000-7000-8000-00000000c0e1'), [], IssuerKind::Service, ClassificationAccess::Sensitive), [new AccessRegion($home)], ClassificationAccess::Internal);
+    $builder = new BlogPostQuery($reader, new BlogPostFactory);
+
+    $da = $builder->locale(new Locale('da'))->page($access);
+    $en = $builder->locale(new Locale('en'))->orderBy(BlogPostSortField::Title)->page($access);
+
+    expect(array_map(static fn (EntryRecord $record): string => $record->record->title, $da->records))->toBe(['Havnen'])
+        ->and(array_map(static fn (EntryRecord $record): string => $record->record->title, $en->records))->toBe(['The harbour'])
+        ->and(static fn (): RecordPage => $builder->page($access))->toThrow(InvalidTypeTableQuery::class, 'The type blog:post has localization variants, so a query of its table reads the rows of one language: give the builder a locale.');
 });
 
 it('lists the owner\'s filterable and sortable fields in the enums, and no extension field', function (): void {

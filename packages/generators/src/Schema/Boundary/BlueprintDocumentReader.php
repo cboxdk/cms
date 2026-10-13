@@ -13,6 +13,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
@@ -60,7 +61,7 @@ final readonly class BlueprintDocumentReader
 
     private const array CAPABILITY_KEYS = ['history', 'stages', 'localization', 'routable'];
 
-    private const array FIELD_KEYS = ['handle', 'label', 'description', 'type', 'required', 'classification', 'filterable', 'sortable', 'agents'];
+    private const array FIELD_KEYS = ['handle', 'label', 'description', 'type', 'required', 'classification', 'filterable', 'sortable', 'translatable', 'fallback', 'agents'];
 
     public function __construct(private FieldTypeRegistry $fieldTypes) {}
 
@@ -236,12 +237,14 @@ final readonly class BlueprintDocumentReader
         $required = $field->bool('required', FieldBlueprint::DEFAULT_REQUIRED);
         $filterable = $field->bool('filterable', FieldBlueprint::DEFAULT_FILTERABLE);
         $sortable = $field->bool('sortable', FieldBlueprint::DEFAULT_SORTABLE);
+        $translatable = $field->bool('translatable', FieldBlueprint::DEFAULT_TRANSLATABLE);
+        $fallback = $field->has('fallback') ? $field->enum(FieldFallback::class, 'fallback') : FieldBlueprint::DEFAULT_FALLBACK;
 
-        if (! $options instanceof FieldOptions || ! $handle instanceof Handle || $label === null || (! $group instanceof EnclosingGroup && ! $classification instanceof Classification)) {
+        if (! $options instanceof FieldOptions || ! $handle instanceof Handle || $label === null || ! $fallback instanceof FieldFallback || (! $group instanceof EnclosingGroup && ! $classification instanceof Classification)) {
             return null;
         }
 
-        return new FieldBlueprint($handle, $label, $description, $required, $classification, $filterable, $sortable, $agents, $options, $owner, $field->at());
+        return new FieldBlueprint($handle, $label, $description, $required, $classification, $filterable, $sortable, $agents, $options, $owner, $field->at(), $translatable, $fallback);
     }
 
     /**

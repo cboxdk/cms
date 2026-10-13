@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
+use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
@@ -112,6 +113,7 @@ final readonly class PhpTypeEditors implements Generator
                 EditorField::class,
                 EditorRepeat::class,
                 ExtensionVersion::class,
+                FieldFallback::class,
                 FieldHandle::class,
                 FieldNamespace::class,
                 History::class,
@@ -236,6 +238,8 @@ final readonly class PhpTypeEditors implements Generator
             ...($choices === [] ? [$indent.'    choices: [],'] : [$indent.'    choices: [', ...$choices, $indent.'    ],']),
             $indent.'    repeat: '.($field->repeat instanceof EditorRepeat ? sprintf('new EditorRepeat(%s, %s)', $field->repeat->minItems ?? 'null', $field->repeat->maxItems ?? 'null') : 'null').',',
             $indent.'    rule: '.($field->rule instanceof JsonDocument ? 'new JsonDocument('.PhpSource::literal($field->rule->value).')' : 'null').',',
+            ...($field->translatable ? [$indent.'    translatable: true,'] : []),
+            ...($field->fallback->value === FieldFallback::Variant->value ? [] : [$indent.'    fallback: FieldFallback::'.FieldFallback::from($field->fallback->value)->name.',']),
             $indent.'),',
         ];
     }

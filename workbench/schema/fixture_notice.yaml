@@ -1,0 +1,103 @@
+# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
+# The workbench's fourth fixture type (GUARDRAILS 2.4, PRD 10.1, 10.3, 11.6), owner app: the one
+# with localization variants, added as this schema file alone. Every language is a variant of the
+# entry with its own revisions and release; the fields declared translatable live in the language's
+# variant and the others in the shared variant, and the type table holds one row per language with
+# the shared fields in each. fixture_teaser falls back on its own, fixture_title with its whole
+# variant, and the translatable group fixture_links gives its nested fields the same. The entry
+# commands of version 1 refuse the type (SingleVariantContract); its rows are written by TypeRows,
+# the rebuild and the seeder, and read by the typed query builder with locale() and by path.resolve
+# in the requested locale. Every handle and select value starts with fixture_, as in
+# fixture_article.yaml. cms:generate reads it and writes the committed code in
+# workbench/app/Cms/Generated, workbench/resources/js/cms/generated and the migration in
+# workbench/database/migrations/cms; the first line is written by cms:schema:editor.
+blueprint: 1
+kind: type
+type_id: 01a0f5c8-1d2e-7b3c-8d4e-5f6a7b8c9d0e
+handle: fixture_notice
+label: Fixture notice
+description: A notice published in several languages, with a title, a teaser, a body and links per language, and a date, a priority and a channel shared by every language.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: variants
+  routable: true
+fields:
+  - handle: fixture_title
+    label: Title
+    description: The title of the notice in the language, as it is shown on the page and in lists.
+    type: text
+    required: true
+    classification: public
+    sortable: true
+    translatable: true
+    max_length: 120
+  - handle: fixture_teaser
+    label: Teaser
+    description: A short teaser of the notice in the language; shown in another language of the site's chain when the language has none.
+    type: long_text
+    classification: public
+    translatable: true
+    fallback: field
+    max_length: 500
+  - handle: fixture_body
+    label: Body
+    description: The body of the notice in the language.
+    type: rich_text
+    classification: public
+    translatable: true
+  - handle: fixture_links
+    label: Links
+    description: The links of the notice in the language, each with its text.
+    type: group
+    classification: public
+    translatable: true
+    fields:
+      - handle: fixture_link_text
+        label: Link text
+        description: The text of the link.
+        type: text
+        required: true
+        max_length: 80
+      - handle: fixture_link_url
+        label: Link URL
+        description: Where the link goes.
+        type: text
+        required: true
+        format: url
+    repeat:
+      max_items: 10
+  - handle: fixture_published_on
+    label: Published on
+    description: The day the notice was published, the same in every language.
+    type: date
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+  - handle: fixture_priority
+    label: Priority
+    description: How prominent the notice is, 1 to 5, the same in every language.
+    type: integer
+    classification: public
+    filterable: true
+    min: 1
+    max: 5
+  - handle: fixture_channel
+    label: Channel
+    description: Where the notice is published, the same in every language.
+    type: select
+    classification: public
+    filterable: true
+    options:
+      - value: fixture_web
+        label: Web
+      - value: fixture_print
+        label: Print
+  - handle: fixture_editor_note
+    label: Editor note
+    description: A note for the editors, never shown and the same in every language.
+    type: text
+    classification: internal
+    agents: false

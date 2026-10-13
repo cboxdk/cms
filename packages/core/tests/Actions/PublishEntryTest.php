@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Identity\GrantEffect;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
@@ -30,6 +31,7 @@ use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Core\Tests\Publishing\PublishingActionWorld as World;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -164,6 +166,17 @@ it('composes only the placement for a type with stages none, and refuses a revis
         ->and(publishVisible($dryRun))->toBe([World::HOME_PLACEMENT.' da 10 12:00'])
         ->and(publishErrors($withRevision))->toBe(['validation_failed revision'])
         ->and($withRevision->errors[0]->message)->toContain('stages none');
+});
+
+it('refuses a type with localization variants for good, naming entry.publish version 2 (PRD 10.1)', function (): void {
+    $world = new World(type: TypeId::fromString(LocalizedProbeType::ID))->place(World::HOME_PLACEMENT, World::HOME, ['da' => [Visibility::Hidden, null, true]]);
+
+    $result = $world->publish();
+
+    expect(publishErrors($result))->toBe(['validation_failed entry'])
+        ->and($result->errors[0]->message)->toContain('The type test:localized_probe has localization variants')
+        ->and($result->errors[0]->message)->toContain('entry.publish version 2')
+        ->and($world->committer->pending)->toBe([]);
 });
 
 it('refuses a publish without a revision for a type with stages', function (): void {

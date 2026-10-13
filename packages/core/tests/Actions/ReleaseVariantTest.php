@@ -41,6 +41,7 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\Hooks\CallbackValidate;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use ReflectionAttribute;
 use ReflectionClass;
 
@@ -244,6 +245,24 @@ it('rejects a release of a type with stages none, and of one whose history keeps
         ->and($auditOnly->errors[0]->message)->toContain('keeps no revision')
         ->and($unstaged->committer->pending)->toBe([])
         ->and($unrecorded->committer->pending)->toBe([]);
+});
+
+it('refuses a type with localization variants for good, naming variant.release version 2 (PRD 10.1)', function (): void {
+    $type = LocalizedProbeType::definition();
+    $world = new EntryActionWorld;
+    $world->types = [$type];
+    $world->validators = [new LocalizedProbeType];
+    $world->entries
+        ->withEntry(EntryActionWorld::entry(), $type->id, EntryActionWorld::home(), new AggregateVersion(1))
+        ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(3), new RevisionNumber(3), new RevisionNumber(3), null));
+
+    $result = $world->release(3, 3);
+
+    expect(releaseVariantCodes($result))->toBe(['validation_failed'])
+        ->and($result->errors[0]->path?->toString())->toBe('entry')
+        ->and($result->errors[0]->message)->toContain('The type test:localized_probe has localization variants')
+        ->and($result->errors[0]->message)->toContain('variant.release version 2')
+        ->and($world->committer->pending)->toBe([]);
 });
 
 it('is version_conflict when the variant is not at the version the caller saw, and for an entry that does not exist', function (): void {

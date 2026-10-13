@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
 
@@ -81,6 +82,14 @@ final readonly class TypeEditor
         ksort($byNamespace, SORT_STRING);
         $this->extensions = array_values($byNamespace);
         $this->fields = $this->checked($fields, $byNamespace);
+
+        if ($capabilities->localization === Localization::None) {
+            foreach ($this->fields as $field) {
+                if ($field->translatable) {
+                    throw InvalidTypeEditor::translatable($name->value, $field->path);
+                }
+            }
+        }
 
         if ($titleField !== null) {
             $title = $this->field($titleField);
@@ -168,7 +177,8 @@ final readonly class TypeEditor
                     throw InvalidTypeEditor::parent($this->name->value, $field->path, $field->parent);
                 }
 
-                if ($parent->namespace?->value !== $field->namespace?->value || $parent->classification !== $field->classification || $parent->encrypted !== $field->encrypted) {
+                if ($parent->namespace?->value !== $field->namespace?->value || $parent->classification !== $field->classification || $parent->encrypted !== $field->encrypted
+                    || $parent->translatable !== $field->translatable || $parent->fallback !== $field->fallback) {
                     throw InvalidTypeEditor::nested($this->name->value, $field->path);
                 }
             } elseif ($field->namespace instanceof FieldNamespace && ! isset($extensions[$field->namespace->value])) {

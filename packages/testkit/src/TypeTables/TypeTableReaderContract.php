@@ -193,11 +193,11 @@ trait TypeTableReaderContract
     }
 
     #[Test]
-    public function another_variant_than_the_rows_reads_no_row(): void
+    public function a_variant_the_type_does_not_hold_is_refused(): void
     {
         $query = new TypeTableQuery(new TypeName(self::SUITE_TYPE), VariantKey::of(new Locale('da')));
 
-        Assert::assertSame([], $this->suiteReader()->page($query, self::suiteAlice())->rows);
+        $this->assertSuiteRefused($query, 'The type suite:item has localization none, so its one variant is the shared one, and a query of its table reads no variant da.');
     }
 
     #[Test]

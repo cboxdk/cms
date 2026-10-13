@@ -29,6 +29,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\StaleRead;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\VersionConflict;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
 use Cbox\Cms\Core\Tests\Entries\NoteType;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
+use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use LogicException;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -117,6 +119,24 @@ it('rejects a value for an encrypted field', function (): void {
         ->and($world->committer->pending)->toBe([]);
 });
 
+it('refuses a type with localization variants for good, naming entry.revise version 2 (PRD 10.1)', function (): void {
+    $world = new EntryActionWorld;
+    $type = LocalizedProbeType::definition();
+    $world->types = [$type];
+    $world->validators = [new LocalizedProbeType];
+    $world->entries
+        ->withEntry(EntryActionWorld::entry(), $type->id, EntryActionWorld::home(), new AggregateVersion(1))
+        ->withHead(EntryActionWorld::entry(), VariantKey::shared(), new StoredHead(new AggregateVersion(1), RevisionNumber::first(), RevisionNumber::first(), null));
+
+    $result = $world->revise(1, EntryActionWorld::fields('Havnen'));
+
+    expect(reviseEntryCodes($result))->toBe(['validation_failed'])
+        ->and($result->errors[0]->path?->toString())->toBe('entry')
+        ->and($result->errors[0]->message)->toContain('The type test:localized_probe has localization variants')
+        ->and($result->errors[0]->message)->toContain('entry.revise version 2')
+        ->and($world->committer->pending)->toBe([]);
+});
+
 it('is version_conflict when the variant is not at the version the caller saw', function (): void {
     $world = reviseEntryWorld();
 
@@ -150,7 +170,7 @@ it('is version_conflict when another call moved the variant before the commit', 
 
 it('refuses to plan a revision of an entry or a shared variant read as absent, which the kernel rejects before it plans, and is exposed on the REST, Inertia, MCP and CLI surfaces', function (): void {
     $world = new EntryActionWorld;
-    $action = new ReviseEntryAction($world->entries);
+    $action = new ReviseEntryAction($world->entries, new FakeTypeCatalog);
     $command = new ReviseEntry(EntryActionWorld::entry(), new AggregateVersion(1), EntryActionWorld::fields('A note'));
     $headless = new StoredEntry(EntryActionWorld::entry(), EntryActionWorld::type(), EntryActionWorld::home(), new AggregateVersion(1), null);
     $surfaces = array_map(

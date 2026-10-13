@@ -96,6 +96,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_duplicate_type_id`](#generate_duplicate_type_id) | 500 | 65 | internal_error | no |
 | [`generate_extension_of_own_type`](#generate_extension_of_own_type) | 500 | 65 | internal_error | no |
 | [`generate_extension_version_mismatch`](#generate_extension_version_mismatch) | 500 | 65 | internal_error | no |
+| [`generate_fallback_without_translatable`](#generate_fallback_without_translatable) | 500 | 65 | internal_error | no |
 | [`generate_field_changed`](#generate_field_changed) | 500 | 65 | internal_error | no |
 | [`generate_field_not_queryable`](#generate_field_not_queryable) | 500 | 65 | internal_error | no |
 | [`generate_field_removed`](#generate_field_removed) | 500 | 65 | internal_error | no |
@@ -121,6 +122,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_table_changed`](#generate_table_changed) | 500 | 65 | internal_error | no |
 | [`generate_table_name_too_long`](#generate_table_name_too_long) | 500 | 65 | internal_error | no |
 | [`generate_too_many_fields`](#generate_too_many_fields) | 500 | 65 | internal_error | no |
+| [`generate_translatable_without_variants`](#generate_translatable_without_variants) | 500 | 65 | internal_error | no |
 | [`generate_type_removed`](#generate_type_removed) | 500 | 65 | internal_error | no |
 | [`generate_unknown_extends_target`](#generate_unknown_extends_target) | 500 | 65 | internal_error | no |
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
@@ -1013,6 +1015,15 @@ Two extension files of one owner for one type declare different versions. The fi
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### generate_fallback_without_translatable
+
+A field has fallback: field and is not translatable. Only a translatable field falls back on its own (PRD 10.3): declare translatable: true, or remove the fallback.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### generate_field_changed
 
 A field's column type, NOT NULL, CHECK constraints or index differ from its type's schema lock, the table the committed migrations build. Until schema evolution comes (B3), an existing column never changes: undo the change, or add a new optional field instead.
@@ -1232,6 +1243,15 @@ A type's table name, <owner>__<handle>, is longer than 54 bytes, so the names of
 ### generate_too_many_fields
 
 A type has more than 200 top-level fields, its own and those its extensions add together, and each is a column of the type's table (PRD 11.6). Move fields into groups, or split the type.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_translatable_without_variants
+
+A field is declared translatable, or has a fallback, in a type with localization none, whose one shared variant holds every field (PRD 10.1). Give the type localization: variants, or remove the keys from the field.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)

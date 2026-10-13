@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
+use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
@@ -145,6 +146,7 @@ final readonly class PhpTypeCatalog implements Generator
                 ExtensionVersion::class,
                 ...($this->hasContributedField($schema) ? [FieldBase::class] : []),
                 FieldDefinition::class,
+                FieldFallback::class,
                 FieldHandle::class,
                 FieldNamespace::class,
                 History::class,
@@ -415,6 +417,8 @@ final readonly class PhpTypeCatalog implements Generator
             $indent.'    column: '.$this->column($field->column).',',
             ...($nested === [] ? [] : [$indent.'    fields: [', ...$nested, $indent.'    ],']),
             ...($field->base === $field->type ? [] : [$indent.'    base: FieldBase::'.FieldBase::from($field->base)->name.',']),
+            ...($field->translatable ? [$indent.'    translatable: true,'] : []),
+            ...($field->fallback->value === FieldFallback::Variant->value ? [] : [$indent.'    fallback: FieldFallback::'.FieldFallback::from($field->fallback->value)->name.',']),
             $indent.'),',
         ];
     }

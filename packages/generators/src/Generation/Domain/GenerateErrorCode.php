@@ -124,6 +124,18 @@ enum GenerateErrorCode: string
     case TypeRemoved = 'generate_type_removed';
 
     /**
+     * A field declared `translatable`, or with a `fallback`, in a type with `localization: none`,
+     * whose one shared variant holds every field (PRD 10.1), or in an extension of such a type.
+     */
+    case TranslatableWithoutVariants = 'generate_translatable_without_variants';
+
+    /**
+     * A field with `fallback: field` that is not `translatable`: only a translatable field falls
+     * back on its own (PRD 10.3).
+     */
+    case FallbackWithoutTranslatable = 'generate_fallback_without_translatable';
+
+    /**
      * A type's id, stages or localization differ from its schema lock, which would change the
      * table's key or system columns. Until schema evolution (B3), only new types and new optional
      * fields change a type table.

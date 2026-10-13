@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\TypeTables;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use InvalidArgumentException;
 
@@ -65,6 +67,19 @@ final class InvalidTypeTableQuery extends InvalidArgumentException
     public static function unknownType(TypeName $type): self
     {
         return new self(sprintf('The installation has no type %s.', $type->value));
+    }
+
+    public static function variant(TypeName $type, VariantKey $variant, Localization $localization): self
+    {
+        return new self(match ($localization) {
+            Localization::None => sprintf('The type %s has localization none, so its one variant is the shared one, and a query of its table reads no variant %s.', $type->value, $variant->value),
+            Localization::Variants => sprintf('The type %s has localization variants, so a query of its table reads the rows of one language: give the builder a locale.', $type->value),
+        });
+    }
+
+    public static function localeRequired(TypeName $type): self
+    {
+        return new self(sprintf('The type %s has localization variants, so a query of its table reads the rows of one language: give the builder a locale.', $type->value));
     }
 
     public static function unknownColumn(TypeName $type, string $column): self

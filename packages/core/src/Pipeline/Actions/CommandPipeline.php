@@ -485,8 +485,20 @@ final readonly class CommandPipeline
                 throw InvalidCommandCall::unreadAggregate($action, $mutation->aggregate());
             }
 
-            if (($mutation instanceof RevisionCreated || $mutation instanceof VariantReleased) && ! $this->types->find($mutation->type) instanceof TypeDefinition) {
-                $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf('No type of this installation has the id %s.', $mutation->type->toString()));
+            if ($mutation instanceof RevisionCreated || $mutation instanceof VariantReleased) {
+                $type = $this->types->find($mutation->type);
+
+                if (! $type instanceof TypeDefinition) {
+                    $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf('No type of this installation has the id %s.', $mutation->type->toString()));
+                } elseif (! $type->holds($mutation->variant)) {
+                    $errors[] = new CatalogError(ErrorCode::ValidationFailed, null, sprintf(
+                        'The type %s has localization %s, so its one variant is the shared one, and the entry %s has no variant %s (PRD 10.1).',
+                        $type->name->value,
+                        $type->capabilities->localization->value,
+                        $mutation->entry->toString(),
+                        $mutation->variant->value,
+                    ));
+                }
             }
 
             if ($mutation instanceof EntryCreated) {
@@ -786,7 +798,7 @@ final readonly class CommandPipeline
             $type = $mutation instanceof RevisionCreated || $mutation instanceof VariantReleased ? $this->types->find($mutation->type) : null;
 
             if ($mutation instanceof RevisionCreated && $type instanceof TypeDefinition) {
-                array_push($errors, ...$this->fields->validate($type, $mutation->fields, ValidationStage::Write, new FieldPath(self::FIELDS))->errors);
+                array_push($errors, ...$this->fields->validate($type, $mutation->variant, $mutation->fields, ValidationStage::Write, new FieldPath(self::FIELDS))->errors);
                 array_push($errors, ...$this->encrypted($type, $mutation));
             }
 
@@ -814,7 +826,7 @@ final readonly class CommandPipeline
         $planned = $this->plannedRevision($plan, $release);
 
         if ($planned instanceof RevisionCreated) {
-            return $this->fields->validate($type, $planned->fields, ValidationStage::Release, $at)->errors;
+            return $this->fields->validate($type, $planned->variant, $planned->fields, ValidationStage::Release, $at)->errors;
         }
 
         if (! $content instanceof RevisionContent) {
@@ -837,7 +849,7 @@ final readonly class CommandPipeline
             ))];
         }
 
-        return $this->fields->validate($type, $content->fields, ValidationStage::Release, $at)->errors;
+        return $this->fields->validate($type, $release->variant, $content->fields, ValidationStage::Release, $at)->errors;
     }
 
     /**

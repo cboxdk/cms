@@ -177,7 +177,8 @@ function blueprintInvalidCases(): array
         'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type', 'must not match schema'],
         'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type', 'must not match schema'],
         'kind: fieldset' => ['kind-fieldset.yaml', '/kind', 'enum'],
-        'localization: variants' => ['localization-variants.yaml', '/capabilities/localization', 'enum'],
+        'translatable on a field inside a group' => ['translatable-in-group.yaml', '/fields/0/fields/0', 'must not match schema'],
+        'fallback: entry' => ['fallback-entry.yaml', '/fields/0/fallback', 'enum'],
         'an extension without fields' => ['extension-without-fields.yaml', '/', '(fields)'],
         'blueprint: 2' => ['blueprint-2.yaml', '/blueprint', 'const'],
         'a missing blueprint' => ['missing-blueprint.yaml', '/', '(blueprint)'],
@@ -200,6 +201,7 @@ it('accepts the valid fixtures', function (string $fixture): void {
     'a type with every core field type' => ['valid/article.yaml'],
     'an extension' => ['valid/extension.yaml'],
     'a type with the addon field type acme:colour and its options' => ['valid/addon-field-type.yaml'],
+    'a type with localization variants, translatable fields and a field fallback' => ['valid/localized.yaml'],
 ]);
 
 it('covers every core field type of the schema in the valid article', function (): void {
@@ -328,6 +330,7 @@ it('embeds each valid fixture on the reference page, byte for byte', function ()
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/article.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml',
     ]);
 
     foreach ($examples as $path => $body) {

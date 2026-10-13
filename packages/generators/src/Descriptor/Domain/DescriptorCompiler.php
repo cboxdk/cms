@@ -20,6 +20,7 @@ use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\ColumnName;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ShapedOptions;
+use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 
 /**
@@ -37,9 +38,10 @@ use Cbox\Cms\Generators\Schema\Domain\Owner;
  *   because the owner's code creates and revises entries without knowing it; its `required` is
  *   enforced when an entry is published (PRD 11.12, point 1). Every other field starts with
  *   `nullable`.
- * - A field inside a group has no column. It has its group's classification and encryption, is
- *   required within the group when its blueprint says so, and the nested fields are sorted by
- *   handle, so the descriptor does not depend on their order in the file.
+ * - A field inside a group has no column. It has its group's classification, encryption,
+ *   translatable and fallback, is required within the group when its blueprint says so, and the
+ *   nested fields are sorted by handle, so the descriptor does not depend on their order in the
+ *   file.
  *
  * Every problem is collected before compile() fails.
  */
@@ -129,19 +131,21 @@ final readonly class DescriptorCompiler
             return null;
         }
 
-        return self::field($field, $namespace, $field->classification, $column->value, ! $namespace instanceof Owner);
+        return self::field($field, $namespace, $field->classification, $column->value, ! $namespace instanceof Owner, $field->translatable, $field->fallback);
     }
 
     /**
      * @param  ?string  $column  the column of a top-level field, or null inside a group
      * @param  bool  $enforced  whether the owner's code enforces `required` when an entry is written
+     * @param  bool  $translatable  the top-level field's `translatable`, which a nested field takes from its group
+     * @param  FieldFallback  $fallback  the top-level field's `fallback`, which a nested field takes from its group
      */
-    private static function field(FieldBlueprint $field, ?Owner $namespace, Classification $classification, ?string $column, bool $enforced): FieldDescriptor
+    private static function field(FieldBlueprint $field, ?Owner $namespace, Classification $classification, ?string $column, bool $enforced, bool $translatable, FieldFallback $fallback): FieldDescriptor
     {
         $nested = [];
 
         foreach ($field->options->nestedFields() as $inner) {
-            $nested[$inner->handle->value] = self::field($inner, $namespace, $classification, null, true);
+            $nested[$inner->handle->value] = self::field($inner, $namespace, $classification, null, true, $translatable, $fallback);
         }
 
         ksort($nested, SORT_STRING);
@@ -171,6 +175,8 @@ final readonly class DescriptorCompiler
             $nested,
             $field->location,
             $field->options instanceof ShapedOptions ? $field->options->base->typeName() : null,
+            $translatable,
+            $fallback,
         );
     }
 

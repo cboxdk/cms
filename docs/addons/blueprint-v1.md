@@ -61,7 +61,7 @@ A handle is lowercase snake_case: a lowercase letter, then lowercase letters, di
 |---|---|---|
 | `history` | yes | `full`, `audit-only` or `none` |
 | `stages` | yes | `none` or `draft-release` |
-| `localization` | yes | `none` |
+| `localization` | yes | `none`, one shared variant that holds every field, or `variants`, a variant per language that holds the fields declared `translatable` and the shared variant that holds the others (PRD 10.1) |
 | `routable` | no | `true` or `false`, default `false` |
 
 ## Fields
@@ -84,8 +84,10 @@ A field in `fields` at the top of the document also has:
 | `classification` | yes | `public`, `internal` or `confidential` (PRD 12.2). `personal` and `sensitive` are not in this edition, see [Personal data](#personal-data). |
 | `filterable` | no | `true` or `false`, default `false`. |
 | `sortable` | no | `true` or `false`, default `false`. |
+| `translatable` | no | `true` or `false`, default `false`. In a type with `localization: variants`, which variant holds the field (PRD 10.1): a language's variant when `true`, the shared variant when `false`. Only a type with `localization: variants` may have it. |
+| `fallback` | no | `variant` or `field`, default `variant`. How a translatable field falls back when the reader's language has no value for it (PRD 10.3): with its whole variant along the site's chain, so a page never mixes languages, or on its own. Only a translatable field may have it. |
 
-A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the three keys: it inherits the group's classification.
+A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the five keys: it inherits the group's classification, `translatable` and `fallback`.
 
 ### Agents
 
@@ -148,6 +150,8 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3): an addon whose manifest lists it and that `schema.php` holds. | `generate_unknown_field_type` |
 | The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |
 | The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. The records' DTOs also give different classes: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class `AppAV1BV1`. See [Records and JSON codecs](codecs.md). | `generate_name_collision` |
+| `translatable` and `fallback` belong to the fields of a type with `localization: variants`, its own and those its extensions add; a type with `localization: none` has only the shared variant, which holds every field (PRD 10.1). | `generate_translatable_without_variants` |
+| `fallback: field` belongs to a translatable field: only a translatable field falls back on its own (PRD 10.3). | `generate_fallback_without_translatable` |
 | A field declared `filterable` or `sortable` has an order the typed query builder can compare: a `select` field that allows several options with `multiple: true` has none, so it is neither. The blueprint schema already refuses both flags on `long_text`, `rich_text` and `group`. See [Type tables and query builders](contracts/type-table-reader.md). | `generate_field_not_queryable` |
 | A type's table name, `<owner>__<handle>`, has at most 54 bytes, so the names of its row level security policies, `<table>_actor` and `<table>_released`, fit in Postgres' 63: an owner of `app` leaves 49 bytes for the handle. | `generate_table_name_too_long` |
 | A schema lock in the migrations directory, `<table>.lock`, is exactly what `cms:generate` wrote, and its file is named after its table. | `generate_lock_invalid` |
@@ -161,7 +165,7 @@ An unknown `extends` is reported only when every file was read, because a file t
 
 ## What cms:generate compiles
 
-Once the rules hold, `cms:generate` compiles every type, with the fields every extension adds to it, into a type descriptor, and every generator reads the descriptor instead of the blueprint files (PRD 11.12). The descriptor holds the type's `type_id`, owner, handle, version, the version of each extender's namespace, its capabilities, and for each field its column, its Postgres type with NOT NULL and CHECK constraints, its PHP and TypeScript types, the rules of its runtime validator, its classification, whether agents see it, whether it is filterable or sortable, and whether it is encrypted.
+Once the rules hold, `cms:generate` compiles every type, with the fields every extension adds to it, into a type descriptor, and every generator reads the descriptor instead of the blueprint files (PRD 11.12). The descriptor holds the type's `type_id`, owner, handle, version, the version of each extender's namespace, its capabilities, and for each field its column, its Postgres type with NOT NULL and CHECK constraints, its PHP and TypeScript types, the rules of its runtime validator, its classification, whether agents see it, whether it is filterable or sortable, whether it is encrypted, and whether it is translatable and how it falls back.
 
 | Field type | Column | PHP | TypeScript |
 |---|---|---|---|
@@ -184,7 +188,7 @@ A few rules decide more than the field type does:
 
 From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO, its JSON codec and a TypeScript module with its validator, described on [Records and JSON codecs](codecs.md).
 
-It also writes the migrations of the type tables (PRD 4.1, 11.6) to `database/migrations/cms` (`cbox-cms.generators.migrations_directory`), which the generated service provider registers with the migrator; they run with `php artisan migrate` as the owner role, never on their own. A type's table is `<owner>__<handle>`, such as `app__blog_post`. It has the system columns `cms_entry_id`, `cms_locale` (`shared` for a type that is not localized), `cms_stage` (`released`, and `draft` and `staged` for a type with stages), `cms_home_node` and `cms_owner_actor`, the key (`cms_entry_id`, `cms_locale`, `cms_stage`), a column per top-level field as the table above describes, an index on each foreign key, an index on (`cms_stage`, `cms_locale`, the column, `cms_entry_id`) for each `filterable` or `sortable` field, and fillfactor 80. Row level security is enabled and forced with the policies every type table has, and the app role may only select, insert, update and delete.
+It also writes the migrations of the type tables (PRD 4.1, 11.6) to `database/migrations/cms` (`cbox-cms.generators.migrations_directory`), which the generated service provider registers with the migrator; they run with `php artisan migrate` as the owner role, never on their own. A type's table is `<owner>__<handle>`, such as `app__blog_post`. It has the system columns `cms_entry_id`, `cms_locale` (`shared` for a type with `localization: none`, which has that one row per entry and stage; a language for a type with `localization: variants`, which has a row per language with the translatable fields of that language and the shared fields in each, PRD 10.1, 11.6), `cms_stage` (`released`, and `draft` and `staged` for a type with stages), `cms_home_node` and `cms_owner_actor`, the key (`cms_entry_id`, `cms_locale`, `cms_stage`), a column per top-level field as the table above describes, an index on each foreign key, an index on (`cms_stage`, `cms_locale`, the column, `cms_entry_id`) for each `filterable` or `sortable` field, and fillfactor 80. Row level security is enabled and forced with the policies every type table has, and the app role may only select, insert, update and delete.
 
 Next to the migrations, `cms:generate` writes a schema lock for each table, `<table>.lock`: the columns the migrations build, step by step. Commit it with the migrations. A new type gets a lock and a `<table>_0001_create` migration, and new optional fields get the next step and one `<table>_<step>_add_columns` migration that adds their nullable columns and builds their indexes concurrently. Until schema evolution comes (B3), every other change to a type that has a table is refused by the rules above.
 
@@ -192,7 +196,7 @@ The rules of each field's runtime validator become a validator per type, which c
 
 ## Examples
 
-These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the three files against the schema, as an application's or addon's own tests can.
+These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the four files against the schema, as an application's or addon's own tests can.
 
 A type with every core field type:
 
@@ -358,6 +362,46 @@ fields:
     classification: public
 ```
 
+A type with `localization: variants`: `title` and `teaser` live in each language's variant, `teaser` falls back on its own, and `published_on` lives in the shared variant.
+
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml -->
+```yaml
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6e
+handle: notice
+label: Notice
+description: A notice in several languages, with a title and a teaser per language and a date shared by every language.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: variants
+  routable: true
+fields:
+  - handle: title
+    label: Title
+    description: The title of the notice in the language.
+    type: text
+    required: true
+    classification: public
+    translatable: true
+  - handle: teaser
+    label: Teaser
+    description: A short teaser in the language; shown in another language of the chain when the language has none.
+    type: long_text
+    classification: public
+    translatable: true
+    fallback: field
+  - handle: published_on
+    label: Published on
+    description: The day the notice was published, the same in every language.
+    type: date
+    required: true
+    classification: public
+    sortable: true
+```
+
 The test that validates them, in the `Codecs` suite:
 
 <!-- example: examples/Codecs/Blueprint/ValidBlueprintsTest.php -->
@@ -389,5 +433,6 @@ it('accepts the blueprint file', function (string $file): void {
     'the type article' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/article.yaml'],
     'the extension of another owner\'s type' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml'],
     'the type product with the addon field type acme:colour' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml'],
+    'the type notice with localization variants' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml'],
 ]);
 ```

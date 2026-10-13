@@ -61,6 +61,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeBinding;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeCalls;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeShelf;
@@ -163,7 +164,7 @@ final class PipelineWorld
         $this->editor = $this->identity->addActor(ActorClass::Staff)->id;
         $this->shelf = new ProbeShelf;
         $this->calls = new ProbeCalls;
-        $this->validation = new FakeFieldValidation(new FakeTypeValidators(new ProbeType));
+        $this->validation = new FakeFieldValidation(new FakeTypeValidators(new ProbeType, new LocalizedProbeType));
         $this->authorizer = new FakeCommandAuthorizer;
         $this->clock = new FakeClock;
         $this->keys = new FakeIdempotencyStore($this->clock);
@@ -229,7 +230,7 @@ final class PipelineWorld
     {
         $action = new RenameProbeAction($this->shelf, $this->calls, $this->extraReads, $this->unreadPlan);
 
-        $types = new FakeTypeCatalog(ProbeType::definition());
+        $types = new FakeTypeCatalog(ProbeType::definition(), LocalizedProbeType::definition());
 
         return new CommandPipeline(
             $actions ?? new FakeWriteActions([RenameProbe::class => ProbeBinding::of($action)]),

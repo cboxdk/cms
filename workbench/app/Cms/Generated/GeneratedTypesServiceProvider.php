@@ -16,6 +16,8 @@ use Workbench\App\Cms\Generated\Records\AppFixtureEvent\AppFixtureEventFactory;
 use Workbench\App\Cms\Generated\Records\AppFixtureEvent\AppFixtureEventRecordFactory;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementFactory;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementRecordFactory;
+use Workbench\App\Cms\Generated\Records\AppFixtureNotice\AppFixtureNoticeFactory;
+use Workbench\App\Cms\Generated\Records\AppFixtureNotice\AppFixtureNoticeRecordFactory;
 
 /**
  * Binds what the generated code gives the kernel and the owners' code (PRD 8.9, 11.12, 14.1): the
@@ -41,6 +43,7 @@ final class GeneratedTypesServiceProvider extends ServiceProvider
         $this->app->singleton(AppFixtureArticleRecordFactory::class, AppFixtureArticleFactory::class);
         $this->app->singleton(AppFixtureEventRecordFactory::class, AppFixtureEventFactory::class);
         $this->app->singleton(AppFixtureMeasurementRecordFactory::class, AppFixtureMeasurementFactory::class);
+        $this->app->singleton(AppFixtureNoticeRecordFactory::class, AppFixtureNoticeFactory::class);
     }
 
     public function boot(): void

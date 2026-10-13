@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline\Fakes;
 
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
@@ -24,8 +25,8 @@ use Override;
 /**
  * The owner's top-level fields of a revision checked against the type's validator from
  * TypeValidators: a required field that is absent or null is validation_required, and a field the
- * validator does not declare is validation_unknown_field, each at its path below $at. It checks no
- * other rule. FieldValidationBehaviour holds it to TypeRulesFieldValidation for these cases, and
+ * validator does not declare, or the revision's variant does not hold (PRD 10.1), is
+ * validation_unknown_field, each at its path below $at. It checks no other rule. FieldValidationBehaviour holds it to TypeRulesFieldValidation for these cases, and
  * it records the types it was asked about.
  */
 final class FakeFieldValidation implements FieldValidation
@@ -36,7 +37,7 @@ final class FakeFieldValidation implements FieldValidation
     public function __construct(private readonly TypeValidators $validators) {}
 
     #[Override]
-    public function validate(TypeDefinition $type, FieldValues $fields, ValidationStage $stage, FieldPath $at): ValidationReport
+    public function validate(TypeDefinition $type, VariantKey $variant, FieldValues $fields, ValidationStage $stage, FieldPath $at): ValidationReport
     {
         $this->asked[] = $type->name->value;
         $validator = $this->validators->find($type->id);
@@ -48,7 +49,7 @@ final class FakeFieldValidation implements FieldValidation
         $errors = [];
         $declared = [];
 
-        foreach ($validator->rules()->fields as $rules) {
+        foreach ($validator->rules()->forVariant($variant, $type->capabilities->localization)->fields as $rules) {
             $declared[$rules->handle->value] = true;
             $value = $fields->own->get($rules->handle);
 

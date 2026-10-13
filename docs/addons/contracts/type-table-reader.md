@@ -15,7 +15,7 @@ Every type has a type table with a column per top-level field, its current state
 
 The reader has one method, `page(TypeTableQuery $query, AccessContext $access): TypeTablePage`. A `TypeTableQuery` holds:
 
-- `type`, the `TypeName`, and `variant`, the `VariantKey`; the shared variant for a type without localization.
+- `type`, the `TypeName`, and `variant`, the `VariantKey`: the shared variant for a type without localization, and a language's for a type with localization variants, whose table holds a row per language with the shared fields in each (PRD 10.1, 11.6). A variant the type does not hold is refused: the generated builder of a localized type has `locale(Locale)` and refuses to page without one, and the builder of a type without localization reads the shared variant.
 - `filters`, a list of `ColumnFilter`: the column of a filterable field, a `FilterOperator` (`eq`, `neq`, `in`, `nin`, `lt`, `lte`, `gt`, `gte`, `null`, `not_null`) and its values, each a `TextValue`, `IntegerValue`, `DecimalValue`, `BooleanValue`, `DateValue` or `DateTimeValue`. A row matches every filter. A comparison with a null column is false, so `neq` and `nin` never match a null (PRD 8.8).
 - `order`, a list of `ColumnOrder`: the column of a sortable field and a `SortDirection`. Null sorts as the greatest value, last ascending and first descending, as Postgres sorts it.
 - `after`, the `TypeTableCursor` of the page before, and `limit`, 1 to `TypeTableQuery::MAX_LIMIT` (100), `DEFAULT_LIMIT` (20) when not given.

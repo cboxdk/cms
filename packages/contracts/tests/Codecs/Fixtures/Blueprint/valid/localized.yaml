@@ -1,0 +1,34 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6e
+handle: notice
+label: Notice
+description: A notice in several languages, with a title and a teaser per language and a date shared by every language.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: variants
+  routable: true
+fields:
+  - handle: title
+    label: Title
+    description: The title of the notice in the language.
+    type: text
+    required: true
+    classification: public
+    translatable: true
+  - handle: teaser
+    label: Teaser
+    description: A short teaser in the language; shown in another language of the chain when the language has none.
+    type: long_text
+    classification: public
+    translatable: true
+    fallback: field
+  - handle: published_on
+    label: Published on
+    description: The day the notice was published, the same in every language.
+    type: date
+    required: true
+    classification: public
+    sortable: true

@@ -75,6 +75,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Core\Tests\Placements\Fakes\FakePlacementReader;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\FakePacing;
 use Cbox\Cms\Testkit\Clock\FakeClock;
@@ -289,7 +290,7 @@ final class PublishingActionWorld
         $clock = new FakeClock;
         $keys = new FakeIdempotencyStore($clock)->session();
         $receipts = new FakeReceiptStore($clock)->session();
-        $types = new FakeTypeCatalog(NoteType::definition(), new TypeDefinition(
+        $types = new FakeTypeCatalog(NoteType::definition(), LocalizedProbeType::definition(), new TypeDefinition(
             TypeId::fromString(self::READING),
             new TypeName('test:reading'),
             1,
@@ -301,12 +302,12 @@ final class PublishingActionWorld
         $pipeline = new CommandPipeline(
             new FakeWriteActions([
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($this->entries, $this->placements, $types, $this->clock)),
-                UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($this->entries, $this->placements, $this->clock)),
+                UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($this->entries, $this->placements, $types, $this->clock)),
             ]),
             $this->identity,
             $this->permissions instanceof FakePermissions ? FakeCommandAuthorizer::granting($this->permissions) : new FakeCommandAuthorizer,
             $types,
-            new FakeFieldValidation(new FakeTypeValidators(new NoteType)),
+            new FakeFieldValidation(new FakeTypeValidators(new NoteType, new LocalizedProbeType)),
             $this->revisions,
             new FakePublicPlacements,
             $this->committer,

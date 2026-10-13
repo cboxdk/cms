@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding;
 
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\DateValue;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldValues;
@@ -54,12 +55,12 @@ it('writes values that pass the kernel\'s validation at the write and the releas
         $fields = seededFields($type, $seed);
 
         foreach ([ValidationStage::Write, ValidationStage::Release] as $stage) {
-            $report = $validation->validate($type->definition, $fields, $stage, new FieldPath('fields'));
+            $report = $validation->validate($type->definition, VariantKey::shared(), $fields, $stage, new FieldPath('fields'));
 
             expect($report->errors)->toBe([], sprintf('%s, seed %d, %s stage', $name, $seed, $stage->value));
         }
     }
-})->with(['app:fixture_article', 'app:fixture_measurement']);
+})->with(['app:fixture_article', 'app:fixture_measurement', 'app:fixture_notice']);
 
 it('writes only the fields the actor may write, every required one, and none stored encrypted', function (): void {
     $public = seededType('app:fixture_measurement', ClassificationAccess::Public);

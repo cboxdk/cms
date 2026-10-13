@@ -11,6 +11,7 @@ use Override;
 use Workbench\App\Cms\Generated\Validators\AppFixtureArticleValidator;
 use Workbench\App\Cms\Generated\Validators\AppFixtureEventValidator;
 use Workbench\App\Cms\Generated\Validators\AppFixtureMeasurementValidator;
+use Workbench\App\Cms\Generated\Validators\AppFixtureNoticeValidator;
 
 /**
  * The runtime validators of the schema roots' types, by type (PRD 11.8, 11.12): the generated
@@ -31,6 +32,7 @@ final readonly class GeneratedTypeValidators implements TypeValidators
             new AppFixtureMeasurementValidator,
             new AppFixtureArticleValidator,
             new AppFixtureEventValidator,
+            new AppFixtureNoticeValidator,
         ];
     }
 

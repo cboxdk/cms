@@ -14,3 +14,5 @@ fields:
     description: The title of the note.
     type: text
     classification: public
+    translatable: true
+    fallback: entry

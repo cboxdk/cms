@@ -139,6 +139,8 @@ it('fills in exactly the defaults of the blueprint schema', function (): void {
         '/$defs/field/properties/required' => FieldBlueprint::DEFAULT_REQUIRED,
         '/$defs/field/properties/filterable' => FieldBlueprint::DEFAULT_FILTERABLE,
         '/$defs/field/properties/sortable' => FieldBlueprint::DEFAULT_SORTABLE,
+        '/$defs/field/properties/translatable' => FieldBlueprint::DEFAULT_TRANSLATABLE,
+        '/$defs/field/properties/fallback' => FieldBlueprint::DEFAULT_FALLBACK->value,
         '/$defs/textOptions/properties/max_length' => TextOptions::DEFAULT_MAX_LENGTH,
         '/$defs/textOptions/properties/format' => TextOptions::DEFAULT_FORMAT->value,
         '/$defs/longTextOptions/properties/max_length' => LongTextOptions::DEFAULT_MAX_LENGTH,

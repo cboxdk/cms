@@ -8,7 +8,8 @@
 //   fixtureaddon: workbench/addons/fixtureaddon/schema
 
 /** Each type in the schema, as <owner>:<handle>. */
-export type TypeHandle = 'app:fixture_article' | 'app:fixture_event' | 'app:fixture_measurement';
+export type TypeHandle =
+  'app:fixture_article' | 'app:fixture_event' | 'app:fixture_measurement' | 'app:fixture_notice';
 
 /** The fields of each type: field handle to field type, extension fields under ext.<namespace>. */
 export interface TypeFields {
@@ -54,5 +55,15 @@ export interface TypeFields {
     fixture_sensor: 'group';
     fixture_series: 'group';
     fixture_station: 'text';
+  };
+  'app:fixture_notice': {
+    fixture_body: 'rich_text';
+    fixture_channel: 'select';
+    fixture_editor_note: 'text';
+    fixture_links: 'group';
+    fixture_priority: 'integer';
+    fixture_published_on: 'date';
+    fixture_teaser: 'long_text';
+    fixture_title: 'text';
   };
 }

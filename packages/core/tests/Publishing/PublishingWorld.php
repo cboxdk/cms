@@ -262,13 +262,13 @@ final readonly class PublishingWorld
 
         return new CommandPipeline(
             new FakeWriteActions([
-                CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($entries)),
-                ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($entries)),
-                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($entries, new VariantReleasePlanner)),
+                CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($entries, $types)),
+                ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($entries, $types)),
+                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($entries, $types, new VariantReleasePlanner)),
                 CreatePlacement::class => $this->binding('placement.create', new CreatePlacementAction($placements, $this->clock)),
                 SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $types, $this->clock)),
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($entries, $placements, $types, $this->clock)),
-                UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($entries, $placements, $this->clock)),
+                UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($entries, $placements, $types, $this->clock)),
             ]),
             new PostgresActorDirectory($connections),
             $this->granted ? app(CommandAuthorizer::class) : new FakeCommandAuthorizer,

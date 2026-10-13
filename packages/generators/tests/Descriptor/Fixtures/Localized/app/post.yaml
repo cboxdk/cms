@@ -1,0 +1,22 @@
+# yaml-language-server: $schema=../../../../../../contracts/resources/schemas/blueprint.v1.json
+# The app's extension of the localized example type, post of the module blog (PRD 10.1, 11.12): a
+# translatable subtitle in the language's variant and a shared tag in the shared variant, as the
+# columns ext__app__<handle>.
+blueprint: 1
+kind: extension
+extends: 0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d30
+version: 1
+fields:
+  - handle: subtitle
+    label: Subtitle
+    description: The subtitle of the post in the language.
+    type: text
+    classification: public
+    translatable: true
+    max_length: 160
+  - handle: tag
+    label: Tag
+    description: The customer's own tag of the post, the same in every language.
+    type: text
+    classification: public
+    max_length: 40

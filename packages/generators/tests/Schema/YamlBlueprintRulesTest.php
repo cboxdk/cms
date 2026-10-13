@@ -10,12 +10,15 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
+use Cbox\Cms\Generators\Schema\Domain\Localization;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\TypeFieldLimit;
@@ -142,6 +145,14 @@ function rulesGroup(string $handle, string ...$fields): string
     }
 
     return implode("\n", $lines)."\n";
+}
+
+/**
+ * A type file with localization variants and the given top-level fields.
+ */
+function rulesLocalizedType(string $typeId, string $handle, string ...$fields): string
+{
+    return str_replace('  localization: none', '  localization: variants', rulesType($typeId, $handle, ...$fields));
 }
 
 /**
@@ -603,4 +614,51 @@ it('reports every rule a set of roots breaks in one run, beside the problems of 
         'generate_schema_invalid schema/broken.yaml, /handle',
         'generate_unknown_field_type schema/product.yaml, /fields/0/type',
     ]);
+});
+
+it('refuses translatable and fallback on a field of a type with localization none, in the type and in an extension of it, with generate_translatable_without_variants', function (): void {
+    $base = SchemaFixtures::scratch();
+    $app = rulesRoot($base, [
+        'article.yaml' => rulesType(RULES_ARTICLE_ID, 'article', rulesField('title', 'text', 'translatable: true'), rulesField('teaser', 'long_text', 'translatable: true', 'fallback: field'), rulesField('body', 'long_text')),
+    ]);
+    $acme = rulesRoot($base, ['article.yaml' => rulesExtension(RULES_ARTICLE_ID, rulesField('subtitle', 'text', 'translatable: true'))], 'acme', 'acme');
+
+    $problems = rulesFailure([$app, $acme])->problems;
+
+    expect(array_map(static fn (GenerationProblem $problem): string => $problem->code->value.' '.$problem->message, $problems))->toBe([
+        'generate_translatable_without_variants acme/article.yaml, /fields/0/translatable: the type article in schema/article.yaml has localization none, whose one shared variant holds every field, so none of its fields is translatable or has a fallback (PRD 10.1). Give the type localization: variants, or remove the key.',
+        'generate_translatable_without_variants schema/article.yaml, /fields/0/translatable: the type article in schema/article.yaml has localization none, whose one shared variant holds every field, so none of its fields is translatable or has a fallback (PRD 10.1). Give the type localization: variants, or remove the key.',
+        'generate_translatable_without_variants schema/article.yaml, /fields/1/translatable: the type article in schema/article.yaml has localization none, whose one shared variant holds every field, so none of its fields is translatable or has a fallback (PRD 10.1). Give the type localization: variants, or remove the key.',
+    ]);
+});
+
+it('refuses fallback: field on a field that is not translatable with generate_fallback_without_translatable, in a type with localization variants and in an extension of it', function (): void {
+    $base = SchemaFixtures::scratch();
+    $app = rulesRoot($base, [
+        'article.yaml' => rulesLocalizedType(RULES_ARTICLE_ID, 'article', rulesField('title', 'text', 'translatable: true', 'fallback: field'), rulesField('date', 'date', 'fallback: field'), rulesField('note', 'text', 'fallback: variant')),
+    ]);
+    $acme = rulesRoot($base, ['article.yaml' => rulesExtension(RULES_ARTICLE_ID, rulesField('tag', 'text', 'fallback: field'))], 'acme', 'acme');
+
+    $problems = rulesFailure([$app, $acme])->problems;
+
+    expect(array_map(static fn (GenerationProblem $problem): string => $problem->code->value.' '.$problem->message, $problems))->toBe([
+        'generate_fallback_without_translatable acme/article.yaml, /fields/0/fallback: the field tag has fallback: field and is not translatable. Only a translatable field falls back on its own (PRD 10.3): declare translatable: true, or remove the fallback.',
+        'generate_fallback_without_translatable schema/article.yaml, /fields/1/fallback: the field date has fallback: field and is not translatable. Only a translatable field falls back on its own (PRD 10.3): declare translatable: true, or remove the fallback.',
+    ]);
+});
+
+it('reads translatable and fallback into the model of a type with localization variants, with their defaults where the file leaves them out', function (): void {
+    $base = SchemaFixtures::scratch();
+    $app = rulesRoot($base, [
+        'article.yaml' => rulesLocalizedType(RULES_ARTICLE_ID, 'article', rulesField('title', 'text', 'translatable: true'), rulesField('teaser', 'text', 'translatable: true', 'fallback: field'), rulesField('date', 'date')),
+    ]);
+
+    $type = rulesRead([$app])->types[0];
+
+    expect($type->capabilities->localization)->toBe(Localization::Variants)
+        ->and(array_map(static fn (FieldBlueprint $field): array => [$field->handle->value, $field->translatable, $field->fallback], $type->fields))->toBe([
+            ['title', true, FieldFallback::Variant],
+            ['teaser', true, FieldFallback::Field],
+            ['date', false, FieldFallback::Variant],
+        ]);
 });

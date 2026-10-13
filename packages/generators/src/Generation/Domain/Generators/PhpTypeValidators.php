@@ -264,6 +264,12 @@ final readonly class PhpTypeValidators implements Generator
             }
 
             $lines[] = $this->line($depth + 1, '],');
+        } elseif ($field->translatable) {
+            $lines[] = $this->line($depth + 1, '[],');
+        }
+
+        if ($field->translatable) {
+            $lines[] = $this->line($depth + 1, 'true,');
         }
 
         $lines[] = $this->line($depth, '),');

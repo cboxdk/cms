@@ -29,6 +29,7 @@
             },
             "description": "The description of the product on its page.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "body",
@@ -42,6 +43,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "rich_text",
             "typescript": {
                 "nullable": true,
@@ -100,6 +102,7 @@
             },
             "description": "How to take care of the product.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "care",
@@ -113,6 +116,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "rich_text",
             "typescript": {
                 "nullable": true,
@@ -181,6 +185,7 @@
             },
             "description": "When the product data was last checked.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "checked_at",
@@ -194,6 +199,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "datetime",
             "typescript": {
                 "nullable": true,
@@ -244,6 +250,7 @@
             },
             "description": "The colour of the product.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": true,
             "handle": "colour",
@@ -257,6 +264,7 @@
             },
             "required": true,
             "sortable": false,
+            "translatable": false,
             "type": "select",
             "typescript": {
                 "nullable": false,
@@ -292,6 +300,7 @@
             },
             "description": "The sizes the product comes in.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [
                 {
                     "agents": true,
@@ -310,6 +319,7 @@
                     "column": null,
                     "description": "The name of the size.",
                     "encrypted": false,
+                    "fallback": "variant",
                     "fields": [],
                     "filterable": false,
                     "handle": "size",
@@ -323,6 +333,7 @@
                     },
                     "required": true,
                     "sortable": false,
+                    "translatable": false,
                     "type": "select",
                     "typescript": {
                         "nullable": false,
@@ -350,6 +361,7 @@
                     "column": null,
                     "description": "The width in millimetres.",
                     "encrypted": false,
+                    "fallback": "variant",
                     "fields": [],
                     "filterable": false,
                     "handle": "width",
@@ -363,6 +375,7 @@
                     },
                     "required": false,
                     "sortable": false,
+                    "translatable": false,
                     "type": "integer",
                     "typescript": {
                         "nullable": true,
@@ -398,6 +411,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "group",
             "typescript": {
                 "nullable": true,
@@ -439,6 +453,7 @@
             },
             "description": "Whether the shop no longer sells the product.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": true,
             "handle": "discontinued",
@@ -452,6 +467,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "boolean",
             "typescript": {
                 "nullable": true,
@@ -483,6 +499,7 @@
             },
             "description": "The name the customer's own systems use for the product.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "name",
@@ -496,6 +513,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "text",
             "typescript": {
                 "nullable": true,
@@ -533,6 +551,7 @@
             },
             "description": "The customer's tax code for the product.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": true,
             "handle": "tax_code",
@@ -546,6 +565,7 @@
             },
             "required": true,
             "sortable": false,
+            "translatable": false,
             "type": "text",
             "typescript": {
                 "nullable": true,
@@ -584,6 +604,7 @@
             },
             "description": "The day the product went on sale.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "launch_date",
@@ -597,6 +618,7 @@
             },
             "required": false,
             "sortable": true,
+            "translatable": false,
             "type": "date",
             "typescript": {
                 "nullable": true,
@@ -641,6 +663,7 @@
             },
             "description": "The name of the product, as the shop shows it.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": true,
             "handle": "name",
@@ -654,6 +677,7 @@
             },
             "required": true,
             "sortable": true,
+            "translatable": false,
             "type": "text",
             "typescript": {
                 "nullable": false,
@@ -698,6 +722,7 @@
             },
             "description": "The price of one item, in euro.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "price",
@@ -711,6 +736,7 @@
             },
             "required": true,
             "sortable": true,
+            "translatable": false,
             "type": "decimal",
             "typescript": {
                 "nullable": false,
@@ -755,6 +781,7 @@
             },
             "description": "What the shop pays the supplier for one item.",
             "encrypted": true,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "purchase_price",
@@ -768,6 +795,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "decimal",
             "typescript": {
                 "nullable": true,
@@ -803,6 +831,7 @@
             },
             "description": "How many items the warehouse holds.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": true,
             "handle": "stock",
@@ -816,6 +845,7 @@
             },
             "required": false,
             "sortable": true,
+            "translatable": false,
             "type": "integer",
             "typescript": {
                 "nullable": true,
@@ -859,6 +889,7 @@
             },
             "description": null,
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "summary",
@@ -872,6 +903,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "long_text",
             "typescript": {
                 "nullable": true,
@@ -907,6 +939,7 @@
             },
             "description": "Who supplies the product, and how to reach them.",
             "encrypted": true,
+            "fallback": "variant",
             "fields": [
                 {
                     "agents": true,
@@ -916,6 +949,7 @@
                     "column": null,
                     "description": "The name of the supplier.",
                     "encrypted": true,
+                    "fallback": "variant",
                     "fields": [],
                     "filterable": false,
                     "handle": "company",
@@ -929,6 +963,7 @@
                     },
                     "required": true,
                     "sortable": false,
+                    "translatable": false,
                     "type": "text",
                     "typescript": {
                         "nullable": false,
@@ -959,6 +994,7 @@
                     "column": null,
                     "description": null,
                     "encrypted": true,
+                    "fallback": "variant",
                     "fields": [],
                     "filterable": false,
                     "handle": "notes",
@@ -972,6 +1008,7 @@
                     },
                     "required": false,
                     "sortable": false,
+                    "translatable": false,
                     "type": "long_text",
                     "typescript": {
                         "nullable": true,
@@ -1002,6 +1039,7 @@
                     "column": null,
                     "description": "The supplier's website.",
                     "encrypted": true,
+                    "fallback": "variant",
                     "fields": [],
                     "filterable": false,
                     "handle": "website",
@@ -1015,6 +1053,7 @@
                     },
                     "required": false,
                     "sortable": false,
+                    "translatable": false,
                     "type": "text",
                     "typescript": {
                         "nullable": true,
@@ -1056,6 +1095,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "group",
             "typescript": {
                 "nullable": true,
@@ -1087,6 +1127,7 @@
             },
             "description": "Where customers write about the product.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "support_email",
@@ -1100,6 +1141,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "text",
             "typescript": {
                 "nullable": true,
@@ -1158,6 +1200,7 @@
             },
             "description": "The tags the shop lists the product under.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "tags",
@@ -1171,6 +1214,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "select",
             "typescript": {
                 "nullable": true,
@@ -1226,6 +1270,7 @@
             },
             "description": "The weight of one item in grams.",
             "encrypted": false,
+            "fallback": "variant",
             "fields": [],
             "filterable": false,
             "handle": "weight",
@@ -1239,6 +1284,7 @@
             },
             "required": false,
             "sortable": false,
+            "translatable": false,
             "type": "integer",
             "typescript": {
                 "nullable": true,

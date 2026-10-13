@@ -14,9 +14,11 @@ use Cbox\Cms\Contracts\Schema\TypeName;
 
 /**
  * One page of the released rows of a type table (PRD 5.10, 8.8, 11.6), as the generated query
- * builder of a type asks the TypeTableReader for it: the type, the variant (the shared one for a
- * type without localization), the filters, all of which a row must match, the order, the cursor of
- * the page before, and how many rows the page holds.
+ * builder of a type asks the TypeTableReader for it: the type, the variant, which is the shared one
+ * for a type without localization and a language's for a type with localization variants, whose
+ * rows are one per language with the shared fields in each (PRD 10.1, 11.6), the filters, all of
+ * which a row must match, the order, the cursor of the page before, and how many rows the page
+ * holds.
  *
  * The order is keyset pagination: the rows sort by the order's columns and then by the entry id,
  * which is unique, so every row has one place and a page continues exactly after the row its cursor
@@ -67,9 +69,9 @@ final readonly class TypeTableQuery
     }
 
     /**
-     * Refuses the query unless the type is the query's and every filter is on a filterable field
-     * of it and every key of the order on a sortable field of it (PRD 8.8), as a reader checks it
-     * before it reads.
+     * Refuses the query unless the type is the query's, the type's table has rows of the query's
+     * variant (TypeDefinition::tableHolds()), every filter is on a filterable field of it and every key of the
+     * order on a sortable field of it (PRD 8.8), as a reader checks it before it reads.
      *
      * @throws InvalidTypeTableQuery
      */
@@ -77,6 +79,10 @@ final readonly class TypeTableQuery
     {
         if (! $type->name->equals($this->type)) {
             throw InvalidTypeTableQuery::unknownType($this->type);
+        }
+
+        if (! $type->tableHolds($this->variant)) {
+            throw InvalidTypeTableQuery::variant($this->type, $this->variant, $type->capabilities->localization);
         }
 
         foreach ($this->filters as $filter) {

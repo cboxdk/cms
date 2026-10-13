@@ -6,6 +6,7 @@ namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
@@ -20,6 +21,9 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * schema v1: not required, not filterable, not sortable. Whether agents see a field the file does
  * not decide for follows its classification: a top-level field when it is public or internal
  * (Classification::seenByAgentsByDefault()), and a field inside a group when agents see the group.
+ * `translatable` and `fallback` are the keys of a top-level field of a type with localization
+ * variants (PRD 10.1, 10.3); a field inside a group has its group's, and both have their defaults
+ * everywhere else.
  */
 #[Internal]
 final readonly class FieldBlueprint
@@ -30,9 +34,15 @@ final readonly class FieldBlueprint
 
     public const bool DEFAULT_SORTABLE = false;
 
+    public const bool DEFAULT_TRANSLATABLE = false;
+
+    public const FieldFallback DEFAULT_FALLBACK = FieldFallback::Variant;
+
     /**
      * @param  ?string  $description  what the field holds; always present when agents see the field (PRD 14.5)
      * @param  bool  $agents  whether MCP tools and agents see the field
+     * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
+     * @param  FieldFallback  $fallback  how a translatable field falls back
      */
     public function __construct(
         public Handle $handle,
@@ -46,5 +56,7 @@ final readonly class FieldBlueprint
         public FieldOptions $options,
         public Owner $owner,
         public SourceLocation $location,
+        public bool $translatable = self::DEFAULT_TRANSLATABLE,
+        public FieldFallback $fallback = self::DEFAULT_FALLBACK,
     ) {}
 }

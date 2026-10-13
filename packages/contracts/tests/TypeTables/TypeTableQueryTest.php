@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Contracts\Tests\TypeTables;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\BooleanValue;
 use Cbox\Cms\Contracts\Fields\DateTimeValue;
@@ -200,6 +201,18 @@ it('allows filters on filterable fields and an order by sortable fields of its t
     tableQuery([new ColumnFilter('name', FilterOperator::IsNull), new ColumnFilter('size', FilterOperator::IsNull)], [new ColumnOrder('name'), new ColumnOrder('rank')])->assertAllowedBy(tableType());
 
     expect(TypeTableQuery::fieldOf(tableType(), 'size')->handle->value)->toBe('size');
+});
+
+it('reads the shared variant of a type without localization and a locale of a type with localization variants, and refuses the other (PRD 10.1)', function (): void {
+    $localized = new TypeDefinition(tableType()->id, tableType()->name, 1, new TypeCapabilities(History::Full, Stages::DraftRelease, Localization::Variants, false), [], tableType()->fields);
+    $da = new TypeTableQuery(new TypeName('shop:item'), VariantKey::of(new Locale('da')));
+
+    tableQuery()->assertAllowedBy(tableType());
+    $da->assertAllowedBy($localized);
+
+    expect(fn () => $da->assertAllowedBy(tableType()))->toThrow(InvalidTypeTableQuery::class, 'The type shop:item has localization none, so its one variant is the shared one, and a query of its table reads no variant da.')
+        ->and(fn () => tableQuery()->assertAllowedBy($localized))->toThrow(InvalidTypeTableQuery::class, 'The type shop:item has localization variants, so a query of its table reads the rows of one language: give the builder a locale.')
+        ->and(InvalidTypeTableQuery::localeRequired(new TypeName('shop:item'))->getMessage())->toContain('give the builder a locale');
 });
 
 it('refuses another type, a column that is no field\'s, a filter that is not filterable and an order that is not sortable', function (TypeTableQuery $query, string $message): void {

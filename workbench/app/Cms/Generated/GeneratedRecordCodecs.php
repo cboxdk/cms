@@ -14,6 +14,7 @@ use Override;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureArticleCodecV1;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureEventCodecV1;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureMeasurementCodecV1;
+use Workbench\App\Cms\Generated\Boundary\AppFixtureNoticeCodecV1;
 
 /**
  * The record codecs of the schema roots' types, by type (PRD 8.9, GUARDRAILS 2.2): the generated
@@ -39,6 +40,7 @@ final readonly class GeneratedRecordCodecs implements RecordCodecs
             TypeId::fromString('0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b'),
             TypeId::fromString('01a0df3e-8cef-7e9f-8daf-9faa60f1faa6'),
             TypeId::fromString('01a0f424-cbfd-727a-9467-bff093dc17b2'),
+            TypeId::fromString('01a0f5c8-1d2e-7b3c-8d4e-5f6a7b8c9d0e'),
         ];
     }
 
@@ -49,6 +51,7 @@ final readonly class GeneratedRecordCodecs implements RecordCodecs
             '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b' => RecordDocument::write($this->catalog, new AppFixtureMeasurementCodecV1, $content, $access),
             '01a0df3e-8cef-7e9f-8daf-9faa60f1faa6' => RecordDocument::write($this->catalog, new AppFixtureArticleCodecV1, $content, $access),
             '01a0f424-cbfd-727a-9467-bff093dc17b2' => RecordDocument::write($this->catalog, new AppFixtureEventCodecV1, $content, $access),
+            '01a0f5c8-1d2e-7b3c-8d4e-5f6a7b8c9d0e' => RecordDocument::write($this->catalog, new AppFixtureNoticeCodecV1, $content, $access),
             default => throw InvalidRecordDocument::unknownType($content->type),
         };
     }

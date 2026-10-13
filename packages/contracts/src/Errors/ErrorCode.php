@@ -108,6 +108,7 @@ enum ErrorCode: string
     case GenerateDuplicateTypeId = 'generate_duplicate_type_id';
     case GenerateExtensionOfOwnType = 'generate_extension_of_own_type';
     case GenerateExtensionVersionMismatch = 'generate_extension_version_mismatch';
+    case GenerateFallbackWithoutTranslatable = 'generate_fallback_without_translatable';
     case GenerateFieldChanged = 'generate_field_changed';
     case GenerateFieldNotQueryable = 'generate_field_not_queryable';
     case GenerateFieldRemoved = 'generate_field_removed';
@@ -133,6 +134,7 @@ enum ErrorCode: string
     case GenerateTableChanged = 'generate_table_changed';
     case GenerateTableNameTooLong = 'generate_table_name_too_long';
     case GenerateTooManyFields = 'generate_too_many_fields';
+    case GenerateTranslatableWithoutVariants = 'generate_translatable_without_variants';
     case GenerateTypeRemoved = 'generate_type_removed';
     case GenerateUnknownExtendsTarget = 'generate_unknown_extends_target';
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
@@ -563,6 +565,9 @@ enum ErrorCode: string
             self::GenerateExtensionVersionMismatch => $this->refusedInput(
                 'Two extension files of one owner for one type declare different versions. The fields one owner adds to a type share one version: give both files the same one.',
             ),
+            self::GenerateFallbackWithoutTranslatable => $this->refusedInput(
+                'A field has fallback: field and is not translatable. Only a translatable field falls back on its own (PRD 10.3): declare translatable: true, or remove the fallback.',
+            ),
             self::GenerateFieldChanged => $this->refusedInput(
                 'A field\'s column type, NOT NULL, CHECK constraints or index differ from its type\'s schema lock, the table the committed migrations build. Until schema evolution comes (B3), an existing column never changes: undo the change, or add a new optional field instead.',
             ),
@@ -658,6 +663,9 @@ enum ErrorCode: string
             ),
             self::GenerateTooManyFields => $this->refusedInput(
                 'A type has more than 200 top-level fields, its own and those its extensions add together, and each is a column of the type\'s table (PRD 11.6). Move fields into groups, or split the type.',
+            ),
+            self::GenerateTranslatableWithoutVariants => $this->refusedInput(
+                'A field is declared translatable, or has a fallback, in a type with localization none, whose one shared variant holds every field (PRD 10.1). Give the type localization: variants, or remove the keys from the field.',
             ),
             self::GenerateTypeRemoved => $this->refusedInput(
                 'A type whose table has a schema lock in the migrations directory is no longer in the schema. Until schema evolution comes (B3), a type is never removed or renamed: put its blueprint back.',

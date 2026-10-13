@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Seeding\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
@@ -21,7 +22,10 @@ use Cbox\Cms\Core\Seeding\Domain\Dto\SeedCatalog;
  * Which types of the catalog a seeder can write (GUARDRAILS 2.4): every type with a generated
  * validator whose required fields the actor may write. A field above the actor's classification
  * access or stored encrypted cannot be written, so a type that requires one is left out, with the
- * reason. The types are sorted by name, which orders the seed profile's type mix.
+ * reason. The types are sorted by name, which orders the seed profile's type mix. The seeder
+ * writes the shared variant of every entry (PRD 10.1), so a type with localization variants is
+ * seeded through the rules of its shared fields alone (TypeRules::forVariant()); its languages'
+ * variants are not seeded.
  */
 #[Internal]
 final readonly class SeedTypes
@@ -45,7 +49,7 @@ final readonly class SeedTypes
                 continue;
             }
 
-            $rules = $validator->rules();
+            $rules = $validator->rules()->forVariant(VariantKey::shared(), $type->capabilities->localization);
             $blocked = self::blocked($type, null, $rules->fields, $access);
 
             foreach ($rules->extensions as $extension) {

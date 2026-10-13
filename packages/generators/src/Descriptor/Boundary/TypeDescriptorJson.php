@@ -77,6 +77,7 @@ final readonly class TypeDescriptorJson
             ] : null,
             'description' => $field->description,
             'encrypted' => $field->encrypted,
+            'fallback' => $field->fallback->value,
             'fields' => array_map(self::field(...), $field->fields),
             'filterable' => $field->filterable,
             'handle' => $field->handle->value,
@@ -86,6 +87,7 @@ final readonly class TypeDescriptorJson
             'php' => ['doc' => $field->php->doc, 'native' => $field->php->native, 'nullable' => $field->php->nullable],
             'required' => $field->required,
             'sortable' => $field->sortable,
+            'translatable' => $field->translatable,
             'type' => $field->type,
             'typescript' => ['nullable' => $field->typeScript->nullable, 'type' => $field->typeScript->type],
             'validation' => array_map(

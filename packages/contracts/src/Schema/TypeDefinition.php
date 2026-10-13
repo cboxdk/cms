@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Schema;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\ExtensionFields;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
@@ -25,6 +26,13 @@ use Cbox\Cms\Contracts\Ids\TypeId;
  * the version of each extender's namespace, which together are the type's composite version
  * (PRD 11.12, point 5), its capabilities, and its top-level fields: the owner's and every
  * extender's, each with its column in the type table, sorted by column name.
+ *
+ * A type with localization none has only the shared variant, which holds every field, so none of
+ * its fields is translatable (PRD 10.1). A type with localization variants has a variant per
+ * language, which holds its translatable fields, and the shared variant, which holds the others;
+ * fieldsOf() gives the fields of one variant, holds() whether an entry has a variant at all, and
+ * tableHolds() whether the type table has a row of it (PRD 11.6): a language's row holds the
+ * shared fields too, so the shared variant of such a type has no row of its own.
  */
 #[Experimental]
 final readonly class TypeDefinition
@@ -77,6 +85,10 @@ final readonly class TypeDefinition
                 throw InvalidTypeDefinition::unknownNamespace($field->address());
             }
 
+            if ($field->translatable && $capabilities->localization === Localization::None) {
+                throw InvalidTypeDefinition::translatable($field->address(), $name->value);
+            }
+
             if (isset($addresses[$field->address()])) {
                 throw InvalidTypeDefinition::duplicateHandle($field->address());
             }
@@ -103,6 +115,46 @@ final readonly class TypeDefinition
             $this->fields,
             static fn (FieldDefinition $field): bool => $field->handle->equals($handle) && $field->namespace?->value === $namespace?->value,
         );
+    }
+
+    /**
+     * Whether an entry of the type has the variant (PRD 10.1): only the shared variant without
+     * localization, and the shared variant and a variant per language with localization variants.
+     */
+    public function holds(VariantKey $variant): bool
+    {
+        return match ($this->capabilities->localization) {
+            Localization::None => $variant->isShared(),
+            Localization::Variants => true,
+        };
+    }
+
+    /**
+     * Whether the type's table has a row of the variant (PRD 11.6): the shared variant's row
+     * without localization, and a row per language with localization variants, where the shared
+     * variant has no row of its own because its fields are in every language's row.
+     */
+    public function tableHolds(VariantKey $variant): bool
+    {
+        return match ($this->capabilities->localization) {
+            Localization::None => $variant->isShared(),
+            Localization::Variants => ! $variant->isShared(),
+        };
+    }
+
+    /**
+     * The top-level fields the variant holds (FieldDefinition::heldBy()), sorted by column name:
+     * every field for the shared variant of a type without localization, the translatable fields
+     * for a language's variant and the others for the shared variant of a type with localization
+     * variants.
+     *
+     * @return list<FieldDefinition>
+     */
+    public function fieldsOf(VariantKey $variant): array
+    {
+        $localization = $this->capabilities->localization;
+
+        return array_values(array_filter($this->fields, static fn (FieldDefinition $field): bool => $field->heldBy($variant, $localization)));
     }
 
     /**

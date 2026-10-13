@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
+use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Plans\Mutation;
@@ -26,6 +27,7 @@ use Cbox\Cms\Core\Placements\Domain\CanonicalPlacementRef;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Core\Tests\Publishing\PublishingActionWorld as World;
 use ReflectionAttribute;
 use ReflectionClass;
@@ -122,6 +124,17 @@ it('takes the release back of content that has no placement', function (): void 
     $world->unpublish();
 
     expect(unpublishSteps($world->committed()->plan->mutations()))->toBe(['unrelease shared 5']);
+});
+
+it('refuses a type with localization variants for good, naming entry.unpublish version 2 (PRD 10.1)', function (): void {
+    $world = new World(type: TypeId::fromString(LocalizedProbeType::ID))->place(World::HOME_PLACEMENT, World::HOME, ['da' => [Visibility::Live, World::window(-1), true]]);
+
+    $result = $world->unpublish();
+
+    expect(unpublishErrors($result))->toBe(['validation_failed entry'])
+        ->and($result->errors[0]->message)->toContain('The type test:localized_probe has localization variants')
+        ->and($result->errors[0]->message)->toContain('entry.unpublish version 2')
+        ->and($world->committer->pending)->toBe([]);
 });
 
 it('rejects an unpublish that has nothing to take back or close', function (): void {

@@ -91,6 +91,7 @@ export type ErrorCode =
   | 'generate_duplicate_type_id'
   | 'generate_extension_of_own_type'
   | 'generate_extension_version_mismatch'
+  | 'generate_fallback_without_translatable'
   | 'generate_field_changed'
   | 'generate_field_not_queryable'
   | 'generate_field_removed'
@@ -116,6 +117,7 @@ export type ErrorCode =
   | 'generate_table_changed'
   | 'generate_table_name_too_long'
   | 'generate_too_many_fields'
+  | 'generate_translatable_without_variants'
   | 'generate_type_removed'
   | 'generate_unknown_extends_target'
   | 'generate_unknown_field_type'
@@ -414,6 +416,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_duplicate_type_id',
           'generate_extension_of_own_type',
           'generate_extension_version_mismatch',
+          'generate_fallback_without_translatable',
           'generate_field_changed',
           'generate_field_not_queryable',
           'generate_field_removed',
@@ -439,6 +442,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_table_changed',
           'generate_table_name_too_long',
           'generate_too_many_fields',
+          'generate_translatable_without_variants',
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
@@ -701,6 +705,7 @@ const problemV1Rule: ObjectRule = {
           'generate_duplicate_type_id',
           'generate_extension_of_own_type',
           'generate_extension_version_mismatch',
+          'generate_fallback_without_translatable',
           'generate_field_changed',
           'generate_field_not_queryable',
           'generate_field_removed',
@@ -726,6 +731,7 @@ const problemV1Rule: ObjectRule = {
           'generate_table_changed',
           'generate_table_name_too_long',
           'generate_too_many_fields',
+          'generate_translatable_without_variants',
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',

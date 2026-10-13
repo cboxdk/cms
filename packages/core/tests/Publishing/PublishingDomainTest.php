@@ -158,7 +158,7 @@ it('reads an entry read as absent as absent, with no placement in the locale', f
 it('refuses to plan from reads the kernel rules out first', function (): void {
     $clock = new FakeClock(new DateTimeImmutable(World::NOW));
     $publish = new PublishEntryAction(new FakeEntryReader, new FakePlacementReader, new FakeTypeCatalog, $clock);
-    $unpublish = new UnpublishEntryAction(new FakeEntryReader, new FakePlacementReader, $clock);
+    $unpublish = new UnpublishEntryAction(new FakeEntryReader, new FakePlacementReader, new FakeTypeCatalog, $clock);
     $command = new PublishEntry(World::entry(), new AggregateVersion(1), null, World::placement(), new AggregateVersion(1), new Locale('da'));
 
     expect(static fn (): Plan => $publish->plan($command, $publish->resolve($command)))->toThrow(LogicException::class, 'the kernel refuses such a call first')

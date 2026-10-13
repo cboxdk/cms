@@ -232,8 +232,8 @@ final class PlacementWorld
 
         return new CommandPipeline(
             new FakeWriteActions([
-                CreateEntry::class => $this->binding('entry.create', new CreateEntryAction(new PostgresEntryReader($connections, $this->connection))),
-                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction(new PostgresEntryReader($connections, $this->connection), new VariantReleasePlanner)),
+                CreateEntry::class => $this->binding('entry.create', new CreateEntryAction(new PostgresEntryReader($connections, $this->connection), $types)),
+                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction(new PostgresEntryReader($connections, $this->connection), $types, new VariantReleasePlanner)),
                 CreatePlacement::class => $this->binding('placement.create', $this->interleaved(new CreatePlacementAction($placements, $this->clock))),
                 SetPlacementWindow::class => $this->binding('placement.set_window', $this->interleaved(new SetPlacementWindowAction($placements, $types, $this->clock))),
             ]),

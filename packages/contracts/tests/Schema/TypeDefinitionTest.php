@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Contracts\Tests\Schema;
 
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\FieldTypes\FieldBase;
@@ -12,6 +14,7 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
+use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
 use Cbox\Cms\Contracts\Schema\Localization;
@@ -179,6 +182,39 @@ it('refuses a type that contradicts itself', function (callable $build, string $
     'an extension field of an extender that is not listed' => [fn (): TypeDefinition => type([field('app', 'code')]), 'The field "ext.app.code" is in a namespace that extends no version'],
     'a field twice' => [fn (): TypeDefinition => type([field(null, 'title'), field(null, 'title', column: column('other'))]), 'The field "title" appears twice.'],
     'a column twice' => [fn (): TypeDefinition => type([field(null, 'title'), field(null, 'name', column: column('title'))]), 'The column "title" appears twice in one type.'],
+]);
+
+it('holds every field in the shared variant without localization, and splits them by translatable with localization variants (PRD 10.1)', function (): void {
+    $title = new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, true, false, false, column('title', true), translatable: true, fallback: FieldFallback::Field);
+    $rank = field(null, 'rank');
+    $none = type([$rank, field(null, 'label')]);
+    $localized = new TypeDefinition(
+        TypeId::fromString('0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d21'),
+        new TypeName('blog:post'),
+        1,
+        new TypeCapabilities(History::Full, Stages::DraftRelease, Localization::Variants, true),
+        [],
+        [$title, $rank],
+    );
+    $da = VariantKey::of(new Locale('da'));
+    $handles = static fn (array $fields): array => array_map(static fn (FieldDefinition $field): string => $field->handle->value, array_values(array_filter($fields, static fn (mixed $field): bool => $field instanceof FieldDefinition)));
+
+    expect([$none->holds(VariantKey::shared()), $none->holds($da), $localized->holds(VariantKey::shared()), $localized->holds($da)])->toBe([true, false, true, true])
+        ->and([$none->tableHolds(VariantKey::shared()), $none->tableHolds($da), $localized->tableHolds(VariantKey::shared()), $localized->tableHolds($da)])->toBe([true, false, false, true])
+        ->and($handles($none->fieldsOf(VariantKey::shared())))->toBe(['label', 'rank'])
+        ->and($handles($none->fieldsOf($da)))->toBe([])
+        ->and($handles($localized->fieldsOf($da)))->toBe(['title'])
+        ->and($handles($localized->fieldsOf(VariantKey::shared())))->toBe(['rank'])
+        ->and([$title->heldBy($da, Localization::Variants), $title->heldBy(VariantKey::shared(), Localization::Variants), $rank->heldBy($da, Localization::None)])->toBe([true, false, false])
+        ->and([$title->translatable, $title->fallback, $rank->translatable, $rank->fallback])->toBe([true, FieldFallback::Field, false, FieldFallback::Variant]);
+});
+
+it('refuses a translatable field without localization variants, a field fallback on a field that is not translatable, and a nested field that differs from its group', function (callable $build, string $message): void {
+    expect($build)->toThrow(InvalidTypeDefinition::class, $message);
+})->with([
+    'translatable in a type with localization none' => [fn (): TypeDefinition => type([new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, false, false, false, column('title'), translatable: true)]), 'The field "title" is translatable, and the type shop:product has localization none'],
+    'a field fallback without translatable' => [fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, false, false, false, column('title'), fallback: FieldFallback::Field), 'The field "title" has a field fallback and is not translatable'],
+    'a nested field whose translatable differs from its group' => [fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('box'), 'group', ClassificationAccess::Public, true, false, false, false, false, column('box'), [new FieldDefinition(null, new FieldHandle('note'), 'text', ClassificationAccess::Public, true, false, false, false, false, null, translatable: true)], translatable: false), 'The field "note" of the group "box" differs from its group in namespace, classification, encryption, translatable or fallback'],
 ]);
 
 it('reads a value in the form of the field type, or of its base for an addon\'s field type, and holds the base to the field type', function (): void {

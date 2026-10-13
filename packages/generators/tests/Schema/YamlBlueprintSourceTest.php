@@ -214,7 +214,8 @@ function invalidContractFixtures(): array
         'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type'],
         'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type'],
         'kind: fieldset' => ['kind-fieldset.yaml', '/kind'],
-        'localization: variants' => ['localization-variants.yaml', '/capabilities/localization'],
+        'translatable on a field inside a group' => ['translatable-in-group.yaml', '/fields/0/fields/0'],
+        'fallback: entry' => ['fallback-entry.yaml', '/fields/0/fallback'],
         'an extension without fields' => ['extension-without-fields.yaml', '/'],
         'a missing blueprint' => ['missing-blueprint.yaml', '/'],
     ];
@@ -424,8 +425,8 @@ it('rejects a value the installed schema allows and this generator does not know
         ->and($failed->problems[0]->message)->toContain('needs a newer cboxdk/cms');
 })->with([
     'a new capability value' => [
-        '/$defs/capabilities/properties/localization/enum', 'variants', true,
-        str_replace('localization: none', 'localization: variants', contractFixture('valid/article.yaml')),
+        '/$defs/capabilities/properties/localization/enum', 'per_field', true,
+        str_replace('localization: none', 'localization: per_field', contractFixture('valid/article.yaml')),
         '/capabilities/localization',
     ],
     'a new core field type' => [

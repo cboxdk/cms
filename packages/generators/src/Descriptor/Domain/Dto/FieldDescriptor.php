@@ -7,6 +7,7 @@ namespace Cbox\Cms\Generators\Descriptor\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
+use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
@@ -27,6 +28,11 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * type, and for an addon's field type the base of its shape (FieldTypeContribution::shape()). The generators
  * write a value by its base and name the field's type by $type, so an addon's field type is written
  * as its base is.
+ *
+ * $translatable says which variant holds the field in a type with localization variants (PRD 10.1),
+ * a language's when true and the shared one when false, and $fallback how a translatable field
+ * falls back (PRD 10.3); a field inside a group has its group's, and in a type without localization
+ * both have their defaults.
  */
 #[Internal]
 final readonly class FieldDescriptor
@@ -40,6 +46,8 @@ final readonly class FieldDescriptor
      * @param  list<SelectOption>  $choices  the options of a select field, in the order of the file
      * @param  list<FieldDescriptor>  $fields  the nested fields of a group, sorted by handle
      * @param  ?string  $base  the core field type the value takes the form of; null for $type itself
+     * @param  bool  $translatable  whether a language's variant holds the field
+     * @param  FieldFallback  $fallback  how a translatable field falls back
      */
     public function __construct(
         public ?ColumnDescriptor $column,
@@ -62,6 +70,8 @@ final readonly class FieldDescriptor
         public array $fields,
         public SourceLocation $location,
         ?string $base = null,
+        public bool $translatable = false,
+        public FieldFallback $fallback = FieldFallback::Variant,
     ) {
         $this->base = $base ?? $type;
     }

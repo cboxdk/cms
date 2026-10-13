@@ -158,7 +158,7 @@ final readonly class ResolvePathAction implements QueryAction
 
         $canonical = $this->canonical($query, $placement, $mount);
         $content = $type instanceof TypeDefinition && $content instanceof ReadContent
-            ? $content->withFields($this->routes->released($type, $placement->entry) ?? new FieldValues)
+            ? $content->withFields($this->routes->released($type, $placement->entry, $query->locale) ?? new FieldValues)
             : $content;
 
         return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Resolved, $site, $route, $node, $mount, $step, $visibility, $canonical));

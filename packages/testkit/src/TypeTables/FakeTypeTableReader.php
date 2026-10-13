@@ -39,8 +39,9 @@ use Cbox\Cms\Contracts\TypeTables\TypeTableRow;
 use Override;
 
 /**
- * The testkit's TypeTableReader: the released rows of the shared variant a test gives it, in
- * memory, over the types of a TypeCatalog such as the FakeTypeCatalog. It runs the shared suite
+ * The testkit's TypeTableReader: the released rows a test gives it, each of the shared variant or,
+ * for a type with localization variants, of a locale (TypeTableSeed::$locale), in memory, over the
+ * types of a TypeCatalog such as the FakeTypeCatalog. It runs the shared suite
  * TypeTableReaderContract, so a test of code that reads through the reader, a generated query
  * builder among them, sees what the kernel's reader on Postgres gives: the same refusals, the same
  * access predicate, filters, order with null as the greatest value, keyset pagination and fields,
@@ -90,13 +91,13 @@ final readonly class FakeTypeTableReader implements TypeTableReader
         $query->assertReadableBy($type, $access);
         $actor = $access->principal instanceof ActorPrincipal ? $access->principal->actor : null;
 
-        if ((! $actor instanceof ActorId && $access->regions === []) || ! $query->variant->isShared()) {
+        if (! $actor instanceof ActorId && $access->regions === []) {
             return new TypeTablePage([], null);
         }
 
         $rows = array_values(array_filter(
             $this->rows[$type->name->value] ?? [],
-            fn (TypeTableSeed $row): bool => $this->reaches($row, $actor, $access) && $this->matches($type, $row, $query->filters),
+            fn (TypeTableSeed $row): bool => $row->variant()->equals($query->variant) && $this->reaches($row, $actor, $access) && $this->matches($type, $row, $query->filters),
         ));
         usort($rows, static fn (TypeTableSeed $a, TypeTableSeed $b): int => self::compare($query->order, self::keys($type, $a, $query->order), $a->entry->toString(), self::keys($type, $b, $query->order), $b->entry->toString()));
 

@@ -24,6 +24,8 @@ use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
+use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use ReflectionAttribute;
 use ReflectionClass;
 
@@ -102,6 +104,20 @@ it('rejects a type the installation does not have', function (): void {
         ->and($world->committer->pending)->toBe([]);
 });
 
+it('refuses a type with localization variants for good, naming entry.create version 2 (PRD 10.1)', function (): void {
+    $world = new EntryActionWorld;
+    $world->types = [LocalizedProbeType::definition()];
+    $world->validators = [new LocalizedProbeType];
+
+    $result = $world->create(EntryActionWorld::fields('Havnen'), type: TypeId::fromString(LocalizedProbeType::ID));
+
+    expect(createEntryCodes($result))->toBe(['validation_failed'])
+        ->and($result->errors[0]->path?->toString())->toBe('type')
+        ->and($result->errors[0]->message)->toContain('entry.create version 1 writes the shared variant of a type with localization none. The type test:localized_probe has localization variants')
+        ->and($result->errors[0]->message)->toContain('entry.create version 2')
+        ->and($world->committer->pending)->toBe([]);
+});
+
 it('rejects a home node that does not exist or the actor cannot reach', function (): void {
     $world = new EntryActionWorld;
     $nowhere = NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-0000000003a9');
@@ -141,7 +157,7 @@ it('is exposed on the REST, Inertia, MCP and CLI surfaces', function (): void {
     $world->create(EntryActionWorld::fields('Groceries'));
     $surfaces = array_map(
         static fn (ReflectionAttribute $attribute): array => $attribute->newInstance()->surfaces,
-        new ReflectionClass(new CreateEntryAction($world->entries))->getAttributes(Action::class),
+        new ReflectionClass(new CreateEntryAction($world->entries, new FakeTypeCatalog))->getAttributes(Action::class),
     );
 
     expect($world->committed()->command->value)->toBe('entry.create')

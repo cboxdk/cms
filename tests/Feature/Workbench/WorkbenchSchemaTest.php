@@ -54,11 +54,11 @@ function workbenchSchemaFiles(string $directory): array
 it('holds a blueprint file per fixture type in the app root', function (): void {
     $target = GeneratorConfig::read(app(Repository::class), base_path());
 
-    expect(workbenchSchemaFiles($target->roots[0]->path()))->toBe(['fixture_article.yaml', 'fixture_event.yaml', 'fixture_measurement.yaml'])
+    expect(workbenchSchemaFiles($target->roots[0]->path()))->toBe(['fixture_article.yaml', 'fixture_event.yaml', 'fixture_measurement.yaml', 'fixture_notice.yaml'])
         ->and(array_map(
             static fn (TypeBlueprint $type): string => $type->owner->value.':'.$type->handle->value,
             app(BlueprintSource::class)->read($target->roots)->types,
-        ))->toBe(['app:fixture_article', 'app:fixture_event', 'app:fixture_measurement']);
+        ))->toBe(['app:fixture_article', 'app:fixture_event', 'app:fixture_measurement', 'app:fixture_notice']);
 });
 
 it('reads the third fixture type, added as a schema file alone', function (): void {
@@ -103,6 +103,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Boundary/AppFixtureArticleCodecV1.php',
         'workbench/app/Cms/Generated/Boundary/AppFixtureEventCodecV1.php',
         'workbench/app/Cms/Generated/Boundary/AppFixtureMeasurementCodecV1.php',
+        'workbench/app/Cms/Generated/Boundary/AppFixtureNoticeCodecV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1Ext.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1ExtFixtureaddon.php',
@@ -114,6 +115,8 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSensor.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSeries.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureNoticeV1.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureNoticeV1FixtureLinks.php',
         'workbench/app/Cms/Generated/GeneratedRecordCodecs.php',
         'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
         'workbench/app/Cms/Generated/GeneratedTypeEditors.php',
@@ -128,6 +131,9 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementFilterField.php',
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementQuery.php',
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementSortField.php',
+        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureNotice/AppFixtureNoticeFilterField.php',
+        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureNotice/AppFixtureNoticeQuery.php',
+        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureNotice/AppFixtureNoticeSortField.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleExt.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',
@@ -154,10 +160,17 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSensorGroup.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesItem.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNotice.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeRecord.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/FixtureChannelChoice.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/FixtureLinksItem.php',
         'workbench/app/Cms/Generated/TypeHandle.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureArticleValidator.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureEventValidator.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureMeasurementValidator.php',
+        'workbench/app/Cms/Generated/Validators/AppFixtureNoticeValidator.php',
         'workbench/database/migrations/cms/app__fixture_article.lock',
         'workbench/database/migrations/cms/app__fixture_article_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php',
@@ -166,6 +179,8 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/database/migrations/cms/app__fixture_event_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_measurement.lock',
         'workbench/database/migrations/cms/app__fixture_measurement_0001_create.php',
+        'workbench/database/migrations/cms/app__fixture_notice.lock',
+        'workbench/database/migrations/cms/app__fixture_notice_0001_create.php',
         'workbench/resources/js/cms/generated/index.ts',
         'workbench/resources/js/cms/generated/protocol/ActionListV1.ts',
         'workbench/resources/js/cms/generated/protocol/ActivateActorV1.ts',
@@ -229,6 +244,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/resources/js/cms/generated/records/AppFixtureArticleV1.ts',
         'workbench/resources/js/cms/generated/records/AppFixtureEventV1.ts',
         'workbench/resources/js/cms/generated/records/AppFixtureMeasurementV1.ts',
+        'workbench/resources/js/cms/generated/records/AppFixtureNoticeV1.ts',
         'workbench/resources/js/cms/generated/validation.ts',
     ]);
 });

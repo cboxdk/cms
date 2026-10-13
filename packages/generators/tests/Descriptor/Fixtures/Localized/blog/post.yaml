@@ -1,0 +1,88 @@
+# yaml-language-server: $schema=../../../../../../contracts/resources/schemas/blueprint.v1.json
+# The localized example type of the type chain (PRD 10.1, 10.3, 11.6): a type of the module blog
+# with localization variants, so every language is a variant of the entry. The fields declared
+# translatable live in the language's variant, title with its whole variant and teaser falling back
+# on its own; the others live in the shared variant. The app extends it in ../app/post.yaml with a
+# translatable and a shared field. LocalizedExampleTest compiles both and compares the descriptor
+# with ../descriptor.json, the editor descriptor with ../editor.json, and the generated PHP and
+# TypeScript with ../Generated and ../typescript/generated.
+blueprint: 1
+kind: type
+type_id: 0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d30
+handle: post
+label: Post
+description: A post of the blog in several languages, with a title, a teaser and a body per language, and a date and a category shared by every language.
+version: 2
+capabilities:
+  history: full
+  stages: draft-release
+  localization: variants
+  routable: true
+fields:
+  - handle: title
+    label: Title
+    description: The title of the post in the language.
+    type: text
+    required: true
+    classification: public
+    sortable: true
+    translatable: true
+    max_length: 120
+  - handle: teaser
+    label: Teaser
+    description: A short teaser of the post in the language, shown in another language of the chain when the language has none.
+    type: long_text
+    classification: public
+    translatable: true
+    fallback: field
+    max_length: 500
+  - handle: body
+    label: Body
+    description: The body of the post in the language.
+    type: rich_text
+    classification: public
+    translatable: true
+  - handle: quotes
+    label: Quotes
+    description: The quotes of the post in the language, each with its source.
+    type: group
+    classification: public
+    translatable: true
+    fields:
+      - handle: text
+        label: Text
+        description: The quoted text.
+        type: text
+        required: true
+      - handle: source
+        label: Source
+        description: Who said it.
+        type: text
+    repeat:
+      max_items: 5
+  - handle: published_on
+    label: Published on
+    description: The day the post was published, the same in every language.
+    type: date
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+  - handle: category
+    label: Category
+    description: The category of the post, the same in every language.
+    type: select
+    classification: public
+    filterable: true
+    options:
+      - value: news
+        label: News
+      - value: essay
+        label: Essay
+  - handle: author_email
+    label: Author e-mail
+    description: The e-mail address of the author, the same in every language.
+    type: text
+    classification: internal
+    agents: false
+    format: email

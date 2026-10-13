@@ -18,6 +18,7 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
+use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
@@ -156,6 +157,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json->classification = $object->classification->value;
         $json->description = $object->description;
         $json->encrypted = $object->encrypted;
+        $json->fallback = $object->fallback->value;
         $json->handle = $object->handle->value;
         $json->label = $object->label;
         $json->namespace = $object->namespace instanceof FieldNamespace ? $object->namespace->value : null;
@@ -164,6 +166,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json->presence = $object->presence->value;
         $json->repeat = $object->repeat instanceof EditorRepeat ? $this->encodeEditorRepeat($object->repeat) : null;
         $json->rule = $object->rule instanceof JsonDocument ? JsonValues::encodeDocument($object->rule->value) : null;
+        $json->translatable = $object->translatable;
         $json->type = $object->fieldType;
 
         return $json;
@@ -171,7 +174,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
 
     private function decodeEditorField(mixed $value, FieldPath $path): EditorField
     {
-        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'description', 'encrypted', 'handle', 'label', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'type']);
+        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'description', 'encrypted', 'fallback', 'handle', 'label', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'translatable', 'type']);
 
         return JsonValues::build($path, fn (): EditorField => new EditorField(
             path: JsonValues::required($object, 'path', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
@@ -189,6 +192,8 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
             choices: JsonValues::required($object, 'choices', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorChoice(...))),
             repeat: JsonValues::present($object, 'repeat', $path, $this->decodeEditorRepeat(...)),
             rule: JsonValues::present($object, 'rule', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
+            translatable: JsonValues::required($object, 'translatable', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            fallback: JsonValues::required($object, 'fallback', $path, static fn (mixed $value, FieldPath $at): FieldFallback => JsonValues::enum($value, $at, FieldFallback::class)),
         ));
     }
 

@@ -143,12 +143,15 @@ final readonly class TypeTableDdl
     }
 
     /**
-     * The CHECK of `cms_locale` for a type of the localization.
+     * The CHECK of `cms_locale` for a type of the localization (PRD 10.1, 11.6): the shared variant
+     * alone for a type without localization, and a language per row, never the shared variant, for
+     * a type with localization variants, whose shared fields are in each language's row.
      */
     public static function localeCheck(Localization $localization): string
     {
         return match ($localization) {
             Localization::None => 'cms_locale = '.SqlText::literal(self::SHARED_VARIANT),
+            Localization::Variants => 'cms_locale <> '.SqlText::literal(self::SHARED_VARIANT),
         };
     }
 

@@ -6,11 +6,13 @@ namespace Cbox\Cms\Core\Tests\Routing\Fakes;
 
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
@@ -84,9 +86,12 @@ final class FakeRouteReader implements RouteReader
         return $this;
     }
 
-    public function withReleased(TypeId $type, EntryId $entry, FieldValues $fields): self
+    /**
+     * @param  ?Locale  $locale  the locale whose row it is, for a type with localization variants; null for the shared row
+     */
+    public function withReleased(TypeId $type, EntryId $entry, FieldValues $fields, ?Locale $locale = null): self
     {
-        $this->released[$type->toString().' '.$entry->toString()] = $fields;
+        $this->released[self::rowKey($type, $entry, $locale instanceof Locale ? VariantKey::of($locale) : VariantKey::shared())] = $fields;
 
         return $this;
     }
@@ -179,10 +184,16 @@ final class FakeRouteReader implements RouteReader
     }
 
     #[Override]
-    public function released(TypeDefinition $type, EntryId $entry): ?FieldValues
+    public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues
     {
         $this->reads++;
+        $variant = $type->capabilities->localization === Localization::Variants ? VariantKey::of($locale) : VariantKey::shared();
 
-        return $this->released[$type->id->toString().' '.$entry->toString()] ?? null;
+        return $this->released[self::rowKey($type->id, $entry, $variant)] ?? null;
+    }
+
+    private static function rowKey(TypeId $type, EntryId $entry, VariantKey $variant): string
+    {
+        return $type->toString().' '.$entry->toString().' '.$variant->value;
     }
 }

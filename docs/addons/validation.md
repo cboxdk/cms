@@ -107,6 +107,8 @@ final readonly class NoteValidator implements TypeValidator
 }
 ```
 
+In a type with `localization: variants` (PRD 10.1), a revision holds the fields of one variant: `FieldRules` carries `translatable`, and `TypeRules::forVariant(VariantKey, Localization)` keeps the rules of the fields the variant holds, the translatable fields for a language's variant and the others for the shared one, so the kernel asks a revision of the shared variant for no translatable field and refuses one in it as `validation_unknown_field`. A type with `localization: none` keeps every rule for its one shared variant.
+
 <!-- example: examples/Unit/Validation/NoteInputTest.php -->
 ```php
 <?php

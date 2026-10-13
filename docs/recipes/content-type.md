@@ -13,7 +13,8 @@ The kernel knows no content types (GUARDRAILS 2.4). A type is one blueprint file
 - **owner**: the owner of the schema root, `app` for the workbench's `workbench/schema`.
 - **handle**: lowercase words joined by underscores. In the workbench every handle, field handle and select value starts with `fixture_`, because `tests/Arch/ContentTypesTest.php` fails on one that does not, and fails when a handle appears in the kernel's source.
 - **type_id**: a new UUIDv7 in lowercase, unique across every blueprint. `php -r 'require "vendor/autoload.php"; echo Ramsey\Uuid\Uuid::uuid7(), PHP_EOL;'` prints one.
-- **capabilities**: `history` (`full`, `audit-only` or `none`), `stages` (`draft-release` or `none`), `localization` (`none` in blueprint v1) and `routable`. An entry of a type with stages `none` has no release and is public once it is placed and published. A type with stages `draft-release` is released with `variant.release`, which the kernel allows only with history `full` and otherwise rejects as `type_not_releasable`.
+- **capabilities**: `history` (`full`, `audit-only` or `none`), `stages` (`draft-release` or `none`), `localization` (`none` or `variants`) and `routable`. An entry of a type with stages `none` has no release and is public once it is placed and published. A type with stages `draft-release` is released with `variant.release`, which the kernel allows only with history `full` and otherwise rejects as `type_not_releasable`.
+- **localization**: with `none`, the one shared variant holds every field. With `variants` (PRD 10.1), every language is a variant of the entry with its own revisions and release, and each field says which variant holds it with `translatable: true` (the language's) or `false` (the shared one, the default); a translatable field may add `fallback: field` to fall back on its own along the site's chain instead of with its whole variant. Both keys belong to a `variants` type only, and `fallback: field` to a translatable field only; `cms:generate` refuses anything else with `generate_translatable_without_variants` and `generate_fallback_without_translatable`. The type table of a `variants` type holds one row per language with the shared fields in each (PRD 11.6), so its query builder takes `locale()`, and the entry commands of version 1 refuse such a type until version 2 writes the languages' variants. The workbench's `fixture_notice` is one.
 - **fields**: each with its handle, core field type, `required`, `classification` and the options of its type, as [blueprint schema v1](../addons/blueprint-v1.md) lists them.
 
 From the owner and handle come the names every generator uses: the type's name `<owner>:<handle>`, its `TypeHandle` case `<Case>` (the owner and handle in TitleCase, `AppFixtureEvent`), and its table `<owner>__<handle>`.
@@ -259,11 +260,11 @@ function workbenchSchemaFiles(string $directory): array
 it('holds a blueprint file per fixture type in the app root', function (): void {
     $target = GeneratorConfig::read(app(Repository::class), base_path());
 
-    expect(workbenchSchemaFiles($target->roots[0]->path()))->toBe(['fixture_article.yaml', 'fixture_event.yaml', 'fixture_measurement.yaml'])
+    expect(workbenchSchemaFiles($target->roots[0]->path()))->toBe(['fixture_article.yaml', 'fixture_event.yaml', 'fixture_measurement.yaml', 'fixture_notice.yaml'])
         ->and(array_map(
             static fn (TypeBlueprint $type): string => $type->owner->value.':'.$type->handle->value,
             app(BlueprintSource::class)->read($target->roots)->types,
-        ))->toBe(['app:fixture_article', 'app:fixture_event', 'app:fixture_measurement']);
+        ))->toBe(['app:fixture_article', 'app:fixture_event', 'app:fixture_measurement', 'app:fixture_notice']);
 });
 
 it('reads the third fixture type, added as a schema file alone', function (): void {
@@ -308,6 +309,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Boundary/AppFixtureArticleCodecV1.php',
         'workbench/app/Cms/Generated/Boundary/AppFixtureEventCodecV1.php',
         'workbench/app/Cms/Generated/Boundary/AppFixtureMeasurementCodecV1.php',
+        'workbench/app/Cms/Generated/Boundary/AppFixtureNoticeCodecV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1Ext.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1ExtFixtureaddon.php',
@@ -319,6 +321,8 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSensor.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureMeasurementV1FixtureSeries.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureNoticeV1.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureNoticeV1FixtureLinks.php',
         'workbench/app/Cms/Generated/GeneratedRecordCodecs.php',
         'workbench/app/Cms/Generated/GeneratedTypeCatalog.php',
         'workbench/app/Cms/Generated/GeneratedTypeEditors.php',
@@ -333,6 +337,9 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementFilterField.php',
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementQuery.php',
         'workbench/app/Cms/Generated/QueryBuilders/AppFixtureMeasurement/AppFixtureMeasurementSortField.php',
+        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureNotice/AppFixtureNoticeFilterField.php',
+        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureNotice/AppFixtureNoticeQuery.php',
+        'workbench/app/Cms/Generated/QueryBuilders/AppFixtureNotice/AppFixtureNoticeSortField.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticle.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleExt.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFactory.php',
@@ -359,10 +366,17 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSensorGroup.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesItem.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNotice.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeRecord.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/FixtureChannelChoice.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureNotice/FixtureLinksItem.php',
         'workbench/app/Cms/Generated/TypeHandle.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureArticleValidator.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureEventValidator.php',
         'workbench/app/Cms/Generated/Validators/AppFixtureMeasurementValidator.php',
+        'workbench/app/Cms/Generated/Validators/AppFixtureNoticeValidator.php',
         'workbench/database/migrations/cms/app__fixture_article.lock',
         'workbench/database/migrations/cms/app__fixture_article_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php',
@@ -371,6 +385,8 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/database/migrations/cms/app__fixture_event_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_measurement.lock',
         'workbench/database/migrations/cms/app__fixture_measurement_0001_create.php',
+        'workbench/database/migrations/cms/app__fixture_notice.lock',
+        'workbench/database/migrations/cms/app__fixture_notice_0001_create.php',
         'workbench/resources/js/cms/generated/index.ts',
         'workbench/resources/js/cms/generated/protocol/ActionListV1.ts',
         'workbench/resources/js/cms/generated/protocol/ActivateActorV1.ts',
@@ -434,6 +450,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/resources/js/cms/generated/records/AppFixtureArticleV1.ts',
         'workbench/resources/js/cms/generated/records/AppFixtureEventV1.ts',
         'workbench/resources/js/cms/generated/records/AppFixtureMeasurementV1.ts',
+        'workbench/resources/js/cms/generated/records/AppFixtureNoticeV1.ts',
         'workbench/resources/js/cms/generated/validation.ts',
     ]);
 });

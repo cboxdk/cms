@@ -1,0 +1,300 @@
+{
+    "capabilities": {
+        "history": "full",
+        "localization": "variants",
+        "routable": true,
+        "stages": "draft-release"
+    },
+    "description": "A post of the blog in several languages, with a title, a teaser and a body per language, and a date and a category shared by every language.",
+    "extensions": [
+        {
+            "namespace": "app",
+            "version": 1
+        }
+    ],
+    "fields": [
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "The title of the post in the language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "title",
+            "label": "Title",
+            "namespace": null,
+            "parent": null,
+            "path": "title",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 120
+            },
+            "translatable": true,
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "long_text",
+            "choices": [],
+            "classification": "public",
+            "description": "A short teaser of the post in the language, shown in another language of the chain when the language has none.",
+            "encrypted": false,
+            "fallback": "field",
+            "handle": "teaser",
+            "label": "Teaser",
+            "namespace": null,
+            "parent": null,
+            "path": "teaser",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 500
+            },
+            "translatable": true,
+            "type": "long_text"
+        },
+        {
+            "agents": true,
+            "base": "rich_text",
+            "choices": [],
+            "classification": "public",
+            "description": "The body of the post in the language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "body",
+            "label": "Body",
+            "namespace": null,
+            "parent": null,
+            "path": "body",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "portable_text",
+                "styles": [
+                    "normal",
+                    "h2",
+                    "h3",
+                    "h4",
+                    "h5",
+                    "h6",
+                    "blockquote"
+                ],
+                "marks": [
+                    "strong",
+                    "em",
+                    "underline",
+                    "strike",
+                    "code",
+                    "sub",
+                    "sup"
+                ],
+                "lists": [
+                    "bullet",
+                    "number"
+                ],
+                "links": [
+                    "url"
+                ]
+            },
+            "translatable": true,
+            "type": "rich_text"
+        },
+        {
+            "agents": true,
+            "base": "group",
+            "choices": [],
+            "classification": "public",
+            "description": "The quotes of the post in the language, each with its source.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "quotes",
+            "label": "Quotes",
+            "namespace": null,
+            "parent": null,
+            "path": "quotes",
+            "presence": "optional",
+            "repeat": {
+                "max_items": 5,
+                "min_items": null
+            },
+            "rule": null,
+            "translatable": true,
+            "type": "group"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "The quoted text.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "text",
+            "label": "Text",
+            "namespace": null,
+            "parent": "quotes",
+            "path": "quotes.text",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255
+            },
+            "translatable": true,
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "Who said it.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "source",
+            "label": "Source",
+            "namespace": null,
+            "parent": "quotes",
+            "path": "quotes.source",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255
+            },
+            "translatable": true,
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "date",
+            "choices": [],
+            "classification": "public",
+            "description": "The day the post was published, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "published_on",
+            "label": "Published on",
+            "namespace": null,
+            "parent": null,
+            "path": "published_on",
+            "presence": "required",
+            "repeat": null,
+            "rule": {
+                "kind": "date"
+            },
+            "translatable": false,
+            "type": "date"
+        },
+        {
+            "agents": true,
+            "base": "select",
+            "choices": [
+                {
+                    "label": "News",
+                    "value": "news"
+                },
+                {
+                    "label": "Essay",
+                    "value": "essay"
+                }
+            ],
+            "classification": "public",
+            "description": "The category of the post, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "category",
+            "label": "Category",
+            "namespace": null,
+            "parent": null,
+            "path": "category",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "choice",
+                "choices": [
+                    "news",
+                    "essay"
+                ]
+            },
+            "translatable": false,
+            "type": "select"
+        },
+        {
+            "agents": false,
+            "base": "text",
+            "choices": [],
+            "classification": "internal",
+            "description": "The e-mail address of the author, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "author_email",
+            "label": "Author e-mail",
+            "namespace": null,
+            "parent": null,
+            "path": "author_email",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 255,
+                "format": "email"
+            },
+            "translatable": false,
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "The subtitle of the post in the language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "subtitle",
+            "label": "Subtitle",
+            "namespace": "app",
+            "parent": null,
+            "path": "ext.app.subtitle",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 160
+            },
+            "translatable": true,
+            "type": "text"
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "description": "The customer's own tag of the post, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "tag",
+            "label": "Tag",
+            "namespace": "app",
+            "parent": null,
+            "path": "ext.app.tag",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "text",
+                "maxLength": 40
+            },
+            "translatable": false,
+            "type": "text"
+        }
+    ],
+    "id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d30",
+    "label": "Post",
+    "name": "blog:post",
+    "title_field": "title",
+    "version": 2
+}

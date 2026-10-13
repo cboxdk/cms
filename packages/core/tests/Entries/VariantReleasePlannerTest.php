@@ -18,6 +18,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\ReleaseVariantAggregates;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryReader;
+use Cbox\Cms\Testkit\Schema\FakeTypeCatalog;
 use LogicException;
 
 /*
@@ -44,7 +45,7 @@ it('plans the release of the revision for the entry\'s type, and nothing when it
 });
 
 it('refuses to plan for a variant or an entry read as absent', function (): void {
-    $action = new ReleaseVariantAction(new FakeEntryReader, new VariantReleasePlanner);
+    $action = new ReleaseVariantAction(new FakeEntryReader, new FakeTypeCatalog, new VariantReleasePlanner);
     $command = new ReleaseVariant(EntryActionWorld::entry(), RevisionNumber::first(), new AggregateVersion(1));
 
     expect(static fn (): Plan => new VariantReleasePlanner()->plan(plannedEntry(null), RevisionNumber::first()))

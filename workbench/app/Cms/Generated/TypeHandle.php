@@ -19,6 +19,7 @@ enum TypeHandle: string
     case AppFixtureArticle = 'app:fixture_article';
     case AppFixtureEvent = 'app:fixture_event';
     case AppFixtureMeasurement = 'app:fixture_measurement';
+    case AppFixtureNotice = 'app:fixture_notice';
 
     /**
      * The type's own fields: field handle to field type, sorted by handle.
@@ -66,6 +67,16 @@ enum TypeHandle: string
                 'fixture_series' => 'group',
                 'fixture_station' => 'text',
             ],
+            self::AppFixtureNotice => [
+                'fixture_body' => 'rich_text',
+                'fixture_channel' => 'select',
+                'fixture_editor_note' => 'text',
+                'fixture_links' => 'group',
+                'fixture_priority' => 'integer',
+                'fixture_published_on' => 'date',
+                'fixture_teaser' => 'long_text',
+                'fixture_title' => 'text',
+            ],
         };
     }
 
@@ -85,6 +96,7 @@ enum TypeHandle: string
             ],
             self::AppFixtureEvent => [],
             self::AppFixtureMeasurement => [],
+            self::AppFixtureNotice => [],
         };
     }
 }

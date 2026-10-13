@@ -18,7 +18,7 @@ use Illuminate\Support\Facades\DB;
 
 /**
  * A row of each workbench type table for the released entry that has a live placement, with a
- * value for every NOT NULL field.
+ * value for every NOT NULL field, of the shared variant unless the row names its locale.
  *
  * @var array<string, array<string, bool|string>>
  */
@@ -35,6 +35,12 @@ const TYPE_TABLE_ROWS = [
         'fixture_measured_at' => '2026-03-10 12:00:00+00',
         'fixture_reading' => '12.500',
         'fixture_scale' => 'fixture_celsius',
+    ],
+    // A type with localization variants has a row per language and none of the shared variant (PRD 10.1, 11.6).
+    'app__fixture_notice' => [
+        'cms_locale' => 'da',
+        'fixture_published_on' => '2026-03-10',
+        'fixture_title' => 'A notice',
     ],
 ];
 

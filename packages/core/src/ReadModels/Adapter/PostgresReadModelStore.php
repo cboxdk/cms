@@ -10,11 +10,13 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Schema\History;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Entries\Adapter\TypeRows;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
+use Cbox\Cms\Core\Entries\Domain\LocaleRow;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\ChunkResult;
 use Cbox\Cms\Core\ReadModels\Domain\EntryRange;
 use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
@@ -52,7 +54,10 @@ use UnexpectedValueException;
  * row, and writes each variant's rows through TypeRows, the writer of the entry commands: the
  * released row with release(), for a type with stages, then the draft with write(), which writes
  * the released row of a type with stages none and otherwise a draft row that stays only where it
- * differs from the released one. The rows are therefore the ones the commands left.
+ * differs from the released one. The rows are therefore the ones the commands left. A type with
+ * localization variants gets a row per language of each entry, with the shared variant's fields in
+ * it (LocaleRow), the released row only while the language and the shared variant are both
+ * released, as TypeRows writes them.
  */
 #[Internal]
 final readonly class PostgresReadModelStore implements ReadModelStore
@@ -184,15 +189,55 @@ final readonly class PostgresReadModelStore implements ReadModelStore
 
         $rows = new TypeRows($db);
 
-        foreach ($heads as [$entry, $variant, $draft, $released]) {
-            if ($released instanceof FieldValues) {
-                $rows->release($type, $entry, $variant, $released);
-            }
+        if ($type->capabilities->localization === Localization::Variants) {
+            $this->writeLocalized($rows, $type, $heads);
+        } else {
+            foreach ($heads as [$entry, $variant, $draft, $released]) {
+                if ($released instanceof FieldValues) {
+                    $rows->release($type, $entry, $variant, $released);
+                }
 
-            $rows->write($type, $entry, $variant, $draft);
+                $rows->write($type, $entry, $variant, $draft);
+            }
         }
 
         return [count($entries), count($heads)];
+    }
+
+    /**
+     * Writes the rows of a type with localization variants (PRD 10.1, 11.6): one per language of
+     * each entry, the language's fields with the shared variant's in it (LocaleRow); the released
+     * row where the language and the shared variant are both released, from their released
+     * revisions, and the draft from their drafts.
+     *
+     * @param  list<array{EntryId, VariantKey, FieldValues, ?FieldValues}>  $heads  each head's entry, variant, draft and released fields
+     *
+     * @throws LogicException when an entry has a language's head and no shared head
+     */
+    private function writeLocalized(TypeRows $rows, TypeDefinition $type, array $heads): void
+    {
+        /** @var array<string, array{FieldValues, ?FieldValues}> $shared the shared head of each entry */
+        $shared = [];
+
+        foreach ($heads as [$entry, $variant, $draft, $released]) {
+            if ($variant->isShared()) {
+                $shared[$entry->toString()] = [$draft, $released];
+            }
+        }
+
+        foreach ($heads as [$entry, $variant, $draft, $released]) {
+            if ($variant->isShared()) {
+                continue;
+            }
+
+            [$sharedDraft, $sharedReleased] = $shared[$entry->toString()] ?? throw new LogicException(sprintf('The entry %s has a head of the variant %s and no shared head to take its shared fields from.', $entry->toString(), $variant->value));
+
+            if ($released instanceof FieldValues && $sharedReleased instanceof FieldValues) {
+                $rows->release($type, $entry, $variant, LocaleRow::of($type, $sharedReleased, $released));
+            }
+
+            $rows->write($type, $entry, $variant, LocaleRow::of($type, $sharedDraft, $draft));
+        }
     }
 
     /**

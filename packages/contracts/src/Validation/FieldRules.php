@@ -27,6 +27,7 @@ final readonly class FieldRules
     /**
      * @param  list<Rule>  $rules  the type rule first
      * @param  list<FieldRules>  $fields  the nested fields of a group
+     * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
      *
      * @throws InvalidRules
      */
@@ -35,6 +36,7 @@ final readonly class FieldRules
         public Presence $presence,
         public array $rules,
         public array $fields = [],
+        public bool $translatable = false,
     ) {
         $type = ($rules[0] ?? null)?->name;
 

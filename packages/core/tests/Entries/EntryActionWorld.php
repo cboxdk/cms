@@ -203,9 +203,9 @@ final class EntryActionWorld
 
         $pipeline = new CommandPipeline(
             new FakeWriteActions([
-                CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($this->entries)),
-                ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($this->entries)),
-                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($this->entries, new VariantReleasePlanner)),
+                CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($this->entries, $types)),
+                ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($this->entries, $types)),
+                ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($this->entries, $types, new VariantReleasePlanner)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,

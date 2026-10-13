@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorState;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -48,7 +49,9 @@ use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\UnknownCommand;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeChangesetCommitter;
 use Cbox\Cms\Core\Tests\Pipeline\PipelineWorld;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeAggregates;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeType;
 use ReflectionClass;
 use ReflectionNamedType;
 use ReflectionParameter;
@@ -238,6 +241,40 @@ it('rejects a revision of a type the catalog does not have', function (): void {
         ->and($result->errors[1]->message)->toBe('No type of this installation has the id 01936f5e-8a2b-7c3d-9e4f-0000000000d9.')
         ->and($world->validation->asked)->toBe([])
         ->and($world->committer->pending)->toBe([]);
+});
+
+it('rejects a revision of a variant the type does not hold: a language\'s variant of a type with localization none (PRD 10.1)', function (): void {
+    $world = new PipelineWorld;
+    $da = new VariantRef($world->entry(), VariantKey::of(new Locale('da')));
+    $world->extraReads = [new ReadVersion($da, null)];
+    $world->unreadPlan = new Plan(
+        new RevisionCreated($world->entry(), TypeId::fromString(ProbeType::ID), $da->variant, RevisionNumber::first(), PipelineWorld::fields('Havnen')),
+        new HeadMoved($world->entry(), $da->variant, null, RevisionNumber::first()),
+    );
+
+    $result = $world->run($world->command());
+
+    expect(pipelineErrors($result))->toBe(['validation_failed -', 'validation_failed -'])
+        ->and($result->errors[1]->message)->toBe(sprintf('The type test:probe has localization none, so its one variant is the shared one, and the entry %s has no variant da (PRD 10.1).', $world->entry()->toString()))
+        ->and($world->validation->asked)->toBe([])
+        ->and($world->committer->pending)->toBe([]);
+});
+
+it('accepts a revision of the shared variant and of a language\'s variant of a type with localization variants, which an entry of such a type has both of (PRD 10.1)', function (): void {
+    $world = new PipelineWorld;
+    $type = LocalizedProbeType::definition();
+    $da = new VariantRef($world->entry(), VariantKey::of(new Locale('da')));
+    $world->extraReads = [new ReadVersion($da, null)];
+    $world->unreadPlan = new Plan(
+        new RevisionCreated($world->entry(), $type->id, $da->variant, RevisionNumber::first(), new FieldValues(new FieldMap(new NamedValue(new FieldHandle('title'), new TextValue('Havnen'))))),
+        new HeadMoved($world->entry(), $da->variant, null, RevisionNumber::first()),
+    );
+
+    $result = $world->run($world->command(new FieldValues(new FieldMap(new NamedValue(new FieldHandle('rank'), new IntegerValue(2)))), $type->id));
+
+    expect(pipelineErrors($result))->toBe([])
+        ->and($result->outcome())->toBe(Outcome::Committed)
+        ->and($world->validation->asked)->toBe(['test:localized_probe', 'test:localized_probe']);
 });
 
 it('rejects a command whose expected version is not the one resolve() read, before it authorizes', function (): void {

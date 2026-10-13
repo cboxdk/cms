@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocalePlacements;
 use Cbox\Cms\Core\Placements\Domain\Dto\PlacementReads;
@@ -38,6 +39,7 @@ final readonly class UnpublishEntryAggregates implements Aggregates
         public ?StoredEntry $stored,
         public array $everywhere,
         public DateTimeImmutable $at,
+        public ?TypeDefinition $type = null,
     ) {}
 
     #[Override]

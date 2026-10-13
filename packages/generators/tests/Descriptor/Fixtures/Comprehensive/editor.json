@@ -20,6 +20,7 @@
             "classification": "public",
             "description": "The name of the product, as the shop shows it.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "name",
             "label": "Name",
             "namespace": null,
@@ -32,6 +33,7 @@
                 "minLength": 1,
                 "maxLength": 120
             },
+            "translatable": false,
             "type": "text"
         },
         {
@@ -41,6 +43,7 @@
             "classification": "public",
             "description": "Where customers write about the product.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "support_email",
             "label": "Support email",
             "namespace": null,
@@ -53,6 +56,7 @@
                 "maxLength": 255,
                 "format": "email"
             },
+            "translatable": false,
             "type": "text"
         },
         {
@@ -62,6 +66,7 @@
             "classification": "internal",
             "description": null,
             "encrypted": false,
+            "fallback": "variant",
             "handle": "summary",
             "label": "Summary",
             "namespace": null,
@@ -73,6 +78,7 @@
                 "kind": "text",
                 "maxLength": 2000
             },
+            "translatable": false,
             "type": "long_text"
         },
         {
@@ -82,6 +88,7 @@
             "classification": "internal",
             "description": "How many items the warehouse holds.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "stock",
             "label": "Stock",
             "namespace": null,
@@ -94,6 +101,7 @@
                 "min": 0,
                 "max": 1000000
             },
+            "translatable": false,
             "type": "integer"
         },
         {
@@ -103,6 +111,7 @@
             "classification": "public",
             "description": "The weight of one item in grams.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "weight",
             "label": "Weight",
             "namespace": null,
@@ -114,6 +123,7 @@
                 "kind": "integer",
                 "min": 1
             },
+            "translatable": false,
             "type": "integer"
         },
         {
@@ -123,6 +133,7 @@
             "classification": "public",
             "description": "The price of one item, in euro.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "price",
             "label": "Price",
             "namespace": null,
@@ -137,6 +148,7 @@
                 "min": "0.00",
                 "max": "99999999.99"
             },
+            "translatable": false,
             "type": "decimal"
         },
         {
@@ -146,6 +158,7 @@
             "classification": "public",
             "description": "Whether the shop no longer sells the product.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "discontinued",
             "label": "Discontinued",
             "namespace": null,
@@ -156,6 +169,7 @@
             "rule": {
                 "kind": "boolean"
             },
+            "translatable": false,
             "type": "boolean"
         },
         {
@@ -165,6 +179,7 @@
             "classification": "public",
             "description": "The day the product went on sale.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "launch_date",
             "label": "Launch date",
             "namespace": null,
@@ -177,6 +192,7 @@
                 "min": "2000-01-01",
                 "max": "2099-12-31"
             },
+            "translatable": false,
             "type": "date"
         },
         {
@@ -186,6 +202,7 @@
             "classification": "internal",
             "description": "When the product data was last checked.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "checked_at",
             "label": "Checked at",
             "namespace": null,
@@ -197,6 +214,7 @@
                 "kind": "datetime",
                 "min": "2000-01-01T00:00:00Z"
             },
+            "translatable": false,
             "type": "datetime"
         },
         {
@@ -219,6 +237,7 @@
             "classification": "public",
             "description": "The colour of the product.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "colour",
             "label": "Colour",
             "namespace": null,
@@ -234,6 +253,7 @@
                     "blue"
                 ]
             },
+            "translatable": false,
             "type": "select"
         },
         {
@@ -256,6 +276,7 @@
             "classification": "public",
             "description": "The tags the shop lists the product under.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "tags",
             "label": "Tags",
             "namespace": null,
@@ -277,6 +298,7 @@
                 "maxItems": 3,
                 "distinct": true
             },
+            "translatable": false,
             "type": "select"
         },
         {
@@ -286,6 +308,7 @@
             "classification": "public",
             "description": "The description of the product on its page.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "body",
             "label": "Body",
             "namespace": null,
@@ -311,6 +334,7 @@
                     "url"
                 ]
             },
+            "translatable": false,
             "type": "rich_text"
         },
         {
@@ -320,6 +344,7 @@
             "classification": "public",
             "description": "How to take care of the product.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "care",
             "label": "Care",
             "namespace": null,
@@ -355,6 +380,7 @@
                     "url"
                 ]
             },
+            "translatable": false,
             "type": "rich_text"
         },
         {
@@ -364,6 +390,7 @@
             "classification": "confidential",
             "description": "Who supplies the product, and how to reach them.",
             "encrypted": true,
+            "fallback": "variant",
             "handle": "supplier",
             "label": "Supplier",
             "namespace": null,
@@ -372,6 +399,7 @@
             "presence": "optional",
             "repeat": null,
             "rule": null,
+            "translatable": false,
             "type": "group"
         },
         {
@@ -381,6 +409,7 @@
             "classification": "confidential",
             "description": "The name of the supplier.",
             "encrypted": true,
+            "fallback": "variant",
             "handle": "company",
             "label": "Company",
             "namespace": null,
@@ -392,6 +421,7 @@
                 "kind": "text",
                 "maxLength": 255
             },
+            "translatable": false,
             "type": "text"
         },
         {
@@ -401,6 +431,7 @@
             "classification": "confidential",
             "description": "The supplier's website.",
             "encrypted": true,
+            "fallback": "variant",
             "handle": "website",
             "label": "Website",
             "namespace": null,
@@ -413,6 +444,7 @@
                 "maxLength": 255,
                 "format": "url"
             },
+            "translatable": false,
             "type": "text"
         },
         {
@@ -422,6 +454,7 @@
             "classification": "confidential",
             "description": null,
             "encrypted": true,
+            "fallback": "variant",
             "handle": "notes",
             "label": "Notes",
             "namespace": null,
@@ -433,6 +466,7 @@
                 "kind": "text",
                 "maxLength": 10000
             },
+            "translatable": false,
             "type": "long_text"
         },
         {
@@ -442,6 +476,7 @@
             "classification": "public",
             "description": "The sizes the product comes in.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "dimensions",
             "label": "Dimensions",
             "namespace": null,
@@ -453,6 +488,7 @@
                 "min_items": 1
             },
             "rule": null,
+            "translatable": false,
             "type": "group"
         },
         {
@@ -471,6 +507,7 @@
             "classification": "public",
             "description": "The name of the size.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "size",
             "label": "Size",
             "namespace": null,
@@ -485,6 +522,7 @@
                     "large"
                 ]
             },
+            "translatable": false,
             "type": "select"
         },
         {
@@ -494,6 +532,7 @@
             "classification": "public",
             "description": "The width in millimetres.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "width",
             "label": "Width",
             "namespace": null,
@@ -505,6 +544,7 @@
                 "kind": "integer",
                 "min": 1
             },
+            "translatable": false,
             "type": "integer"
         },
         {
@@ -514,6 +554,7 @@
             "classification": "confidential",
             "description": "What the shop pays the supplier for one item.",
             "encrypted": true,
+            "fallback": "variant",
             "handle": "purchase_price",
             "label": "Purchase price",
             "namespace": null,
@@ -526,6 +567,7 @@
                 "precision": 10,
                 "scale": 2
             },
+            "translatable": false,
             "type": "decimal"
         },
         {
@@ -535,6 +577,7 @@
             "classification": "internal",
             "description": "The customer's tax code for the product.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "tax_code",
             "label": "Tax code",
             "namespace": "app",
@@ -546,6 +589,7 @@
                 "kind": "text",
                 "maxLength": 20
             },
+            "translatable": false,
             "type": "text"
         },
         {
@@ -555,6 +599,7 @@
             "classification": "public",
             "description": "The name the customer's own systems use for the product.",
             "encrypted": false,
+            "fallback": "variant",
             "handle": "name",
             "label": "Local name",
             "namespace": "app",
@@ -566,6 +611,7 @@
                 "kind": "text",
                 "maxLength": 255
             },
+            "translatable": false,
             "type": "text"
         }
     ],

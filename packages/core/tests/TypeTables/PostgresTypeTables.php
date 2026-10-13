@@ -24,8 +24,9 @@ use Override;
  * Type tables on the checkout's test database for the tests of the TypeTableReader (PRD 11.6):
  * create() makes the table of a type the migrations do not know, as the owner role, with the
  * system columns and the row level security of a generated type table (TypeTableAccess); seed()
- * writes released rows of the shared variant with their nodes, owners and entries as the
- * superuser, the fields through TypeTableColumns; and inContext() wraps a reader so each page runs
+ * writes released rows, each of the shared variant or of the locale its seed names (PRD 10.1),
+ * with their nodes, owners and entries as the superuser, the fields through TypeTableColumns; and
+ * inContext() wraps a reader so each page runs
  * in a transaction of the app role with the context's actor context set, as the query pipeline
  * runs it.
  */
@@ -100,7 +101,7 @@ final class PostgresTypeTables
             ]);
             $superuser->table($type->name->table())->insert([
                 'cms_entry_id' => $row->entry->toString(),
-                'cms_locale' => 'shared',
+                'cms_locale' => $row->variant()->value,
                 'cms_stage' => 'released',
                 'cms_home_node' => $parent,
                 'cms_owner_actor' => $row->owner?->toString(),

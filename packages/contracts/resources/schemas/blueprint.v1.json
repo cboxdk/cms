@@ -77,7 +77,10 @@
       "properties": {
         "history": { "enum": ["full", "audit-only", "none"] },
         "stages": { "enum": ["none", "draft-release"] },
-        "localization": { "enum": ["none"] },
+        "localization": {
+          "description": "How the type is localized (PRD 10.1): `none`, one shared variant with every field, or `variants`, a variant per language that holds the fields declared `translatable` and the shared variant that holds the others.",
+          "enum": ["none", "variants"]
+        },
         "routable": { "type": "boolean", "default": false }
       }
     },
@@ -163,7 +166,9 @@
               "anyOf": [
                 { "required": ["classification"] },
                 { "required": ["filterable"] },
-                { "required": ["sortable"] }
+                { "required": ["sortable"] },
+                { "required": ["translatable"] },
+                { "required": ["fallback"] }
               ]
             }
           }
@@ -209,6 +214,16 @@
         "classification": { "$ref": "#/$defs/classification" },
         "filterable": { "type": "boolean", "default": false },
         "sortable": { "type": "boolean", "default": false },
+        "translatable": {
+          "description": "Which variant of an entry holds the field in a type with `localization: variants` (PRD 10.1): a language's variant when true, the shared variant when false. Only a type with `localization: variants` may have it; a field inside a group has its group's.",
+          "type": "boolean",
+          "default": false
+        },
+        "fallback": {
+          "description": "How a translatable field falls back when the reader's language has no value for it (PRD 10.3): `variant`, the default, along the site's chain with its whole variant, so a page never mixes languages; or `field`, on its own. Only a translatable field may have it.",
+          "enum": ["variant", "field"],
+          "default": "variant"
+        },
         "agents": {
           "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen when it is public or internal, and a field inside a group as the group is. A field agents see needs a description.",
           "type": "boolean"

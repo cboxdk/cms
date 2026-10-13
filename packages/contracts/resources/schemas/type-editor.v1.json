@@ -80,9 +80,9 @@
           "enum": ["full", "audit-only", "none"]
         },
         "localization": {
-          "description": "How the type is localized.",
+          "description": "How the type is localized (PRD 10.1): none, one shared variant with every field, or variants, a variant per language that holds the translatable fields and the shared variant that holds the others.",
           "type": "string",
-          "enum": ["none"]
+          "enum": ["none", "variants"]
         },
         "routable": {
           "description": "Whether the type's entries have routes.",
@@ -163,6 +163,7 @@
         "classification",
         "description",
         "encrypted",
+        "fallback",
         "handle",
         "label",
         "namespace",
@@ -171,6 +172,7 @@
         "presence",
         "repeat",
         "rule",
+        "translatable",
         "type"
       ],
       "properties": {
@@ -204,6 +206,11 @@
         "encrypted": {
           "description": "Whether the value is stored as ciphertext (PRD 12.2).",
           "type": "boolean"
+        },
+        "fallback": {
+          "description": "How a translatable field falls back when the reader's language has no value for it (PRD 10.3): with its whole variant, or on its own; variant for every field that is not translatable.",
+          "type": "string",
+          "enum": ["variant", "field"]
         },
         "handle": {
           "description": "The handle of the field, as the blueprint declares it.",
@@ -250,6 +257,10 @@
         "rule": {
           "description": "The field's value rule in the form of the generated validation runtime, a ValueRule as the generated TypeScript module of the type's record declares it, so a form validates with the same interpreter; null for a group, whose object or list rule the form builds from the fields below it and repeat.",
           "type": ["object", "null"]
+        },
+        "translatable": {
+          "description": "Which variant holds the field in a type with localization variants (PRD 10.1): a language's variant when true, so a form shows the field once per language, and the shared variant when false; always false in a type without localization. A nested field takes its group's.",
+          "type": "boolean"
         },
         "type": {
           "description": "The field type as the blueprint names it: a core field type such as text, or <namespace>:<handle> for a field type an addon contributes (PRD 13.1).",

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\BooleanValue;
 use Cbox\Cms\Contracts\Fields\DateTimeValue;
@@ -19,6 +20,7 @@ use Cbox\Cms\Contracts\TypeTables\ColumnFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\EntryRecord;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
+use Cbox\Cms\Contracts\TypeTables\InvalidTypeTableQuery;
 use Cbox\Cms\Contracts\TypeTables\RecordPage;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
@@ -35,6 +37,7 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\PhpClass;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
+use Cbox\Cms\Generators\Schema\Domain\Localization;
 use DateTimeImmutable;
 use Override;
 
@@ -54,6 +57,10 @@ use Override;
  *   TypeTableReader for the page, with the caller's AccessContext, and hydrates each row through
  *   the owner's record factory from the container, so the page holds the owner's interface
  *   `<Type>Record`.
+ *
+ * The builder of a type with localization variants (PRD 10.1) has `locale()`, because its table
+ * holds a row per language, and page() refuses to read without one; the builder of a type without
+ * localization reads the shared variant and has no `locale()`.
  *
  * The builder is the owner's (PRD 11.12, point 4): it knows only the owner's fields, and its code
  * compiles against the owner's interfaces. The kernel adds the access predicate and the keyset
@@ -273,13 +280,19 @@ final readonly class PhpTypeQueries implements Generator
         }
 
         $factory = PhpRecords::factoryInterfaceOf($type);
-        $with = static fn (string $filters, string $order, string $after, string $limit): string => sprintf(
-            '        return new self($this->reader, $this->records, %s, %s, %s, %s);',
+        $localized = $type->capabilities->localization === Localization::Variants;
+        $with = static fn (string $filters, string $order, string $after, string $limit, string $locale = '$this->locale'): string => sprintf(
+            '        return new self($this->reader, $this->records, %s, %s, %s, %s%s);',
             $filters,
             $order,
             $after,
             $limit,
+            $localized ? ', '.$locale : '',
         );
+
+        if ($localized) {
+            $imports = [...$imports, Locale::class, InvalidTypeTableQuery::class];
+        }
 
         return new PhpClass($imports, [
             ...PhpSource::docblock([
@@ -302,7 +315,19 @@ final readonly class PhpTypeQueries implements Generator
             '        private array $order = [],',
             '        private ?TypeTableCursor $after = null,',
             '        private int $limit = TypeTableQuery::DEFAULT_LIMIT,',
+            ...($localized ? ['        private ?Locale $locale = null,'] : []),
             '    ) {}',
+            ...($localized ? [
+                '',
+                '    /**',
+                '     * Reads the rows of the language: the type has localization variants, so its table holds a',
+                '     * row per language, with the shared fields in each (PRD 10.1, 11.6).',
+                '     */',
+                '    public function locale(Locale $locale): self',
+                '    {',
+                $with('$this->filters', '$this->order', '$this->after', '$this->limit', '$locale'),
+                '    }',
+            ] : []),
             '',
             '    /**',
             '     * Keeps the rows whose field compares with the values as the operator says. A null field',
@@ -342,10 +367,16 @@ final readonly class PhpTypeQueries implements Generator
             '     * The page as the context may read it, each record as the owner\'s interface.',
             '     *',
             '     * @return RecordPage<'.$case.'Record>',
+            ...($localized ? ['     *', '     * @throws InvalidTypeTableQuery without a locale'] : []),
             '     */',
             '    public function page(AccessContext $access): RecordPage',
             '    {',
-            '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit), $access);',
+            ...($localized ? [
+                '        $variant = VariantKey::of($this->locale ?? throw InvalidTypeTableQuery::localeRequired(new TypeName(self::TYPE)));',
+                '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), $variant, $this->filters, $this->order, $this->after, $this->limit), $access);',
+            ] : [
+                '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit), $access);',
+            ]),
             '',
             '        return new RecordPage(array_map(',
             '            fn (TypeTableRow $row): EntryRecord => new EntryRecord($row->entry, $this->records->fromFieldValues($row->fields)),',

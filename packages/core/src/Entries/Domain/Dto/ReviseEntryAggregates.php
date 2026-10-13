@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Pipeline\AuthorizationScope;
 use Cbox\Cms\Contracts\Pipeline\AuthorizationTarget;
 use Cbox\Cms\Contracts\Pipeline\ReadVersion;
 use Cbox\Cms\Contracts\Pipeline\ReadVersions;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Override;
 
 /**
@@ -27,6 +28,7 @@ final readonly class ReviseEntryAggregates implements Aggregates
     public function __construct(
         public EntryId $entry,
         public ?StoredEntry $stored,
+        public ?TypeDefinition $type = null,
     ) {}
 
     #[Override]

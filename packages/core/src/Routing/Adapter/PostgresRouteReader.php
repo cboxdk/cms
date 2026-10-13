@@ -15,6 +15,7 @@ use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Adapter\PlacementRows;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
@@ -48,14 +49,15 @@ use UnexpectedValueException;
  * - PLACEMENT: the released stage of the placement with the slug below the node in the locale, the
  *   one that is not withdrawn first (the partial unique index of invariant 15), else a withdrawn
  *   one (`placement_locales_withdrawn_slug`), with the entry's type and lifecycle and the release
- *   state of its shared variant's head, and whether the mount given, if any, hides the entry
- *   (`mount_overrides`, which every context reads). The first edition of the blueprint schema has
- *   no localized types, so every entry has the one variant `shared`.
+ *   state of its shared variant's head, which every entry has, whatever its type's localization
+ *   (PRD 10.1), and whether the mount given, if any, hides the entry (`mount_overrides`, which
+ *   every context reads).
  * - CANONICAL: the canonical placement of the entry in the locale, its node's route in the site
  *   whose root is the root of the node's tree, and that site's handle; both null when the node has
  *   no route.
- * - released(): the released row of the entry's shared variant in its type's table, by the table's
- *   primary key, through the query builder, decoded by TypeTableColumns. The anonymous context
+ * - released(): the entry's released row in its type's table, the shared variant's or, for a type
+ *   with localization variants, the locale's, by the table's primary key, through the query
+ *   builder, decoded by TypeTableColumns. The anonymous context
  *   reads it only while the entry has a live placement (`<table>_released`).
  */
 #[Internal]
@@ -200,12 +202,13 @@ final readonly class PostgresRouteReader implements RouteReader
     }
 
     #[Override]
-    public function released(TypeDefinition $type, EntryId $entry): ?FieldValues
+    public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues
     {
+        $variant = $type->capabilities->localization === Localization::Variants ? VariantKey::of($locale) : VariantKey::shared();
         $row = $this->db()->table($type->name->table())
             ->useWritePdo()
             ->where('cms_entry_id', '=', $entry->toString())
-            ->where('cms_locale', '=', VariantKey::shared()->value)
+            ->where('cms_locale', '=', $variant->value)
             ->where('cms_stage', '=', 'released')
             ->first();
 

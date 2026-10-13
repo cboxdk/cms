@@ -11,11 +11,15 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Plans\Plan;
+use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Entries\Domain\SingleVariantContract;
 use Cbox\Cms\Core\Placements\Actions\PlacementPlanner;
 use Cbox\Cms\Core\Placements\Domain\PlacementReader;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
@@ -38,14 +42,16 @@ use Override;
  * that has nothing to take back or close changes nothing and is rejected as such.
  *
  * @implements WriteAction<UnpublishEntry, UnpublishEntryAggregates>
+ * @implements RefusesCommand<UnpublishEntry, UnpublishEntryAggregates>
  */
 #[Action(handles: UnpublishEntry::class, surfaces: [Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli])]
 #[Internal]
-final readonly class UnpublishEntryAction implements WriteAction
+final readonly class UnpublishEntryAction implements RefusesCommand, WriteAction
 {
     public function __construct(
         private EntryReader $entries,
         private PlacementReader $placements,
+        private TypeCatalog $types,
         private Clock $clock,
         private VariantReleasePlanner $releases = new VariantReleasePlanner,
         private PlacementPlanner $planner = new PlacementPlanner,
@@ -58,13 +64,27 @@ final readonly class UnpublishEntryAction implements WriteAction
     public function resolve(Command $command): UnpublishEntryAggregates
     {
         $at = $this->clock->now();
+        $stored = $this->entries->entry($command->entry, VariantKey::shared());
 
         return new UnpublishEntryAggregates(
             $command->entry,
-            $this->entries->entry($command->entry, VariantKey::shared()),
+            $stored,
             $this->placements->everyLocale($command->entry),
             $at,
+            $stored instanceof StoredEntry ? $this->types->find($stored->type) : null,
         );
+    }
+
+    /**
+     * @param  UnpublishEntry  $command
+     * @param  UnpublishEntryAggregates  $aggregates
+     */
+    #[Override]
+    public function refusals(Command $command, Aggregates $aggregates): array
+    {
+        $refusal = SingleVariantContract::refusal('entry.unpublish', 'entry', $aggregates->type);
+
+        return $refusal instanceof CatalogError ? [$refusal] : [];
     }
 
     /**

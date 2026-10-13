@@ -4,6 +4,8 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldValues;
@@ -19,6 +21,7 @@ use Cbox\Cms\Contracts\Validation\TypeValidators;
 use Cbox\Cms\Contracts\Validation\ValidationReport;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\ProbeType;
 use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
@@ -68,13 +71,30 @@ trait FieldValidationBehaviour
     }
 
     #[Test]
+    public function a_variant_of_a_localized_type_is_held_to_the_fields_it_holds(): void
+    {
+        $validation = $this->fieldValidation(new FakeTypeValidators(new LocalizedProbeType));
+        $type = LocalizedProbeType::definition();
+        $da = VariantKey::of(new Locale('da'));
+        $shared = VariantKey::shared();
+        $title = new FieldValues(new FieldMap(new NamedValue(new FieldHandle('title'), new TextValue('Havnen'))));
+        $rank = new FieldValues(new FieldMap(new NamedValue(new FieldHandle('rank'), new IntegerValue(2))));
+
+        Assert::assertTrue($validation->validate($type, $da, $title, ValidationStage::Write, new FieldPath('fields'))->passed());
+        Assert::assertTrue($validation->validate($type, $shared, $rank, ValidationStage::Write, new FieldPath('fields'))->passed());
+        Assert::assertSame(['validation_unknown_field fields.rank'], $this->errors($validation->validate($type, $da, new FieldValues(new FieldMap(new NamedValue(new FieldHandle('title'), new TextValue('A')), new NamedValue(new FieldHandle('rank'), new IntegerValue(2)))), ValidationStage::Write, new FieldPath('fields'))));
+        Assert::assertSame(['validation_required fields.title'], $this->errors($validation->validate($type, $da, new FieldValues, ValidationStage::Write, new FieldPath('fields'))));
+        Assert::assertSame(['validation_unknown_field fields.title'], $this->errors($validation->validate($type, $shared, $title, ValidationStage::Write, new FieldPath('fields'))));
+    }
+
+    #[Test]
     public function a_type_without_a_validator_is_refused(): void
     {
         $definition = ProbeType::definition();
         $other = new TypeDefinition($definition->id, new TypeName('test:other'), 1, $definition->capabilities, $definition->extensions, $definition->fields);
 
         try {
-            $this->fieldValidation(new FakeTypeValidators)->validate($other, new FieldValues, ValidationStage::Write, new FieldPath('fields'));
+            $this->fieldValidation(new FakeTypeValidators)->validate($other, VariantKey::shared(), new FieldValues, ValidationStage::Write, new FieldPath('fields'));
             Assert::fail('A type without a validator is refused.');
         } catch (LogicException $missing) {
             Assert::assertSame('The type test:other has no generated validator. Run cms:generate.', $missing->getMessage());
@@ -84,7 +104,7 @@ trait FieldValidationBehaviour
     private function validateProbe(FieldValues $fields): ValidationReport
     {
         return $this->fieldValidation(new FakeTypeValidators(new ProbeType))
-            ->validate(ProbeType::definition(), $fields, ValidationStage::Write, new FieldPath('fields'));
+            ->validate(ProbeType::definition(), VariantKey::shared(), $fields, ValidationStage::Write, new FieldPath('fields'));
     }
 
     /**

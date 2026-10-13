@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding;
 
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\DateTimeValue;
 use Cbox\Cms\Contracts\Fields\DateValue;
 use Cbox\Cms\Contracts\Fields\DecimalValue;
@@ -48,7 +49,7 @@ function boundedSamples(int $count): array
     for ($seed = 0; $seed < $count; $seed++) {
         $fields = $generator->fields($type, ClassificationAccess::Public, new Randomizer(new Xoshiro256StarStar(hash('sha256', 'bounds:'.$seed, true))));
 
-        expect($validation->validate($type->definition, $fields, ValidationStage::Release, new FieldPath('fields'))->errors)->toBe([], 'seed '.$seed);
+        expect($validation->validate($type->definition, VariantKey::shared(), $fields, ValidationStage::Release, new FieldPath('fields'))->errors)->toBe([], 'seed '.$seed);
 
         $samples[] = $fields->own;
     }

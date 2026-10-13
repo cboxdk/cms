@@ -17,6 +17,7 @@ use Cbox\Cms\Core\ReadModels\Domain\Dto\RebuildRequest;
 use Cbox\Cms\Core\ReadModels\Domain\RebuildRefused;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
+use Cbox\Cms\Core\Tests\Entries\LocalizedEntries;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Core\Tests\ReadModels\RebuildWorld;
 use Illuminate\Database\Events\TransactionBeginning;
@@ -32,7 +33,9 @@ use Illuminate\Support\Facades\Event;
  * fixture_measurement has neither, so it is rebuilt from the head snapshots. A rebuild of 200
  * entries runs as several transactions, each under the 2-second budget, and a payload at another
  * schema version stops the rebuild with rebuild_schema_version_unsupported at its chunk, which a
- * second run with the same name resumes.
+ * second run with the same name resumes. fixture_notice has localization variants, so it is rebuilt
+ * to a row per language with the shared variant's fields in each, from the languages' and the shared
+ * heads (PRD 10.1, 11.6).
  */
 
 beforeEach(function (): void {
@@ -152,6 +155,49 @@ it('rebuilds fixture_measurement from the head snapshots with the same values', 
         ->and($report->operation->state)->toBe(OperationState::Completed)
         ->and(array_map(static fn (ChunkResult $chunk): int => $chunk->entries, $report->chunks))->toBe([3, 3, 1])
         ->and(StorageTables::superuser()->table('revisions')->count())->toBe(0);
+});
+
+it('rebuilds a type with localization variants to the same rows: one per language with the shared fields in each, from the languages\' and the shared heads (PRD 10.1, 11.6)', function (): void {
+    $world = new EntryWorld;
+    $rebuild = new RebuildWorld($world, chunkSize: 2);
+    $notices = LocalizedEntries::notice();
+    $home = EntryWorld::home();
+
+    // Released in da and en with a pending en draft; released with a pending shared draft, da released and en a draft; and a da draft alone.
+    $notices->write(RebuildWorld::entry(1), $home, LocalizedEntries::shared('2026-03-01', 1), LocalizedEntries::shared('2026-03-01', 1), [
+        'da' => [LocalizedEntries::translated('Havnen'), LocalizedEntries::translated('Havnen')],
+        'en' => [LocalizedEntries::translated('The harbour, revised'), LocalizedEntries::translated('The harbour')],
+    ]);
+    $notices->write(RebuildWorld::entry(2), $home, LocalizedEntries::shared('2026-03-03', 3), LocalizedEntries::shared('2026-03-02', 2), [
+        'da' => [LocalizedEntries::translated('Byen'), LocalizedEntries::translated('Byen')],
+        'en' => [LocalizedEntries::translated('The town'), null],
+    ]);
+    $notices->write(RebuildWorld::entry(3), $home, LocalizedEntries::shared('2026-03-04', 4), null, [
+        'da' => [LocalizedEntries::translated('Kladde'), null],
+    ]);
+    $before = RebuildWorld::rows(LocalizedEntries::NOTICE);
+    $rows = array_map(static fn (array $row): string => implode(' ', array_map(static fn (mixed $value): string => is_string($value) ? $value : '', [$row['cms_locale'] ?? '', $row['cms_stage'] ?? '', $row['fixture_title'] ?? '', $row['fixture_published_on'] ?? ''])), $before);
+
+    RebuildWorld::truncate(LocalizedEntries::NOTICE);
+    $emptied = RebuildWorld::rows(LocalizedEntries::NOTICE);
+    $report = $rebuild->rebuild(LocalizedEntries::NOTICE);
+
+    expect($rows)->toBe([
+        'da released Havnen 2026-03-01',
+        'en draft The harbour, revised 2026-03-01',
+        'en released The harbour 2026-03-01',
+        'da draft Byen 2026-03-03',
+        'da released Byen 2026-03-02',
+        'en draft The town 2026-03-03',
+        'da draft Kladde 2026-03-04',
+    ])
+        ->and(array_column($before, 'cms_locale'))->not->toContain('shared')
+        ->and($emptied)->toBe([])
+        ->and(RebuildWorld::rows(LocalizedEntries::NOTICE))->toBe($before)
+        ->and($report->operation->state)->toBe(OperationState::Completed)
+        ->and($report->entries())->toBe(3)
+        ->and(array_map(static fn (ChunkResult $chunk): int => $chunk->entries, $report->chunks))->toBe([2, 1])
+        ->and(array_map(static fn (ChunkResult $chunk): int => $chunk->variants, $report->chunks))->toBe([6, 2]);
 });
 
 it('rebuilds 200 entries in several transactions, each under the chunk budget', function (): void {

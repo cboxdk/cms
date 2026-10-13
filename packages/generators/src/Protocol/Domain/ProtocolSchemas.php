@@ -74,6 +74,7 @@ use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Results\VersionChange;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
+use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
@@ -424,6 +425,7 @@ final readonly class ProtocolSchemas
                     '#/$defs/extension/properties/namespace' => ValueBinding::value(FieldNamespace::class),
                     '#/$defs/field/properties/base' => ValueBinding::enum(EditorBase::class),
                     '#/$defs/field/properties/classification' => ValueBinding::enum(ClassificationAccess::class),
+                    '#/$defs/field/properties/fallback' => ValueBinding::enum(FieldFallback::class),
                     '#/$defs/field/properties/handle' => ValueBinding::value(FieldHandle::class),
                     '#/$defs/field/properties/namespace' => ValueBinding::value(FieldNamespace::class),
                     '#/$defs/field/properties/presence' => ValueBinding::enum(Presence::class),

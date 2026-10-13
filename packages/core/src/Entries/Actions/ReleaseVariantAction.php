@@ -10,12 +10,16 @@ use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Plans\Plan;
+use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Dto\ReleaseVariantAggregates;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Entries\Domain\SingleVariantContract;
 use LogicException;
 use Override;
 
@@ -29,13 +33,15 @@ use Override;
  * called with the head the caller saw.
  *
  * @implements WriteAction<ReleaseVariant, ReleaseVariantAggregates>
+ * @implements RefusesCommand<ReleaseVariant, ReleaseVariantAggregates>
  */
 #[Action(handles: ReleaseVariant::class, surfaces: [Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli])]
 #[Internal]
-final readonly class ReleaseVariantAction implements WriteAction
+final readonly class ReleaseVariantAction implements RefusesCommand, WriteAction
 {
     public function __construct(
         private EntryReader $entries,
+        private TypeCatalog $types,
         private VariantReleasePlanner $planner,
     ) {}
 
@@ -45,7 +51,21 @@ final readonly class ReleaseVariantAction implements WriteAction
     #[Override]
     public function resolve(Command $command): ReleaseVariantAggregates
     {
-        return new ReleaseVariantAggregates($command->entry, $this->entries->entry($command->entry, VariantKey::shared()));
+        $stored = $this->entries->entry($command->entry, VariantKey::shared());
+
+        return new ReleaseVariantAggregates($command->entry, $stored, $stored instanceof StoredEntry ? $this->types->find($stored->type) : null);
+    }
+
+    /**
+     * @param  ReleaseVariant  $command
+     * @param  ReleaseVariantAggregates  $aggregates
+     */
+    #[Override]
+    public function refusals(Command $command, Aggregates $aggregates): array
+    {
+        $refusal = SingleVariantContract::refusal('variant.release', 'entry', $aggregates->type);
+
+        return $refusal instanceof CatalogError ? [$refusal] : [];
     }
 
     /**

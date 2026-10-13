@@ -10,15 +10,19 @@ use Cbox\Cms\Contracts\Attributes\Surface;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\Command;
+use Cbox\Cms\Contracts\Pipeline\RefusesCommand;
 use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Plans\Mutations\HeadMoved;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Plans\Plan;
+use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\ReviseEntryAggregates;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Entries\Domain\SingleVariantContract;
 use LogicException;
 use Override;
 
@@ -33,12 +37,16 @@ use Override;
  * called with the head the caller saw.
  *
  * @implements WriteAction<ReviseEntry, ReviseEntryAggregates>
+ * @implements RefusesCommand<ReviseEntry, ReviseEntryAggregates>
  */
 #[Action(handles: ReviseEntry::class, surfaces: [Surface::Rest, Surface::Inertia, Surface::Mcp, Surface::Cli])]
 #[Internal]
-final readonly class ReviseEntryAction implements WriteAction
+final readonly class ReviseEntryAction implements RefusesCommand, WriteAction
 {
-    public function __construct(private EntryReader $entries) {}
+    public function __construct(
+        private EntryReader $entries,
+        private TypeCatalog $types,
+    ) {}
 
     /**
      * @param  ReviseEntry  $command
@@ -46,7 +54,21 @@ final readonly class ReviseEntryAction implements WriteAction
     #[Override]
     public function resolve(Command $command): ReviseEntryAggregates
     {
-        return new ReviseEntryAggregates($command->entry, $this->entries->entry($command->entry, VariantKey::shared()));
+        $stored = $this->entries->entry($command->entry, VariantKey::shared());
+
+        return new ReviseEntryAggregates($command->entry, $stored, $stored instanceof StoredEntry ? $this->types->find($stored->type) : null);
+    }
+
+    /**
+     * @param  ReviseEntry  $command
+     * @param  ReviseEntryAggregates  $aggregates
+     */
+    #[Override]
+    public function refusals(Command $command, Aggregates $aggregates): array
+    {
+        $refusal = SingleVariantContract::refusal('entry.revise', 'entry', $aggregates->type);
+
+        return $refusal instanceof CatalogError ? [$refusal] : [];
     }
 
     /**

@@ -37,6 +37,10 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  * - A column name has at most 63 bytes, the extension field's `ext__<namespace>__<handle>` too.
  * - A type has at most 200 top-level fields, its own and those its extensions add together
  *   (TypeFieldLimit, PRD 11.6).
+ * - `translatable` and `fallback` belong to the fields of a type with `localization: variants`,
+ *   its own and those its extensions add (PRD 10.1), and `fallback: field` to a translatable field
+ *   (PRD 10.3). An extension's fields are held to the localization of the type they extend, when
+ *   that type was read.
  *
  * The rules run on the blueprints that were read. When a file could not be read, the type it
  * defines is unknown, so an unknown `extends` is reported only when every file was read; the other
@@ -97,9 +101,39 @@ final readonly class BlueprintRules
 
             $seen = [];
             $this->fields($type->fields, sprintf('the type %s', $type->handle->value), $seen, $problems);
+            $this->localization($type->fields, $type, $problems);
 
             foreach ($type->fields as $field) {
                 $this->columnName(ColumnName::ofTypeField($field->handle), $field, $problems);
+            }
+        }
+    }
+
+    /**
+     * The keys of localization on the top-level fields: `translatable` and `fallback` only in a
+     * type with localization variants, and `fallback: field` only on a translatable field.
+     *
+     * @param  list<FieldBlueprint>  $fields
+     * @param  ?TypeBlueprint  $type  the type the fields belong to, or null when an extension's target was not read
+     * @param  list<GenerationProblem>  $problems
+     */
+    private function localization(array $fields, ?TypeBlueprint $type, array &$problems): void
+    {
+        foreach ($fields as $field) {
+            if ($type instanceof TypeBlueprint && $type->capabilities->localization === Localization::None && ($field->translatable || $field->fallback !== FieldBlueprint::DEFAULT_FALLBACK)) {
+                $problems[] = $this->problem(GenerateErrorCode::TranslatableWithoutVariants, $field->location->below($field->translatable ? 'translatable' : 'fallback'), sprintf(
+                    'the type %s in %s has localization none, whose one shared variant holds every field, so none of its fields is translatable or has a fallback (PRD 10.1). Give the type localization: variants, or remove the key.',
+                    $type->handle->value,
+                    $type->location->file,
+                ));
+            }
+
+            if ($field->fallback !== FieldBlueprint::DEFAULT_FALLBACK && ! $field->translatable) {
+                $problems[] = $this->problem(GenerateErrorCode::FallbackWithoutTranslatable, $field->location->below('fallback'), sprintf(
+                    'the field %s has fallback: %s and is not translatable. Only a translatable field falls back on its own (PRD 10.3): declare translatable: true, or remove the fallback.',
+                    $field->handle->value,
+                    $field->fallback->value,
+                ));
             }
         }
     }
@@ -159,6 +193,8 @@ final readonly class BlueprintRules
 
             $namespaces[$namespace] ??= [];
             $this->fields($extension->fields, $this->extensionNamespace($extension), $namespaces[$namespace], $problems);
+
+            $this->localization($extension->fields, $target, $problems);
 
             foreach ($extension->fields as $field) {
                 $this->columnName(ColumnName::ofExtensionField($extension->owner, $field->handle), $field, $problems);

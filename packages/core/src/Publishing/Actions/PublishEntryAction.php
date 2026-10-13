@@ -28,6 +28,7 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
+use Cbox\Cms\Core\Entries\Domain\SingleVariantContract;
 use Cbox\Cms\Core\Placements\Actions\PlacementPlanner;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
@@ -119,6 +120,12 @@ final readonly class PublishEntryAction implements RefusesCommand, ReportsVisibi
 
         if (! $entry instanceof StoredEntry || ! $type instanceof TypeDefinition) {
             return [$this->invalid('entry', sprintf('The entry %s has no type of this installation.', $command->entry->toString()))];
+        }
+
+        $singleVariant = SingleVariantContract::refusal('entry.publish', 'entry', $type);
+
+        if ($singleVariant instanceof CatalogError) {
+            return [$singleVariant];
         }
 
         if (! $placement->entry->equals($command->entry) || ! $placement->node->equals($entry->home)) {

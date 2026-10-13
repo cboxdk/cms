@@ -1,0 +1,618 @@
+{
+    "capabilities": {
+        "history": "full",
+        "localization": "variants",
+        "routable": true,
+        "stages": "draft-release"
+    },
+    "description": "A post of the blog in several languages, with a title, a teaser and a body per language, and a date and a category shared by every language.",
+    "descriptor": 1,
+    "extensions": [
+        {
+            "namespace": "app",
+            "version": 1
+        }
+    ],
+    "fields": [
+        {
+            "agents": false,
+            "base": "text",
+            "choices": [],
+            "classification": "internal",
+            "column": {
+                "checks": [
+                    "char_length(\"author_email\") <= 255"
+                ],
+                "name": "author_email",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "The e-mail address of the author, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "author_email",
+            "label": "Author e-mail",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": false,
+            "type": "text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "255"
+                    ],
+                    "rule": "max_length"
+                },
+                {
+                    "arguments": [
+                        "email"
+                    ],
+                    "rule": "format"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "rich_text",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "jsonb_typeof(\"body\") = 'array'"
+                ],
+                "name": "body",
+                "not_null": false,
+                "type": "jsonb"
+            },
+            "description": "The body of the post in the language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "body",
+            "label": "Body",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "list<array<string, mixed>>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": true,
+            "type": "rich_text",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<Record<string, unknown>>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "portable_text"
+                },
+                {
+                    "arguments": [
+                        "normal",
+                        "h2",
+                        "h3",
+                        "h4",
+                        "h5",
+                        "h6",
+                        "blockquote"
+                    ],
+                    "rule": "styles"
+                },
+                {
+                    "arguments": [
+                        "strong",
+                        "em",
+                        "underline",
+                        "strike",
+                        "code",
+                        "sub",
+                        "sup"
+                    ],
+                    "rule": "marks"
+                },
+                {
+                    "arguments": [
+                        "bullet",
+                        "number"
+                    ],
+                    "rule": "lists"
+                },
+                {
+                    "arguments": [
+                        "url"
+                    ],
+                    "rule": "links"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "select",
+            "choices": [
+                {
+                    "label": "News",
+                    "value": "news"
+                },
+                {
+                    "label": "Essay",
+                    "value": "essay"
+                }
+            ],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "\"category\" IN ('news', 'essay')"
+                ],
+                "name": "category",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "The category of the post, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": true,
+            "handle": "category",
+            "label": "Category",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "'news'|'essay'",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": false,
+            "type": "select",
+            "typescript": {
+                "nullable": true,
+                "type": "'news' | 'essay'"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [
+                        "news",
+                        "essay"
+                    ],
+                    "rule": "in"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"ext__app__subtitle\") <= 160"
+                ],
+                "name": "ext__app__subtitle",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "The subtitle of the post in the language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "subtitle",
+            "label": "Subtitle",
+            "namespace": "app",
+            "owner": "app",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": true,
+            "type": "text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "160"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"ext__app__tag\") <= 40"
+                ],
+                "name": "ext__app__tag",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "The customer's own tag of the post, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "tag",
+            "label": "Tag",
+            "namespace": "app",
+            "owner": "app",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": false,
+            "type": "text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "40"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "date",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [],
+                "name": "published_on",
+                "not_null": true,
+                "type": "date"
+            },
+            "description": "The day the post was published, the same in every language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": true,
+            "handle": "published_on",
+            "label": "Published on",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "DateTimeImmutable",
+                "native": "DateTimeImmutable",
+                "nullable": false
+            },
+            "required": true,
+            "sortable": true,
+            "translatable": false,
+            "type": "date",
+            "typescript": {
+                "nullable": false,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "required"
+                },
+                {
+                    "arguments": [],
+                    "rule": "date"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "group",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "CASE WHEN jsonb_typeof(\"quotes\") = 'array' THEN jsonb_array_length(\"quotes\") BETWEEN 0 AND 5 ELSE \"quotes\" IS NULL END"
+                ],
+                "name": "quotes",
+                "not_null": false,
+                "type": "jsonb"
+            },
+            "description": "The quotes of the post in the language, each with its source.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [
+                {
+                    "agents": true,
+                    "base": "text",
+                    "choices": [],
+                    "classification": "public",
+                    "column": null,
+                    "description": "Who said it.",
+                    "encrypted": false,
+                    "fallback": "variant",
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "source",
+                    "label": "Source",
+                    "namespace": null,
+                    "owner": "blog",
+                    "php": {
+                        "doc": "string",
+                        "native": "string",
+                        "nullable": true
+                    },
+                    "required": false,
+                    "sortable": false,
+                    "translatable": true,
+                    "type": "text",
+                    "typescript": {
+                        "nullable": true,
+                        "type": "string"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "nullable"
+                        },
+                        {
+                            "arguments": [],
+                            "rule": "string"
+                        },
+                        {
+                            "arguments": [
+                                "255"
+                            ],
+                            "rule": "max_length"
+                        }
+                    ]
+                },
+                {
+                    "agents": true,
+                    "base": "text",
+                    "choices": [],
+                    "classification": "public",
+                    "column": null,
+                    "description": "The quoted text.",
+                    "encrypted": false,
+                    "fallback": "variant",
+                    "fields": [],
+                    "filterable": false,
+                    "handle": "text",
+                    "label": "Text",
+                    "namespace": null,
+                    "owner": "blog",
+                    "php": {
+                        "doc": "string",
+                        "native": "string",
+                        "nullable": false
+                    },
+                    "required": true,
+                    "sortable": false,
+                    "translatable": true,
+                    "type": "text",
+                    "typescript": {
+                        "nullable": false,
+                        "type": "string"
+                    },
+                    "validation": [
+                        {
+                            "arguments": [],
+                            "rule": "required"
+                        },
+                        {
+                            "arguments": [],
+                            "rule": "string"
+                        },
+                        {
+                            "arguments": [
+                                "255"
+                            ],
+                            "rule": "max_length"
+                        }
+                    ]
+                }
+            ],
+            "filterable": false,
+            "handle": "quotes",
+            "label": "Quotes",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "list<array{source?: string|null, text: string}>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": true,
+            "type": "group",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<{ source?: string | null; text: string }>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "list"
+                },
+                {
+                    "arguments": [
+                        "5"
+                    ],
+                    "rule": "max_items"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "long_text",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"teaser\") <= 500"
+                ],
+                "name": "teaser",
+                "not_null": false,
+                "type": "text"
+            },
+            "description": "A short teaser of the post in the language, shown in another language of the chain when the language has none.",
+            "encrypted": false,
+            "fallback": "field",
+            "fields": [],
+            "filterable": false,
+            "handle": "teaser",
+            "label": "Teaser",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": true,
+            "type": "long_text",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "500"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        },
+        {
+            "agents": true,
+            "base": "text",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "char_length(\"title\") <= 120"
+                ],
+                "name": "title",
+                "not_null": true,
+                "type": "text"
+            },
+            "description": "The title of the post in the language.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "title",
+            "label": "Title",
+            "namespace": null,
+            "owner": "blog",
+            "php": {
+                "doc": "string",
+                "native": "string",
+                "nullable": false
+            },
+            "required": true,
+            "sortable": true,
+            "translatable": true,
+            "type": "text",
+            "typescript": {
+                "nullable": false,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "required"
+                },
+                {
+                    "arguments": [],
+                    "rule": "string"
+                },
+                {
+                    "arguments": [
+                        "120"
+                    ],
+                    "rule": "max_length"
+                }
+            ]
+        }
+    ],
+    "handle": "post",
+    "label": "Post",
+    "name": "blog:post",
+    "owner": "blog",
+    "type_id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d30",
+    "version": 2
+}

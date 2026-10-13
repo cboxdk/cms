@@ -46,9 +46,10 @@ interface RouteReader
     public function canonical(EntryId $entry, Locale $locale): ?CanonicalMatch;
 
     /**
-     * The fields of the released row of the entry's shared variant in its type's table, the
-     * delivery projection of what the public sees (PRD 4.1, 8.9); null when the reader can read no
-     * such row.
+     * The fields of the entry's released row in its type's table, the delivery projection of what
+     * the public sees (PRD 4.1, 8.9): the shared variant's row for a type without localization, and
+     * the locale's row, which holds the shared fields too, for a type with localization variants
+     * (PRD 10.1, 11.6); null when the reader can read no such row.
      */
-    public function released(TypeDefinition $type, EntryId $entry): ?FieldValues;
+    public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues;
 }

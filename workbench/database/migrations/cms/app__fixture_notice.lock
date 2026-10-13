@@ -1,0 +1,91 @@
+{
+    "about": "The schema lock of the type table app__fixture_notice: the columns its migrations app__fixture_notice_<step> build, in 1 step. cms:generate writes the lock and the migrations from it; do not edit either.",
+    "columns": [
+        {
+            "checks": [
+                "jsonb_typeof(\"fixture_body\") = 'array'"
+            ],
+            "indexed": false,
+            "name": "fixture_body",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
+                "\"fixture_channel\" IN ('fixture_web', 'fixture_print')"
+            ],
+            "indexed": true,
+            "name": "fixture_channel",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "char_length(\"fixture_editor_note\") <= 255"
+            ],
+            "indexed": false,
+            "name": "fixture_editor_note",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "CASE WHEN jsonb_typeof(\"fixture_links\") = 'array' THEN jsonb_array_length(\"fixture_links\") BETWEEN 0 AND 10 ELSE \"fixture_links\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "fixture_links",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
+                "\"fixture_priority\" >= 1",
+                "\"fixture_priority\" <= 5"
+            ],
+            "indexed": true,
+            "name": "fixture_priority",
+            "not_null": false,
+            "step": 1,
+            "type": "bigint"
+        },
+        {
+            "checks": [],
+            "indexed": true,
+            "name": "fixture_published_on",
+            "not_null": true,
+            "step": 1,
+            "type": "date"
+        },
+        {
+            "checks": [
+                "char_length(\"fixture_teaser\") <= 500"
+            ],
+            "indexed": false,
+            "name": "fixture_teaser",
+            "not_null": false,
+            "step": 1,
+            "type": "text"
+        },
+        {
+            "checks": [
+                "char_length(\"fixture_title\") <= 120"
+            ],
+            "indexed": true,
+            "name": "fixture_title",
+            "not_null": true,
+            "step": 1,
+            "type": "text"
+        }
+    ],
+    "localization": "variants",
+    "lock": 1,
+    "stages": "draft-release",
+    "steps": 1,
+    "table": "app__fixture_notice",
+    "type": "app:fixture_notice",
+    "type_id": "01a0f5c8-1d2e-7b3c-8d4e-5f6a7b8c9d0e"
+}
