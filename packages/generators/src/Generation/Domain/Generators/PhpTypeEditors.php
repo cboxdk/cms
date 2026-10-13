@@ -76,6 +76,7 @@ final readonly class PhpTypeEditors implements Generator
         'group' => 'the base group, its repeat and no rule; the fields below it follow it',
         'integer' => 'the base integer and an integer rule with its bounds',
         'long_text' => 'the base long_text and a text rule with its lengths',
+        'relation' => 'the base relation, its target types, and an id rule, or a list of one with multiple',
         'rich_text' => 'the base rich_text and a portable_text rule with its styles, marks, lists and links',
         'select' => 'the base select, its choices with their labels, and a choice rule, or a list of one with multiple',
         'text' => 'the base text and a text rule with its lengths and format',
@@ -416,6 +417,11 @@ final readonly class PhpTypeEditors implements Generator
                 $indent.'    when: new JsonDocument('.PhpSource::literal($field->when->value).'),',
                 $indent.'    whenHidden: WhenHidden::'.$field->whenHidden->name.',',
             ] : []),
+            ...($field->targets === [] ? [] : [
+                $indent.'    targets: [',
+                ...array_map(static fn (TypeName $target): string => sprintf('%s        new TypeName(%s),', $indent, PhpSource::literal($target->value)), $field->targets),
+                $indent.'    ],',
+            ]),
             $indent.'),',
         ];
     }

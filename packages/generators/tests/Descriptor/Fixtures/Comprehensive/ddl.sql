@@ -10,6 +10,8 @@ create table "shop__product" (
         check (cms_stage in ('released', 'draft', 'staged')),
     cms_home_node uuid not null references nodes (id),
     cms_owner_actor uuid references actors (id),
+    "accessories" jsonb
+        check (CASE WHEN jsonb_typeof("accessories") = 'array' THEN jsonb_array_length("accessories") <= 20 ELSE "accessories" IS NULL END),
     "body" jsonb
         check (jsonb_typeof("body") = 'array'),
     "care" jsonb
@@ -38,6 +40,8 @@ create table "shop__product" (
     "stock" bigint
         check ("stock" >= 0)
         check ("stock" <= 1000000),
+    "successor" uuid
+        constraint "shop__product__successor" references "entries" (id) on delete restrict,
     "summary" text
         check (char_length("summary") <= 2000),
     "supplier" bytea,
@@ -69,3 +73,5 @@ create index "shop__product__name" on "shop__product" (cms_stage, cms_locale, "n
 create index "shop__product__price" on "shop__product" (cms_stage, cms_locale, "price", cms_entry_id);
 
 create index "shop__product__stock" on "shop__product" (cms_stage, cms_locale, "stock", cms_entry_id);
+
+create index "shop__product__successor" on "shop__product" ("successor");

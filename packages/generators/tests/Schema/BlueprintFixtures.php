@@ -17,6 +17,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
@@ -199,6 +200,11 @@ final class BlueprintFixtures
                     ['min_items' => $options->repeat->minItems, 'max_items' => $options->repeat->maxItems],
                     static fn (?int $value): bool => $value !== null,
                 ) : null,
+            ],
+            $options instanceof RelationOptions => [
+                'types' => $options->typeNames(),
+                'multiple' => $options->multiple,
+                'max_items' => $options->multiple ? $options->maxItems : null,
             ],
             $options instanceof ColourOptions => ['options' => array_filter(['palette' => $options->palette, 'allow_custom' => $options->allowCustom], static fn (string|bool|null $value): bool => $value !== null)],
             default => throw new LogicException('No YAML for '.$options::class.'.'),

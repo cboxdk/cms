@@ -73,6 +73,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRelationTargets;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
@@ -114,6 +115,8 @@ final class EntryActionWorld
     /** The placements of the entries, which show an entry to the public: none unless a test adds some. */
     public readonly FakePublicPlacements $placements;
 
+    public readonly FakeRelationTargets $relations;
+
     /** The hooks the pipeline runs: none unless a test adds some. */
     public readonly FakeCommandHooks $hooks;
 
@@ -144,6 +147,7 @@ final class EntryActionWorld
         $this->entries = new FakeEntryReader()->withNode(self::home(), new AggregateVersion(1));
         $this->revisions = new FakeRevisionContents;
         $this->placements = new FakePublicPlacements;
+        $this->relations = new FakeRelationTargets;
         $this->hooks = new FakeCommandHooks;
         $this->committer = new FakeChangesetCommitter;
     }
@@ -282,6 +286,7 @@ final class EntryActionWorld
             new FakeFieldValidation(new FakeTypeValidators(new NoteType, ...$this->validators)),
             $this->revisions,
             $this->placements,
+            $this->relations,
             $this->committer,
             $keys,
             $receipts,

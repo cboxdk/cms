@@ -47,6 +47,12 @@ enum ValidationRuleName: string
     /** A list of Portable Text blocks (PRD 11.10). */
     case PortableText = 'portable_text';
 
+    /** An entry's id, a UUIDv7 in lowercase hexadecimal: the target of a relation (PRD 5.11). */
+    case Relation = 'relation';
+
+    /** A list of entries' ids, each once: the targets of a multiple relation (PRD 5.11). */
+    case Relations = 'relations';
+
     /** At least the argument's number of characters. */
     case MinLength = 'min_length';
 
@@ -88,4 +94,7 @@ enum ValidationRuleName: string
 
     /** Portable Text whose links are only of the arguments' kinds. */
     case Links = 'links';
+
+    /** A relation whose targets are entries of the arguments' types, each `<owner>:<handle>`. */
+    case Targets = 'targets';
 }

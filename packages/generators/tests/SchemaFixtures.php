@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests;
 
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Generators\Descriptor\Domain\DescriptorCompiler;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
@@ -20,6 +21,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
@@ -34,6 +36,7 @@ use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DecimalFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\GroupFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\IntegerFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\LongTextFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\RelationFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\RichTextFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\SelectFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\TextFieldType;
@@ -165,6 +168,7 @@ final class SchemaFixtures
             SelectFieldType::NAME => new SelectOptions([new SelectOption(new Handle('one'), 'One')], false, null, null),
             RichTextFieldType::NAME => new RichTextOptions(null, null, null, null),
             GroupFieldType::NAME => new GroupOptions([self::field(self::root(), new SourceLocation('schema/group.yaml', '/fields/0/fields/0'), 'name', 'text', null)], null),
+            RelationFieldType::NAME => new RelationOptions([new TypeName('app:article')], RelationOptions::DEFAULT_MULTIPLE, null),
             default => throw new LogicException(sprintf('"%s" is not a core field type.', $type)),
         };
     }

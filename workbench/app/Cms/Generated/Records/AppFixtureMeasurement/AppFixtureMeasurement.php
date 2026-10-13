@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 use Override;
 
@@ -26,6 +27,7 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
 {
     /**
      * @param  list<FixtureAlertsChoice>|null  $fixtureAlerts
+     * @param  list<EntryId>|null  $fixtureCitedIn
      * @param  numeric-string  $fixtureReading
      * @param  list<FixtureSeriesItem>|null  $fixtureSeries
      */
@@ -33,6 +35,8 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
         public ?array $fixtureAlerts,
         public ?bool $fixtureCalibrated,
         public ?DateTimeImmutable $fixtureCalibratedOn,
+        public ?array $fixtureCitedIn,
+        public ?EntryId $fixtureCorrects,
         public DateTimeImmutable $fixtureMeasuredAt,
         public ?string $fixtureNote,
         public string $fixtureReading,
@@ -52,6 +56,8 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
             fixtureAlerts: $fields->choicesOrNull('fixture_alerts', FixtureAlertsChoice::class),
             fixtureCalibrated: $fields->booleanOrNull('fixture_calibrated'),
             fixtureCalibratedOn: $fields->dateOrNull('fixture_calibrated_on'),
+            fixtureCitedIn: $fields->entriesOrNull('fixture_cited_in'),
+            fixtureCorrects: $fields->entryOrNull('fixture_corrects'),
             fixtureMeasuredAt: $fields->dateTime('fixture_measured_at'),
             fixtureNote: $fields->textOrNull('fixture_note'),
             fixtureReading: $fields->decimal('fixture_reading'),
@@ -72,6 +78,8 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
                 new NamedValue(new FieldHandle('fixture_alerts'), FieldWriter::choices($this->fixtureAlerts)),
                 new NamedValue(new FieldHandle('fixture_calibrated'), FieldWriter::boolean($this->fixtureCalibrated)),
                 new NamedValue(new FieldHandle('fixture_calibrated_on'), FieldWriter::date($this->fixtureCalibratedOn)),
+                new NamedValue(new FieldHandle('fixture_cited_in'), FieldWriter::entries($this->fixtureCitedIn)),
+                new NamedValue(new FieldHandle('fixture_corrects'), FieldWriter::entry($this->fixtureCorrects)),
                 new NamedValue(new FieldHandle('fixture_measured_at'), FieldWriter::dateTime($this->fixtureMeasuredAt)),
                 new NamedValue(new FieldHandle('fixture_note'), FieldWriter::text($this->fixtureNote)),
                 new NamedValue(new FieldHandle('fixture_reading'), FieldWriter::decimal($this->fixtureReading)),

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Contracts\Fields;
 
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -76,6 +77,26 @@ final readonly class FieldWriter
         return $values === null
             ? new NullValue
             : new ListValue(...array_map(static fn (BackedEnum $value): TextValue => new TextValue((string) $value->value), $values));
+    }
+
+    /**
+     * The target of a relation field as its text, the entry's id (PRD 5.11).
+     */
+    public static function entry(?EntryId $value): FieldValue
+    {
+        return $value instanceof EntryId ? new TextValue($value->toString()) : new NullValue;
+    }
+
+    /**
+     * The targets of a relation field that holds several, as a list of their ids in order.
+     *
+     * @param  list<EntryId>|null  $values
+     */
+    public static function entries(?array $values): FieldValue
+    {
+        return $values === null
+            ? new NullValue
+            : new ListValue(...array_map(static fn (EntryId $value): TextValue => new TextValue($value->toString()), $values));
     }
 
     public static function group(?FieldMap $fields): FieldValue

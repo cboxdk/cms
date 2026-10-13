@@ -49,6 +49,13 @@ interface FieldValues
     public function optionalString(string $key): ?string;
 
     /**
+     * The list of strings at the key, in the order of the file, which the object must have.
+     *
+     * @return ?list<string>
+     */
+    public function stringList(string $key): ?array;
+
+    /**
      * The text at the key, which the object must have: a string, or a map of locale to string
      * (gap G2), whose first text is the plain one.
      */

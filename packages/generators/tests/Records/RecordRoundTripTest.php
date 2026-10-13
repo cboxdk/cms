@@ -23,6 +23,7 @@ use Cbox\Cms\Contracts\Fields\MapValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Generators\Tests\Descriptor\ComprehensiveExample;
 use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Records\ShopProduct\ColourChoice;
 use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Records\ShopProduct\DimensionsItem;
@@ -41,6 +42,11 @@ use DateTimeImmutable;
  * type, a group once and repeated, a select field of one option and one of several, rich text and
  * the app's extension, so a round trip through it covers every field type.
  */
+
+/** The ids of two products the relations of the example name. */
+const GLOVES = '0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d31';
+
+const HAT = '0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d32';
 
 function named(string $handle, FieldValue $value): NamedValue
 {
@@ -61,6 +67,7 @@ function fullProduct(): FieldValues
 
     return new FieldValues(
         new FieldMap(
+            named('accessories', new ListValue(new TextValue(GLOVES), new TextValue(HAT))),
             named('body', new ListValue($block)),
             named('care', new ListValue),
             named('checked_at', new DateTimeValue(new DateTimeImmutable('2026-09-29T10:11:12.345678Z'))),
@@ -75,6 +82,7 @@ function fullProduct(): FieldValues
             named('price', new DecimalValue('129.5')),
             named('purchase_price', new DecimalValue('-0.25')),
             named('stock', new IntegerValue(0)),
+            named('successor', new TextValue(HAT)),
             named('summary', new TextValue('')),
             named('supplier', new GroupValue(new FieldMap(
                 named('company', new TextValue('Wool & Co')),
@@ -99,7 +107,7 @@ function sparseProduct(): FieldValues
 {
     $fields = [];
 
-    foreach (['body', 'care', 'checked_at', 'dimensions', 'discontinued', 'launch_date', 'purchase_price', 'stock', 'summary', 'supplier', 'support_email', 'tags', 'weight'] as $handle) {
+    foreach (['accessories', 'body', 'care', 'checked_at', 'dimensions', 'discontinued', 'launch_date', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight'] as $handle) {
         $fields[] = named($handle, new NullValue);
     }
 
@@ -116,7 +124,7 @@ it('covers every core field type of the blueprint schema with the golden record'
         $types[] = $field->type;
     }
 
-    expect(array_values(array_unique($types)))->toEqualCanonicalizing(['boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'rich_text', 'select', 'text']);
+    expect(array_values(array_unique($types)))->toEqualCanonicalizing(['boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'relation', 'rich_text', 'select', 'text']);
 });
 
 it('round-trips the generic values of every field type through the record', function (FieldValues $values): void {
@@ -147,11 +155,14 @@ it('reads each field type into its PHP value', function (): void {
         ->and($record->care?->items)->toBe([])
         ->and($record->supplier)->toEqual(new SupplierGroup('Wool & Co', 'Ships on Mondays.', null))
         ->and($record->dimensions)->toEqual([new DimensionsItem(DimensionsSizeChoice::Small, 40), new DimensionsItem(DimensionsSizeChoice::Large, null)])
+        ->and($record->accessories)->toEqual([EntryId::fromString(GLOVES), EntryId::fromString(HAT)])
+        ->and($record->successor)->toEqual(EntryId::fromString(HAT))
         ->and($record->ext->app)->toEqual(new ShopProductAppFields('SCARF-01', 'DK25'));
 });
 
 it('writes a record built in PHP and reads the same record back', function (): void {
     $record = new ShopProduct(
+        accessories: [EntryId::fromString(HAT)],
         body: null,
         care: new ListValue,
         checkedAt: new DateTimeImmutable('2026-01-02T03:04:05.000006+00:00'),
@@ -163,6 +174,7 @@ it('writes a record built in PHP and reads the same record back', function (): v
         price: '0.5',
         purchasePrice: null,
         stock: 12,
+        successor: null,
         summary: 'Warm.',
         supplier: new SupplierGroup('Knit', null, 'https://example.com'),
         supportEmail: null,
@@ -213,6 +225,14 @@ it('refuses generic values that do not fit the type, naming the field', function
             named('dimensions', new ListValue(new GroupValue(new FieldMap(named('size', new NullValue))))),
         )),
         'The field "dimensions.0.size" is required and holds no value.',
+    ],
+    'a relation whose target is no entry id' => [
+        fn (): FieldValues => new FieldValues(new FieldMap(named('colour', new TextValue('red')), named('name', new TextValue('Hat')), named('price', new DecimalValue('1')), named('successor', new TextValue('hat')))),
+        'The relation "successor" holds "hat", which is not an entry\'s id, a UUIDv7.',
+    ],
+    'an item of a relation that is no entry id' => [
+        fn (): FieldValues => new FieldValues(new FieldMap(named('accessories', new ListValue(new TextValue(HAT), new TextValue('gloves'))), named('colour', new TextValue('red')), named('name', new TextValue('Hat')), named('price', new DecimalValue('1')))),
+        'The relation "accessories.1" holds "gloves", which is not an entry\'s id, a UUIDv7.',
     ],
     'an extension field of another kind' => [
         fn (): FieldValues => new FieldValues(

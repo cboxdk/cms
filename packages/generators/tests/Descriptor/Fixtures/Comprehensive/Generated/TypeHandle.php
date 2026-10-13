@@ -27,6 +27,7 @@ enum TypeHandle: string
     {
         return match ($this) {
             self::ShopProduct => [
+                'accessories' => 'relation',
                 'body' => 'rich_text',
                 'care' => 'rich_text',
                 'checked_at' => 'datetime',
@@ -38,6 +39,7 @@ enum TypeHandle: string
                 'price' => 'decimal',
                 'purchase_price' => 'decimal',
                 'stock' => 'integer',
+                'successor' => 'relation',
                 'summary' => 'long_text',
                 'supplier' => 'group',
                 'support_email' => 'text',

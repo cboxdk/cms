@@ -463,6 +463,7 @@ final readonly class ProtocolSchemas
                     '#/$defs/field/properties/namespace' => ValueBinding::value(FieldNamespace::class),
                     '#/$defs/field/properties/presence' => ValueBinding::enum(Presence::class),
                     '#/$defs/field/properties/rule' => $document,
+                    '#/$defs/field/properties/targets/items' => ValueBinding::value(TypeName::class),
                     '#/$defs/field/properties/when' => $document,
                     '#/$defs/field/properties/when_hidden' => ValueBinding::enum(WhenHidden::class),
                     '#/$defs/placement/properties/width' => ValueBinding::enum(EditorWidth::class),

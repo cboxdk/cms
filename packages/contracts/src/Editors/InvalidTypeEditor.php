@@ -49,6 +49,11 @@ final class InvalidTypeEditor extends InvalidArgumentException
         return new self(sprintf('The field %s has choices only when its base is select, and a select has at least one.', $path));
     }
 
+    public static function targets(string $path): self
+    {
+        return new self(sprintf('The field %s has target types only when its base is relation, and a relation has at least one, each once.', $path));
+    }
+
     public static function repeat(string $path): self
     {
         return new self(sprintf('The field %s repeats only when its base is group.', $path));

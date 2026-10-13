@@ -23,6 +23,8 @@ export type ShopProductV1TagsChoice = 'new' | 'sale' | 'eco';
  * this file: change the blueprints and run cms:generate.
  */
 export interface ShopProductV1 {
+  /** Accessories: The products sold with this one. */
+  accessories?: readonly string[] | null;
   /** Body: The description of the product on its page. */
   body?: PortableText | null;
   /** Care: How to take care of the product. */
@@ -49,6 +51,8 @@ export interface ShopProductV1 {
   purchase_price?: string | null;
   /** Stock: How many items the warehouse holds. */
   stock?: number | null;
+  /** Successor: The product that replaces this one. */
+  successor?: string | null;
   /** Summary. */
   summary?: string | null;
   /** Supplier: Who supplies the product, and how to reach them. */
@@ -163,6 +167,20 @@ const shopProductV1SupplierRule: ObjectRule = {
 const shopProductV1Rule: ObjectRule = {
   properties: [
     {
+      key: 'accessories',
+      presence: 'optional',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        },
+        maxItems: 20,
+        distinct: true,
+      },
+    },
+    {
       key: 'body',
       presence: 'optional',
       value: {
@@ -232,6 +250,15 @@ const shopProductV1Rule: ObjectRule = {
       value: { kind: 'decimal', precision: 10, scale: 2 },
     },
     { key: 'stock', presence: 'optional', value: { kind: 'integer', min: 0, max: 1000000 } },
+    {
+      key: 'successor',
+      presence: 'optional',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
     { key: 'summary', presence: 'optional', value: { kind: 'text', maxLength: 2000 } },
     {
       key: 'supplier',

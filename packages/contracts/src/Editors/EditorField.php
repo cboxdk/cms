@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Schema\FieldFallback;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Contracts\Validation\WhenHidden;
 
@@ -30,6 +31,8 @@ use Cbox\Cms\Contracts\Validation\WhenHidden;
  * - `classification`, `agents` and `encrypted` are the field's as the TypeCatalog has them;
  *   readableBy() is the rule the queries filter by.
  * - `choices` are the options of a select, in the blueprint's order, and empty for any other base;
+ *   `targets` are the types a relation's targets may have, in the blueprint's order, so a picker
+ *   searches entries of those types (PRD 5.11), and empty for any other base;
  *   `repeat` is how a group repeats, and null for a group that does not or any other base.
  * - `rule` is the field's value rule in the form of the generated validation runtime, a ValueRule
  *   as the generated TypeScript module of the record declares it, so a form validates with the
@@ -47,8 +50,8 @@ use Cbox\Cms\Contracts\Validation\WhenHidden;
  * - `defaultValue` is the form's starting value from the blueprint's `default`, as one JSON
  *   document, or null: `{"kind":"constant","value":<the value in the record's JSON form>}` for a
  *   constant, or `{"kind":"token","token":"today"}` or `"now"` for a date or datetime the form
- *   takes from the clock. It is form only: a command never fills it in, and a group or rich
- *   text has none.
+ *   takes from the clock. It is form only: a command never fills it in, and a group, rich text
+ *   and a relation have none.
  * - `when` is the condition a conditional field is shown on (gap G3), as one JSON document in the
  *   form of the generated validation runtime's ConditionRule, such as
  *   `{"op":"eq","field":{"up":0,"key":"kind"},"value":"external"}`: `field` names a sibling in the
@@ -82,6 +85,7 @@ final readonly class EditorField
      * @param  ?JsonDocument  $defaultValue  the form's starting value, or null
      * @param  ?JsonDocument  $when  the condition the field is shown on, or null
      * @param  ?WhenHidden  $whenHidden  what happens to the value of a hidden field, or null
+     * @param  list<TypeName>  $targets  the types a relation's targets may have, each once
      *
      * @throws InvalidTypeEditor when the field breaks its rules
      */
@@ -109,6 +113,7 @@ final readonly class EditorField
         public ?JsonDocument $defaultValue = null,
         public ?JsonDocument $when = null,
         public ?WhenHidden $whenHidden = null,
+        public array $targets = [],
     ) {
         $expected = ($parent === null ? ($namespace instanceof FieldNamespace ? 'ext.'.$namespace->value.'.' : '') : $parent.'.').$handle->value;
 
@@ -146,6 +151,20 @@ final readonly class EditorField
             $values[$choice->value->value] = true;
         }
 
+        if (($base === EditorBase::Relation) !== ($targets !== [])) {
+            throw InvalidTypeEditor::targets($path);
+        }
+
+        $names = [];
+
+        foreach ($targets as $target) {
+            if (isset($names[$target->value])) {
+                throw InvalidTypeEditor::targets($path);
+            }
+
+            $names[$target->value] = true;
+        }
+
         if ($repeat instanceof EditorRepeat && $base !== EditorBase::Group) {
             throw InvalidTypeEditor::repeat($path);
         }
@@ -166,7 +185,7 @@ final readonly class EditorField
             throw InvalidTypeEditor::summary($path);
         }
 
-        if ($defaultValue instanceof JsonDocument && ($base === EditorBase::Group || $base === EditorBase::RichText)) {
+        if ($defaultValue instanceof JsonDocument && in_array($base, [EditorBase::Group, EditorBase::RichText, EditorBase::Relation], true)) {
             throw InvalidTypeEditor::defaultValue($path);
         }
 

@@ -204,6 +204,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json->presence = $object->presence->value;
         $json->repeat = $object->repeat instanceof EditorRepeat ? $this->encodeEditorRepeat($object->repeat) : null;
         $json->rule = $object->rule instanceof JsonDocument ? JsonValues::encodeDocument($object->rule->value) : null;
+        $json->targets = array_map(static fn (TypeName $item): mixed => $item->value, $object->targets);
         $json->translatable = $object->translatable;
         $json->type = $object->fieldType;
         $json->ui = $this->encodeEditorUi($object->ui);
@@ -215,7 +216,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
 
     private function decodeEditorField(mixed $value, FieldPath $path): EditorField
     {
-        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'default', 'description', 'descriptions', 'encrypted', 'fallback', 'handle', 'label', 'labels', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'translatable', 'type', 'ui', 'when', 'when_hidden']);
+        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'default', 'description', 'descriptions', 'encrypted', 'fallback', 'handle', 'label', 'labels', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'targets', 'translatable', 'type', 'ui', 'when', 'when_hidden']);
 
         return JsonValues::build($path, fn (): EditorField => new EditorField(
             path: JsonValues::required($object, 'path', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
@@ -241,6 +242,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
             defaultValue: JsonValues::present($object, 'default', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
             when: JsonValues::present($object, 'when', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
             whenHidden: JsonValues::present($object, 'when_hidden', $path, static fn (mixed $value, FieldPath $at): WhenHidden => JsonValues::enum($value, $at, WhenHidden::class)),
+            targets: JsonValues::required($object, 'targets', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): TypeName => JsonValues::value($item, $itemAt, static fn (string $text): TypeName => new TypeName($text)))),
         ));
     }
 

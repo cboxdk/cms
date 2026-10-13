@@ -3,6 +3,16 @@
     "columns": [
         {
             "checks": [
+                "CASE WHEN jsonb_typeof(\"accessories\") = 'array' THEN jsonb_array_length(\"accessories\") <= 20 ELSE \"accessories\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "accessories",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
                 "jsonb_typeof(\"body\") = 'array'"
             ],
             "indexed": false,
@@ -130,6 +140,15 @@
             "not_null": false,
             "step": 1,
             "type": "bigint"
+        },
+        {
+            "checks": [],
+            "indexed": false,
+            "name": "successor",
+            "not_null": false,
+            "references": "entries",
+            "step": 1,
+            "type": "uuid"
         },
         {
             "checks": [

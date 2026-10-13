@@ -6,6 +6,8 @@ namespace Cbox\Cms\Core\Validation\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Validation\DecimalNumber;
 use Cbox\Cms\Contracts\Validation\ExtensionRules;
@@ -185,6 +187,8 @@ final readonly class InputValidator
             RuleName::Datetime => $this->datetime($field, $value, $path, $errors),
             RuleName::Object => $this->group($field, $value, $path, $stage, $errors, $scopes),
             RuleName::List => $this->list($field, $value, $path, $stage, $errors, $scopes),
+            RuleName::Relation => self::entryId($value) !== null || $this->wrongType($path, 'is not an entry\'s id, a UUIDv7 such as "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b"', $errors),
+            RuleName::Relations => $this->relations($field, $value, $path, $errors),
             default => PortableTextInput::check($field, $value, $path, $errors),
         };
     }
@@ -373,6 +377,60 @@ final readonly class InputValidator
         }
 
         return true;
+    }
+
+    /**
+     * A multiple relation (PRD 5.11): a list of entries' ids, each once and at most `max_items`.
+     * Ids are compared in their canonical lowercase form. Whether each target exists and is of a
+     * type the field allows is the kernel's check when it validates a command, not this one's.
+     */
+    private function relations(FieldRules $field, mixed $value, FieldPath $path, ValidationErrors $errors): bool
+    {
+        $items = InputPaths::list($value);
+
+        if ($items === null) {
+            return $this->wrongType($path, 'is not a list of entries\' ids', $errors);
+        }
+
+        $max = $field->rule(RuleName::MaxItems);
+
+        if ($max instanceof Rule && count($items) > $max->number()) {
+            $errors->add(ErrorCode::ValidationTooManyItems, $path, sprintf('has %d items; it may have at most %d.', count($items), $max->number()));
+
+            return true;
+        }
+
+        $seen = [];
+
+        foreach ($items as $index => $item) {
+            $id = self::entryId($item);
+
+            if ($id === null) {
+                $this->wrongType($path->then($index), 'is not an entry\'s id, a UUIDv7', $errors);
+            } elseif (isset($seen[$id])) {
+                $errors->add(ErrorCode::ValidationDuplicateItem, $path->then($index), sprintf('is the same entry as item %d.', $seen[$id]));
+            } else {
+                $seen[$id] = $index;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * The canonical lowercase form of an entry's id, or null when $value is not a UUIDv7.
+     */
+    public static function entryId(mixed $value): ?string
+    {
+        if (! is_string($value)) {
+            return null;
+        }
+
+        try {
+            return EntryId::fromString($value)->toString();
+        } catch (InvalidUuid7) {
+            return null;
+        }
     }
 
     private function wrongType(?FieldPath $path, string $what, ValidationErrors $errors): bool

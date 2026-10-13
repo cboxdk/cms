@@ -1,7 +1,7 @@
 # yaml-language-server: $schema=../../../../../../contracts/resources/schemas/blueprint.v1.json
 # The comprehensive example type of the type chain (PRD 11.12, MILESTONES M1 point 1): a type of
-# the module shop that uses all ten core field types, select options, a group with nested fields
-# once and repeated, required, filterable and sortable fields, every classification and both agents
+# the module shop that uses all eleven core field types, select options, a group with nested fields
+# once and repeated, a relation to one product and one to several, required, filterable and sortable fields, every classification and both agents
 # flags. The app extends it in ../app/product.yaml. TypeDescriptorTest compiles both and compares the
 # descriptor with ../descriptor.json. The presentation keys (gap G2) reach only the editor
 # descriptor, ../editor.json: a label per locale, a layout of two tabs and a sidebar, which the
@@ -217,6 +217,20 @@ fields:
             - field: ../discontinued
               not_null: true
         when_hidden: keep
+  - handle: successor
+    label: Successor
+    description: The product that replaces this one.
+    type: relation
+    classification: internal
+    types: [shop:product]
+  - handle: accessories
+    label: Accessories
+    description: The products sold with this one.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 20
+    types: [shop:product]
   - handle: purchase_price
     label: Purchase price
     description: What the shop pays the supplier for one item.
@@ -262,6 +276,8 @@ layout:
             - field: price
               width: half
             - field: dimensions
+            - field: accessories
+            - field: successor
   sidebar:
     sections:
       - handle: status

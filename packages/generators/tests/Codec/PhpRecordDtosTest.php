@@ -69,8 +69,9 @@ it('maps the comprehensive example into the record contract', function (): void 
     expect($contract->root->className)->toBe('ShopProductV1')
         ->and($contract->codecClass)->toBe('ShopProductCodecV1')
         ->and($contract->version)->toBe(1)
-        ->and(array_keys($root))->toBe(['body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'name', 'price', 'purchase_price', 'stock', 'summary', 'supplier', 'support_email', 'tags', 'weight'])
+        ->and(array_keys($root))->toBe(['accessories', 'body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'name', 'price', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight'])
         ->and(array_map($describe, $root))->toBe([
+            'accessories' => ['accessories', CodecKind::List, CodecKind::Id, false, ClassificationAccess::Public, ['list', 'distinct', 'max_items']],
             'body' => ['body', CodecKind::PortableText, null, false, ClassificationAccess::Public, ['portable_text', 'styles', 'marks', 'lists', 'links']],
             'care' => ['care', CodecKind::PortableText, null, false, ClassificationAccess::Public, ['portable_text', 'styles', 'marks', 'lists', 'links']],
             'checked_at' => ['checkedAt', CodecKind::Datetime, null, false, ClassificationAccess::Internal, ['datetime', 'min']],
@@ -84,6 +85,7 @@ it('maps the comprehensive example into the record contract', function (): void 
             'price' => ['price', CodecKind::Decimal, null, true, ClassificationAccess::Public, ['decimal', 'min', 'max']],
             'purchase_price' => ['purchasePrice', CodecKind::Decimal, null, false, ClassificationAccess::Confidential, ['decimal']],
             'stock' => ['stock', CodecKind::Integer, null, false, ClassificationAccess::Internal, ['integer', 'min', 'max']],
+            'successor' => ['successor', CodecKind::Id, null, false, ClassificationAccess::Internal, []],
             'summary' => ['summary', CodecKind::Text, null, false, ClassificationAccess::Internal, ['string', 'max_length']],
             'supplier' => ['supplier', CodecKind::Object, null, false, ClassificationAccess::Confidential, ['object']],
             'support_email' => ['supportEmail', CodecKind::Text, null, false, ClassificationAccess::Public, ['string', 'max_length', 'format']],
@@ -91,6 +93,8 @@ it('maps the comprehensive example into the record contract', function (): void 
             'weight' => ['weight', CodecKind::Integer, null, false, ClassificationAccess::Public, ['integer', 'min']],
         ])
         ->and($root['cms_id']->value->class)->toBe(EntryId::class)
+        ->and($root['successor']->value->class)->toBe(EntryId::class)
+        ->and($root['accessories']->value->item?->class)->toBe(EntryId::class)
         ->and($root['tags']->value->item?->rules)->toEqual([new ValidationRule(ValidationRuleName::In, ['new', 'sale', 'eco'])]);
 
     $supplier = propertyObject($root['supplier']);

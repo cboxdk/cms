@@ -22,7 +22,9 @@ use Cbox\Cms\Contracts\Fields\MapValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\DecimalNumber;
 use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Presence;
@@ -51,6 +53,10 @@ use Random\Randomizer;
  *
  * A conditional field (gap G3) keeps its value only while it is shown (ShownFields), so a hidden
  * field never holds one; every required field gets a value, so a shown one has it.
+ *
+ * A relation (PRD 5.11) names entries that SeedRelations gives for its target types, entries of
+ * the data set seeded before; a multiple relation names up to three, each once. A relation for
+ * which SeedRelations has no target is left out, required or not.
  */
 #[Internal]
 final readonly class FieldValueGenerator
@@ -94,14 +100,15 @@ final readonly class FieldValueGenerator
      * The fields of a variant of an entry of the type: those of its shared variant by its rules, or
      * those of a language's variant by the rules given.
      */
-    public function fields(SeedableType $type, ClassificationAccess $access, Randomizer $random, ?TypeRules $rules = null): FieldValues
+    public function fields(SeedableType $type, ClassificationAccess $access, Randomizer $random, ?TypeRules $rules = null, ?SeedRelations $relations = null): FieldValues
     {
         $rules ??= $type->rules;
-        $own = ShownFields::of($rules->fields, $this->top($type, null, $rules->fields, $access, $random));
+        $relations ??= new NoSeedRelations;
+        $own = ShownFields::of($rules->fields, $this->top($type, null, $rules->fields, $access, $random, $relations));
         $extensions = [];
 
         foreach ($rules->extensions as $extension) {
-            $fields = ShownFields::of($extension->fields, $this->top($type, $extension->namespace, $extension->fields, $access, $random));
+            $fields = ShownFields::of($extension->fields, $this->top($type, $extension->namespace, $extension->fields, $access, $random, $relations));
 
             if (! $fields->isEmpty()) {
                 $extensions[] = new ExtensionFields($extension->namespace, $fields);
@@ -116,7 +123,7 @@ final readonly class FieldValueGenerator
      *
      * @param  list<FieldRules>  $rules
      */
-    private function top(SeedableType $type, ?FieldNamespace $namespace, array $rules, ClassificationAccess $access, Randomizer $random): FieldMap
+    private function top(SeedableType $type, ?FieldNamespace $namespace, array $rules, ClassificationAccess $access, Randomizer $random, SeedRelations $relations): FieldMap
     {
         $named = [];
 
@@ -127,7 +134,11 @@ final readonly class FieldValueGenerator
                 continue;
             }
 
-            $named[] = new NamedValue($field->handle, $this->value($field, $random));
+            $value = $this->value($field, $random, $relations);
+
+            if ($value instanceof FieldValue) {
+                $named[] = new NamedValue($field->handle, $value);
+            }
         }
 
         return new FieldMap(...$named);
@@ -138,13 +149,15 @@ final readonly class FieldValueGenerator
      *
      * @param  list<FieldRules>  $rules
      */
-    private function nested(array $rules, Randomizer $random): FieldMap
+    private function nested(array $rules, Randomizer $random, SeedRelations $relations): FieldMap
     {
         $named = [];
 
         foreach ($rules as $field) {
-            if ($this->present($field, $random)) {
-                $named[] = new NamedValue($field->handle, $this->value($field, $random));
+            $value = $this->present($field, $random) ? $this->value($field, $random, $relations) : null;
+
+            if ($value instanceof FieldValue) {
+                $named[] = new NamedValue($field->handle, $value);
             }
         }
 
@@ -156,7 +169,10 @@ final readonly class FieldValueGenerator
         return self::required($field) || $random->getInt(1, 100) <= $this->profile->filledPercent;
     }
 
-    private function value(FieldRules $field, Randomizer $random): FieldValue
+    /**
+     * The field's value, or null for a relation SeedRelations has no target for.
+     */
+    private function value(FieldRules $field, Randomizer $random, SeedRelations $relations): ?FieldValue
     {
         return match ($field->type) {
             RuleName::String => new TextValue($this->text($field, $random)),
@@ -165,9 +181,11 @@ final readonly class FieldValueGenerator
             RuleName::Boolean => new BooleanValue($random->getInt(1, 100) <= 30),
             RuleName::Date => new DateValue($this->date($field, $random)),
             RuleName::Datetime => new DateTimeValue($this->datetime($field, $random)),
-            RuleName::Object => new GroupValue($this->nested($field->fields, $random)),
-            RuleName::List => $this->list($field, $random),
+            RuleName::Object => new GroupValue($this->nested($field->fields, $random, $relations)),
+            RuleName::List => $this->list($field, $random, $relations),
             RuleName::PortableText => $this->richText($field, $random),
+            RuleName::Relation => $this->relation($field, $random, $relations),
+            RuleName::Relations => $this->relations($field, $random, $relations),
             default => throw new LogicException(sprintf('The rule %s is not the type rule of a field.', $field->type->value)),
         };
     }
@@ -283,7 +301,43 @@ final readonly class FieldValueGenerator
         return min($span, (int) floor($span * ($random->nextFloat() ** $this->profile->dateSkew)));
     }
 
-    private function list(FieldRules $field, Randomizer $random): ListValue
+    private function relation(FieldRules $field, Randomizer $random, SeedRelations $relations): ?TextValue
+    {
+        $target = $relations->pick($this->targets($field), $random);
+
+        return $target instanceof EntryId ? new TextValue($target->toString()) : null;
+    }
+
+    /**
+     * One to three targets, at most `max_items`, each once; null when SeedRelations has none.
+     */
+    private function relations(FieldRules $field, Randomizer $random, SeedRelations $relations): ?ListValue
+    {
+        $count = $this->skewed(1, min(self::LIST_ITEMS, $field->rule(RuleName::MaxItems)?->number() ?? self::LIST_ITEMS), $random);
+        $targets = [];
+
+        for ($index = 0; $index < $count; $index++) {
+            $target = $relations->pick($this->targets($field), $random);
+
+            if ($target instanceof EntryId) {
+                $targets[$target->toString()] = new TextValue($target->toString());
+            }
+        }
+
+        return $targets === [] ? null : new ListValue(...array_values($targets));
+    }
+
+    /**
+     * The types a relation's targets may have.
+     *
+     * @return list<TypeName>
+     */
+    private function targets(FieldRules $field): array
+    {
+        return array_map(static fn (string $name): TypeName => new TypeName($name), $field->rule(RuleName::Targets)->arguments ?? []);
+    }
+
+    private function list(FieldRules $field, Randomizer $random, SeedRelations $relations): ListValue
     {
         $in = $field->rule(RuleName::ItemsIn)->arguments ?? [];
         $low = max(1, $field->rule(RuleName::MinItems)?->number() ?? 0);
@@ -303,7 +357,7 @@ final readonly class FieldValueGenerator
         $count = $this->skewed(min($low, $high), $high, $random);
 
         for ($index = 0; $index < $count; $index++) {
-            $items[] = new GroupValue($this->nested($field->fields, $random));
+            $items[] = new GroupValue($this->nested($field->fields, $random, $relations));
         }
 
         return new ListValue(...$items);

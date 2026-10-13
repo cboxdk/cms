@@ -50,6 +50,18 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                 [
                     new FieldDefinition(
                         namespace: null,
+                        handle: new FieldHandle('accessories'),
+                        fieldType: 'relation',
+                        classification: ClassificationAccess::Public,
+                        agents: true,
+                        encrypted: false,
+                        required: false,
+                        filterable: false,
+                        sortable: false,
+                        column: new ColumnDefinition('accessories', 'jsonb', false, ['CASE WHEN jsonb_typeof("accessories") = \'array\' THEN jsonb_array_length("accessories") <= 20 ELSE "accessories" IS NULL END']),
+                    ),
+                    new FieldDefinition(
+                        namespace: null,
                         handle: new FieldHandle('body'),
                         fieldType: 'rich_text',
                         classification: ClassificationAccess::Public,
@@ -229,6 +241,18 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         filterable: true,
                         sortable: true,
                         column: new ColumnDefinition('stock', 'bigint', false, ['"stock" >= 0', '"stock" <= 1000000']),
+                    ),
+                    new FieldDefinition(
+                        namespace: null,
+                        handle: new FieldHandle('successor'),
+                        fieldType: 'relation',
+                        classification: ClassificationAccess::Internal,
+                        agents: true,
+                        encrypted: false,
+                        required: false,
+                        filterable: false,
+                        sortable: false,
+                        column: new ColumnDefinition('successor', 'uuid', false, []),
                     ),
                     new FieldDefinition(
                         namespace: null,

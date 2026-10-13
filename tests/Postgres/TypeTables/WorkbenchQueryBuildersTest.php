@@ -117,6 +117,8 @@ function measurements(int $first, int $last, NodePath $home): array
             fixtureAlerts: null,
             fixtureCalibrated: $number % 3 === 0,
             fixtureCalibratedOn: null,
+            fixtureCitedIn: null,
+            fixtureCorrects: null,
             fixtureMeasuredAt: new DateTimeImmutable('2026-03-10T00:00:00Z')->modify(sprintf('+%d minutes', $number)),
             fixtureNote: null,
             fixtureReading: reading($number),

@@ -465,7 +465,8 @@ final readonly class JsonValues
     }
 
     /**
-     * A list, each item read by $item at its index.
+     * A list, each item read by $item at its index. With $distinct no item equals another: a
+     * scalar by its value and type, a value object, such as an entry's id, by its properties.
      *
      * @template T
      *
@@ -496,7 +497,7 @@ final readonly class JsonValues
         foreach ($value as $index => $raw) {
             $read = $item($raw, $at->then($index));
 
-            if ($distinct && in_array($read, $items, true)) {
+            if ($distinct && in_array($read, $items, ! is_object($read))) {
                 throw DecodingFailed::invalid($at->then($index), 'is an item the list already has');
             }
 

@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\Validation\TypeValidators;
 use Cbox\Cms\Contracts\Validation\ValidationReport;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\RelationReferences;
 use LogicException;
 use Override;
 
@@ -65,6 +66,22 @@ final class FakeFieldValidation implements FieldValidation
         }
 
         return new ValidationReport($errors);
+    }
+
+    /**
+     * The targets of the relation fields, as the implementation reads them, with the domain's
+     * RelationReferences over the validator's rules for the variant.
+     */
+    #[Override]
+    public function references(TypeDefinition $type, VariantKey $variant, FieldValues $fields, FieldPath $at): array
+    {
+        $validator = $this->validators->find($type->id);
+
+        if (! $validator instanceof TypeValidator) {
+            throw new LogicException(sprintf('The type %s has no generated validator. Run cms:generate.', $type->name->value));
+        }
+
+        return RelationReferences::of($validator->rules()->forVariant($variant, $type->capabilities->localization), $fields, $at);
     }
 
     private function required(FieldRules $rules, ValidationStage $stage): bool

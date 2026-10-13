@@ -8,7 +8,8 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 
 /**
  * A field's column in a type's schema lock (PRD 11.6): its name, Postgres type, NOT NULL, CHECK
- * expressions and whether it has an index, as the field's descriptor gave them, and the step of the
+ * expressions, whether it has an index and the table its foreign key references, as the field's
+ * descriptor gave them, and the step of the
  * lock whose migration added it. The system columns (`cms_*`) are not in the lock; every type table
  * has them.
  */
@@ -20,6 +21,7 @@ final readonly class LockedColumn
      * @param  bool  $indexed  whether the field is filterable or sortable, so its column has an index
      *                         that ends with the entry id
      * @param  int  $step  the step of the schema lock that added the column, from 1
+     * @param  ?string  $references  the kernel table whose `id` the column references with a foreign key, or null
      */
     public function __construct(
         public string $name,
@@ -28,6 +30,7 @@ final readonly class LockedColumn
         public array $checks,
         public bool $indexed,
         public int $step,
+        public ?string $references = null,
     ) {}
 
     /**
@@ -39,6 +42,7 @@ final readonly class LockedColumn
             && $this->type === $other->type
             && $this->notNull === $other->notNull
             && $this->checks === $other->checks
-            && $this->indexed === $other->indexed;
+            && $this->indexed === $other->indexed
+            && $this->references === $other->references;
     }
 }

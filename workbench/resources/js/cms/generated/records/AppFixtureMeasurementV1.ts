@@ -33,6 +33,10 @@ export interface AppFixtureMeasurementV1 {
   fixture_calibrated?: boolean | null;
   /** Calibrated on: The day the sensor was last calibrated. */
   fixture_calibrated_on?: string | null;
+  /** Cited in: The articles and readings that cite this reading. */
+  fixture_cited_in?: readonly string[] | null;
+  /** Corrects: The earlier reading this one corrects. */
+  fixture_corrects?: string | null;
   /** Measured at: When the sensor took the reading. */
   fixture_measured_at: string;
   /** Note. */
@@ -60,6 +64,8 @@ export interface AppFixtureMeasurementV1 {
  * this file: change the blueprints and run cms:generate.
  */
 export interface AppFixtureMeasurementV1FixtureSensor {
+  /** Sensor calibration: The reading the sensor was last calibrated against. */
+  fixture_sensor_calibration?: string | null;
   /** Sensor code: The code of the sensor. */
   fixture_sensor_code: string;
   /** Sensor contact: Who looks after the sensor. */
@@ -91,6 +97,15 @@ export interface AppFixtureMeasurementV1FixtureSeries {
 
 const appFixtureMeasurementV1FixtureSensorRule: ObjectRule = {
   properties: [
+    {
+      key: 'fixture_sensor_calibration',
+      presence: 'optional',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
     { key: 'fixture_sensor_code', presence: 'required', value: { kind: 'text', maxLength: 255 } },
     {
       key: 'fixture_sensor_contact',
@@ -187,6 +202,29 @@ const appFixtureMeasurementV1Rule: ObjectRule = {
       key: 'fixture_calibrated_on',
       presence: 'optional',
       value: { kind: 'date', min: '2000-01-01', max: '2099-12-31' },
+    },
+    {
+      key: 'fixture_cited_in',
+      presence: 'optional',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+        },
+        maxItems: 200,
+        distinct: true,
+      },
+    },
+    {
+      key: 'fixture_corrects',
+      presence: 'optional',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
     },
     { key: 'fixture_measured_at', presence: 'required', value: { kind: 'datetime' } },
     { key: 'fixture_note', presence: 'optional', value: { kind: 'text', maxLength: 10000 } },

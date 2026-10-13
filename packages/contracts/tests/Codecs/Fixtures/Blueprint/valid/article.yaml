@@ -107,3 +107,17 @@ fields:
         max_length: 50
         agents: false
     classification: confidential
+  - handle: related
+    label: Related
+    description: The articles to read next, in order.
+    type: relation
+    multiple: true
+    max_items: 5
+    types: [app:article]
+    classification: public
+  - handle: follows
+    label: Follows
+    description: The article this one follows up on.
+    type: relation
+    types: [app:article]
+    classification: internal

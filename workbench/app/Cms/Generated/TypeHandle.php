@@ -57,6 +57,8 @@ enum TypeHandle: string
                 'fixture_alerts' => 'select',
                 'fixture_calibrated' => 'boolean',
                 'fixture_calibrated_on' => 'date',
+                'fixture_cited_in' => 'relation',
+                'fixture_corrects' => 'relation',
                 'fixture_measured_at' => 'datetime',
                 'fixture_note' => 'long_text',
                 'fixture_reading' => 'decimal',

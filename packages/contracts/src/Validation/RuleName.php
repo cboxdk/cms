@@ -41,6 +41,12 @@ enum RuleName: string
     /** A list of Portable Text blocks (PRD 11.10). */
     case PortableText = 'portable_text';
 
+    /** An entry's id, a UUIDv7 in lowercase hexadecimal: the target of a relation (PRD 5.11). */
+    case Relation = 'relation';
+
+    /** A list of entries' ids, each once: the targets of a multiple relation (PRD 5.11). */
+    case Relations = 'relations';
+
     /** Text of at least the argument's number of characters. */
     case MinLength = 'min_length';
 
@@ -84,6 +90,13 @@ enum RuleName: string
     case Links = 'links';
 
     /**
+     * A relation whose targets are entries of the arguments' types, each `<owner>:<handle>`. The
+     * kernel checks it against the entries when it validates a command (PRD 5.11); the input
+     * validator checks only the form of the ids.
+     */
+    case Targets = 'targets';
+
+    /**
      * The formats of Format.
      *
      * @var list<string>
@@ -105,6 +118,8 @@ enum RuleName: string
             self::Object,
             self::List,
             self::PortableText,
+            self::Relation,
+            self::Relations,
         ], true);
     }
 
@@ -121,6 +136,8 @@ enum RuleName: string
             self::Integer, self::Decimal, self::Date, self::Datetime => [self::Min, self::Max],
             self::List => [self::Distinct, self::ItemsIn, self::MinItems, self::MaxItems],
             self::PortableText => [self::Styles, self::Marks, self::Lists, self::Links],
+            self::Relation => [self::Targets],
+            self::Relations => [self::Targets, self::MaxItems],
             default => [],
         };
     }

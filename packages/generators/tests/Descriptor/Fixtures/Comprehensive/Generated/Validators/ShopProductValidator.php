@@ -29,6 +29,7 @@ use Override;
  * this file: change the blueprints and run cms:generate.
  *
  * Fields, as the input holds them:
+ *   accessories: relation, optional
  *   body: rich_text, optional
  *   care: rich_text, optional
  *   checked_at: datetime, optional
@@ -42,6 +43,7 @@ use Override;
  *   price: decimal, required
  *   purchase_price: decimal, optional
  *   stock: integer, optional
+ *   successor: relation, optional
  *   summary: long_text, optional
  *   supplier: group, optional
  *   supplier.company: text, required
@@ -66,6 +68,15 @@ final readonly class ShopProductValidator implements TypeValidator
     {
         return new TypeRules(
             [
+                new FieldRules(
+                    new FieldHandle('accessories'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relations),
+                        new Rule(RuleName::Targets, ['shop:product']),
+                        new Rule(RuleName::MaxItems, ['20']),
+                    ],
+                ),
                 new FieldRules(
                     new FieldHandle('body'),
                     Presence::Optional,
@@ -184,6 +195,14 @@ final readonly class ShopProductValidator implements TypeValidator
                         new Rule(RuleName::Integer),
                         new Rule(RuleName::Min, ['0']),
                         new Rule(RuleName::Max, ['1000000']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('successor'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relation),
+                        new Rule(RuleName::Targets, ['shop:product']),
                     ],
                 ),
                 new FieldRules(

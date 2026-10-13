@@ -227,6 +227,6 @@ final readonly class DescriptorCompiler
 
         $shape = $field->options->describeColumn(SqlText::identifier($name));
 
-        return new ColumnDescriptor($name, $shape->type, $notNull, $shape->checks);
+        return new ColumnDescriptor($name, $shape->type, $notNull, $shape->checks, $shape->references);
     }
 }

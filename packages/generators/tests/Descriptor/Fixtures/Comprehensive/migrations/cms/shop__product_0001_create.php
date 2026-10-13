@@ -33,6 +33,8 @@ return new class extends Migration
                     check (cms_stage in ('released', 'draft', 'staged')),
                 cms_home_node uuid not null references nodes (id),
                 cms_owner_actor uuid references actors (id),
+                "accessories" jsonb
+                    check (CASE WHEN jsonb_typeof("accessories") = 'array' THEN jsonb_array_length("accessories") <= 20 ELSE "accessories" IS NULL END),
                 "body" jsonb
                     check (jsonb_typeof("body") = 'array'),
                 "care" jsonb
@@ -61,6 +63,8 @@ return new class extends Migration
                 "stock" bigint
                     check ("stock" >= 0)
                     check ("stock" <= 1000000),
+                "successor" uuid
+                    constraint "shop__product__successor" references "entries" (id) on delete restrict,
                 "summary" text
                     check (char_length("summary") <= 2000),
                 "supplier" bytea,
@@ -101,6 +105,9 @@ return new class extends Migration
             SQL);
         $connection->statement(<<<'SQL'
             create index "shop__product__stock" on "shop__product" (cms_stage, cms_locale, "stock", cms_entry_id)
+            SQL);
+        $connection->statement(<<<'SQL'
+            create index "shop__product__successor" on "shop__product" ("successor")
             SQL);
         new TablePrivileges($connection)->limitTo('shop__product', [TablePrivilege::Select, TablePrivilege::Insert, TablePrivilege::Update, TablePrivilege::Delete]);
         new TypeTableAccess($connection)->protect('shop__product');

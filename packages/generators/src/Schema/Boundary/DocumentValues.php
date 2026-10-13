@@ -342,6 +342,32 @@ final readonly class DocumentValues implements FieldValues
     }
 
     #[Override]
+    public function stringList(string $key): ?array
+    {
+        $values = $this->value($key);
+
+        if (! is_array($values) || ! array_is_list($values)) {
+            $this->unreadable($key);
+
+            return null;
+        }
+
+        $strings = [];
+
+        foreach ($values as $index => $value) {
+            if (! is_string($value)) {
+                $this->unknown($value, $this->at->below($key, $index));
+
+                return null;
+            }
+
+            $strings[] = $value;
+        }
+
+        return $strings;
+    }
+
+    #[Override]
     public function enumList(string $enum, string $key): ?array
     {
         if (! $this->has($key)) {

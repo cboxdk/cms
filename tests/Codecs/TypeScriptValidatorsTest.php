@@ -181,6 +181,8 @@ function fullMeasurementJson(): string
         'fixture_alerts' => ['fixture_low', 'fixture_drift'],
         'fixture_calibrated' => true,
         'fixture_calibrated_on' => '2026-02-28',
+        'fixture_cited_in' => ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01', '0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A03'],
+        'fixture_corrects' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03',
         'fixture_note' => 'Sensor cleaned first. Ærø ✓',
         'fixture_remark' => [[
             '_type' => 'block',
@@ -191,7 +193,7 @@ function fullMeasurementJson(): string
             'children' => [['_type' => 'span', '_key' => 'a1', 'text' => 'Drift ', 'marks' => ['strong']], ['_type' => 'span', '_key' => 'a2', 'text' => 'seen']],
         ]],
         'fixture_samples' => 1000,
-        'fixture_sensor' => ['fixture_sensor_code' => 'S-1', 'fixture_sensor_contact' => 'care@example.org', 'fixture_sensor_manual' => 'https://example.org/manual?page=2'],
+        'fixture_sensor' => ['fixture_sensor_calibration' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04', 'fixture_sensor_code' => 'S-1', 'fixture_sensor_contact' => 'care@example.org', 'fixture_sensor_manual' => 'https://example.org/manual?page=2'],
         'fixture_series' => [
             ['fixture_series_value' => '-100.00', 'fixture_series_taken_at' => '2026-03-10T11:00:00Z'],
             ['fixture_series_value' => '1000'],
@@ -268,7 +270,7 @@ it('accepts every record of app:fixture_measurement v1 the PHP codec writes, and
     crossCheck(new AppFixtureMeasurementCodecV1, 'records/AppFixtureMeasurementV1', 'validateAppFixtureMeasurementV1', [
         'every optional field omitted' => [measurementJson(), null],
         'every field set' => [fullMeasurementJson(), null],
-        'every optional field null' => [measurementJson(array_fill_keys(['fixture_alerts', 'fixture_calibrated', 'fixture_calibrated_on', 'fixture_note', 'fixture_remark', 'fixture_samples', 'fixture_sensor', 'fixture_series', 'fixture_station'], null)), null],
+        'every optional field null' => [measurementJson(array_fill_keys(['fixture_alerts', 'fixture_calibrated', 'fixture_calibrated_on', 'fixture_cited_in', 'fixture_corrects', 'fixture_note', 'fixture_remark', 'fixture_samples', 'fixture_sensor', 'fixture_series', 'fixture_station'], null)), null],
         'a decimal with leading zeros and the most digits' => [measurementJson(['fixture_reading' => '-000999999999.999']), null],
         'a date-time at the largest offset and six decimals' => [measurementJson(['fixture_measured_at' => '2026-03-10T23:59:59.999999+23:59']), null],
         'a leap day' => [measurementJson(['fixture_calibrated_on' => '2028-02-29']), null],
@@ -317,6 +319,13 @@ it('accepts every record of app:fixture_measurement v1 the PHP codec writes, and
         'rich text with a block without spans' => [measurementJson($block(['children' => []])), 'fixture_remark[0].children'],
         'rich text with a span key twice' => [measurementJson($block(['children' => [['_type' => 'span', '_key' => 'a1', 'text' => 'x'], ['_type' => 'span', '_key' => 'a1', 'text' => 'y']]])), 'fixture_remark[0].children[1]._key'],
         'rich text with a span without text' => [measurementJson($block(['children' => [['_type' => 'span', '_key' => 'a1']]])), 'fixture_remark[0].children[0].text'],
+        'a relation whose target is no entry id' => [measurementJson(['fixture_corrects' => 'DK-042']), 'fixture_corrects'],
+        'a relation whose target is a UUID of another version' => [measurementJson(['fixture_corrects' => '0199a3c1-2b4d-4e5f-8a6b-1c2d3e4f5a02']), 'fixture_corrects'],
+        'a relation that is a list where one entry belongs' => [measurementJson(['fixture_corrects' => ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03']]), 'fixture_corrects'],
+        'a relation inside a group whose target is no entry id' => [measurementJson(['fixture_sensor' => ['fixture_sensor_code' => 'S', 'fixture_sensor_calibration' => 7]]), 'fixture_sensor.fixture_sensor_calibration'],
+        'a multiple relation that names an entry twice' => [measurementJson(['fixture_cited_in' => ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03']]), 'fixture_cited_in[1]'],
+        'a multiple relation with an item that is no entry id' => [measurementJson(['fixture_cited_in' => ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'x']]), 'fixture_cited_in[1]'],
+        'a multiple relation with more targets than it holds' => [measurementJson(['fixture_cited_in' => array_map(static fn (int $item): string => sprintf('0199a3c1-2b4d-7e5f-8a6b-%012x', $item), range(1, 201))]), 'fixture_cited_in'],
         'rich text with an object that is not a block' => [measurementJson(['fixture_remark' => [['_type' => 'image', '_key' => 'a']]]), 'fixture_remark[0]._type'],
     ]);
 });

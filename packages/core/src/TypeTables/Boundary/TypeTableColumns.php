@@ -47,10 +47,13 @@ use stdClass;
  * - integer: a bigint; decimal: a numeric; boolean: a boolean; date: a date;
  * - datetime: a timestamptz, read in any offset and held in UTC;
  * - rich_text: a jsonb array of Portable Text blocks (PRD 11.10);
+ * - relation: the target entry's id, a uuid with a foreign key to entries, or for a relation that
+ *   holds several a jsonb array of the ids as strings (PRD 5.11, 11.6);
  * - group: a jsonb object of the nested fields by handle, or a jsonb array of such objects when the
  *   group repeats. Inside it a text is a JSON string, an integer a JSON integer, a decimal its
  *   canonical string, a boolean a JSON boolean, a date `YYYY-MM-DD`, a date-time RFC 3339 in UTC
- *   with microseconds, a select with several options an array of strings and rich text its blocks.
+ *   with microseconds, a select with several options an array of strings, rich text its blocks and
+ *   a relation its id or an array of ids.
  *
  * Null is NullValue. An encrypted field is bytea of ciphertext (PRD 12.2): decode() leaves it out,
  * because the kernel holds no key to it, and encode() refuses a value for it.
@@ -127,6 +130,7 @@ final readonly class TypeTableColumns
                 'datetime' => new DateTimeValue(self::instant($name, self::string($name, $raw))),
                 'rich_text' => self::richText($name, self::document($name, self::string($name, $raw))),
                 'group' => self::group($field, $name, self::document($name, self::string($name, $raw))),
+                'relation' => $column->type === 'uuid' ? new TextValue(self::string($name, $raw)) : self::entries($name, self::document($name, self::string($name, $raw))),
                 default => throw UnreadableTypeTable::fieldType($name, $field->fieldType),
             };
         } catch (InvalidFieldValue $exception) {
@@ -226,6 +230,8 @@ final readonly class TypeTableColumns
             $field->valueType() === 'datetime' && $value instanceof DateTimeValue => $value->value->format('Y-m-d H:i:s.uP'),
             $field->valueType() === 'rich_text' && $value instanceof ListValue => self::json($name, self::encodeRichText($name, $value)),
             $field->valueType() === 'group' => self::json($name, self::groupJson($field, $name, $value)),
+            $field->valueType() === 'relation' && $column->type === 'uuid' && $value instanceof TextValue => $value->value,
+            $field->valueType() === 'relation' && $value instanceof ListValue => self::json($name, self::entryIds($name, $value)),
             default => throw UnreadableTypeTable::value($name, sprintf('a %s for a field of the type %s', $value::class, $field->fieldType)),
         };
     }
@@ -265,6 +271,8 @@ final readonly class TypeTableColumns
             $field->valueType() === 'datetime' && $value instanceof DateTimeValue => $value->value->format('Y-m-d\TH:i:s.u\Z'),
             $field->valueType() === 'rich_text' && $value instanceof ListValue => self::encodeRichText($at, $value),
             $field->valueType() === 'group' => self::groupJson($field, $at, $value),
+            $field->valueType() === 'relation' && $value instanceof TextValue => $value->value,
+            $field->valueType() === 'relation' && $value instanceof ListValue => self::entryIds($at, $value),
             default => throw UnreadableTypeTable::value($at, sprintf('a %s for a field of the type %s', $value::class, $field->fieldType)),
         };
     }
@@ -337,6 +345,35 @@ final readonly class TypeTableColumns
         } catch (JsonException $exception) {
             throw UnreadableTypeTable::value($column, 'a value JSON can hold: '.$exception->getMessage());
         }
+    }
+
+    /**
+     * The ids of a relation that holds several, in order.
+     *
+     * @return list<string>
+     *
+     * @throws UnreadableTypeTable
+     */
+    private static function entryIds(string $at, ListValue $value): array
+    {
+        return array_map(
+            static fn (FieldValue $item): string => $item instanceof TextValue ? $item->value : throw UnreadableTypeTable::value($at, 'a list of entry ids'),
+            $value->items,
+        );
+    }
+
+    /**
+     * The ids of a relation that holds several from its JSON array.
+     *
+     * @throws UnreadableTypeTable
+     */
+    private static function entries(string $at, mixed $document): ListValue
+    {
+        if (! is_array($document)) {
+            throw UnreadableTypeTable::value($at, 'a list of entry ids');
+        }
+
+        return new ListValue(...array_map(static fn (mixed $item): TextValue => new TextValue(self::string($at, $item)), $document));
     }
 
     /**
@@ -599,6 +636,7 @@ final readonly class TypeTableColumns
             'datetime' => new DateTimeValue(self::instant($at, self::string($at, $value))),
             'rich_text' => self::richText($at, $value),
             'group' => self::group($field, $at, $value),
+            'relation' => is_array($value) ? self::entries($at, $value) : new TextValue(self::string($at, $value)),
             default => throw UnreadableTypeTable::fieldType($at, $field->fieldType),
         };
     }

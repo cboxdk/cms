@@ -46,6 +46,7 @@ final readonly class TypeTableLockJson
                 'indexed' => $column->indexed,
                 'name' => $column->name,
                 'not_null' => $column->notNull,
+                ...($column->references === null ? [] : ['references' => $column->references]),
                 'step' => $column->step,
                 'type' => $column->type,
             ];
@@ -154,6 +155,7 @@ final readonly class TypeTableLockJson
                 $checks,
                 self::boolean($file, $entry, 'indexed', $at),
                 self::integer($file, $entry, 'step', $at),
+                array_key_exists('references', $entry) ? self::string($file, $entry, 'references', $at) : null,
             );
 
             if ($column->step < 1 || $column->step > $steps) {

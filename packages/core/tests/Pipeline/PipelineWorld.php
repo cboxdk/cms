@@ -59,6 +59,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandTransaction;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRelationTargets;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Pipeline\Probe\LocalizedProbeType;
@@ -240,6 +241,7 @@ final class PipelineWorld
             $this->validation,
             $this->shelf->revisions(),
             new FakePublicPlacements,
+            new FakeRelationTargets,
             $committer ?? $this->committer,
             $this->keySession,
             $this->receiptSession,

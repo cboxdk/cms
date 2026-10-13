@@ -25,6 +25,7 @@
                 ],
                 "name": "author_email",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "The e-mail address of the author, the same in every language.",
@@ -85,6 +86,7 @@
                 ],
                 "name": "body",
                 "not_null": false,
+                "references": null,
                 "type": "jsonb"
             },
             "description": "The body of the post in the language.",
@@ -179,6 +181,7 @@
                 ],
                 "name": "category",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "The category of the post, the same in every language.",
@@ -230,6 +233,7 @@
                 ],
                 "name": "ext__app__subtitle",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "The subtitle of the post in the language.",
@@ -284,6 +288,7 @@
                 ],
                 "name": "ext__app__tag",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "The customer's own tag of the post, the same in every language.",
@@ -336,6 +341,7 @@
                 "checks": [],
                 "name": "published_on",
                 "not_null": true,
+                "references": null,
                 "type": "date"
             },
             "description": "The day the post was published, the same in every language.",
@@ -384,6 +390,7 @@
                 ],
                 "name": "quotes",
                 "not_null": false,
+                "references": null,
                 "type": "jsonb"
             },
             "description": "The quotes of the post in the language, each with its source.",
@@ -533,6 +540,7 @@
                 ],
                 "name": "teaser",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "A short teaser of the post in the language, shown in another language of the chain when the language has none.",
@@ -587,6 +595,7 @@
                 ],
                 "name": "title",
                 "not_null": true,
+                "references": null,
                 "type": "text"
             },
             "description": "The title of the post in the language.",

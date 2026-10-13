@@ -179,6 +179,7 @@ final readonly class TypeEditorCompiler
             defaultValue: $field->default instanceof FieldDefault ? new JsonDocument(($this->defaultJson)($field->default)) : null,
             when: $field->when instanceof Condition ? new JsonDocument(($this->conditionJson)($field->when)) : null,
             whenHidden: $field->whenHidden,
+            targets: array_map(static fn (string $name): TypeName => new TypeName($name), $this->targets($field)),
         )];
 
         foreach ($this->inFileOrder($field->fields) as $nested) {
@@ -186,6 +187,22 @@ final readonly class TypeEditorCompiler
         }
 
         return $fields;
+    }
+
+    /**
+     * The types a relation's targets may have, from its `targets` rule; none for another field.
+     *
+     * @return list<string>
+     */
+    private function targets(FieldDescriptor $field): array
+    {
+        foreach ($field->validation as $rule) {
+            if ($rule->name === ValidationRuleName::Targets) {
+                return $rule->arguments;
+            }
+        }
+
+        return [];
     }
 
     /**

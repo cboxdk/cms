@@ -6,6 +6,7 @@ namespace Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 
 /**
@@ -17,6 +18,13 @@ use DateTimeImmutable;
  */
 interface ShopProductRecord
 {
+    /**
+     * Accessories: The products sold with this one.
+     *
+     * @var list<EntryId>|null
+     */
+    public ?array $accessories { get; }
+
     /**
      * Body: The description of the product on its page.
      */
@@ -77,6 +85,11 @@ interface ShopProductRecord
      * Stock: How many items the warehouse holds.
      */
     public ?int $stock { get; }
+
+    /**
+     * Successor: The product that replaces this one.
+     */
+    public ?EntryId $successor { get; }
 
     /**
      * Summary.

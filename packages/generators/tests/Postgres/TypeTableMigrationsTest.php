@@ -94,6 +94,7 @@ it('applies the comprehensive example\'s migration and reads its columns, indexe
             'cms_stage text not null',
             'cms_home_node uuid not null',
             'cms_owner_actor uuid',
+            'accessories jsonb',
             'body jsonb',
             'care jsonb',
             'checked_at timestamp with time zone',
@@ -107,6 +108,7 @@ it('applies the comprehensive example\'s migration and reads its columns, indexe
             'price numeric(10,2) not null',
             'purchase_price bytea',
             'stock bigint',
+            'successor uuid',
             'summary text',
             'supplier bytea',
             'support_email text',
@@ -131,6 +133,7 @@ it('applies the comprehensive example\'s migration and reads its columns, indexe
                 'shop__product__name cms_stage, cms_locale, name, cms_entry_id',
                 'shop__product__price cms_stage, cms_locale, price, cms_entry_id',
                 'shop__product__stock cms_stage, cms_locale, stock, cms_entry_id',
+                'shop__product__successor successor',
                 'shop__product_pkey cms_entry_id, cms_locale, cms_stage primary',
             ])
             ->and(ownerReads("select array_to_string(reloptions, ',') || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where oid = 'shop__product'::regclass"))
@@ -140,7 +143,11 @@ it('applies the comprehensive example\'s migration and reads its columns, indexe
             ->and(ownerReads(<<<'SQL'
                 select f.relname::text as value from pg_constraint c join pg_class f on f.oid = c.confrelid
                 where c.conrelid = 'shop__product'::regclass and c.contype = 'f' order by 1
-                SQL))->toBe(['actors', 'entries', 'nodes'])
+                SQL))->toBe(['actors', 'entries', 'entries', 'nodes'])
+            ->and(ownerReads(<<<'SQL'
+                select c.conname::text || ' ' || c.confdeltype::text || ' ' || c.convalidated::text as value from pg_constraint c
+                where c.conrelid = 'shop__product'::regclass and c.contype = 'f' and c.conkey = array[(select attnum from pg_attribute where attrelid = 'shop__product'::regclass and attname = 'successor')]
+                SQL))->toBe(['shop__product__successor r true'])
             ->and(ownerReads(<<<'SQL'
                 select a.privilege_type::text as value
                 from pg_class c, aclexplode(c.relacl) a
@@ -198,8 +205,35 @@ it('adds a later step\'s nullable column with a valid index built concurrently, 
         expect($added)->toBe(['text false'])
             ->and($index)->toBe(['true'])
             ->and($timeout)->toBe(['0'])
-            ->and($again)->toBe(['11'])
+            ->and($again)->toBe(['12'])
             ->and(ownerReads("select count(*)::text as value from pg_attribute where attrelid = 'shop__product'::regclass and attname = 'ext__app__code' and not attisdropped"))->toBe(['0'])
             ->and(ownerReads("select count(*)::text as value from pg_class where relname = 'shop__product__ext__app__code'"))->toBe(['0']);
+    });
+});
+
+it('adds a later step\'s to-one relation with a validated foreign key ON DELETE RESTRICT and its index, also when it runs again', function (): void {
+    $golden = TypeTableLockJson::decode('migrations/cms/shop__product.lock', (string) file_get_contents(PRODUCT_LOCK));
+    $lock = new TypeTableLock($golden->table, $golden->type, $golden->typeId, $golden->stages, $golden->localization, 2, [
+        ...$golden->columns,
+        new LockedColumn('ext__app__bundle', 'uuid', false, [], false, 2, 'entries'),
+    ]);
+    $file = SchemaFixtures::scratch().'/'.MigrationSource::name($lock, 2).'.php';
+    file_put_contents($file, MigrationSource::source($lock, 2));
+    $foreignKey = <<<'SQL'
+        select c.conname::text || ' ' || f.relname::text || ' ' || c.confdeltype::text || ' ' || c.convalidated::text as value
+        from pg_constraint c join pg_class f on f.oid = c.confrelid
+        where c.conrelid = 'shop__product'::regclass and c.conname = 'shop__product__ext__app__bundle'
+        SQL;
+
+    withProductTable(function () use ($file, $foreignKey): void {
+        asOwner($file, 'up');
+        asOwner($file, 'up');
+        $key = ownerReads($foreignKey);
+        $index = ownerReads("select indisvalid::text || ' ' || pg_get_indexdef(indexrelid) as value from pg_index where indexrelid = 'shop__product__ext__app__bundle'::regclass");
+        asOwner($file, 'down');
+
+        expect($key)->toBe(['shop__product__ext__app__bundle entries r true'])
+            ->and($index)->toBe(['true CREATE INDEX shop__product__ext__app__bundle ON cms.shop__product USING btree (ext__app__bundle)'])
+            ->and(ownerReads($foreignKey))->toBe([]);
     });
 });

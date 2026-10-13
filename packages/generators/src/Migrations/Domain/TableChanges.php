@@ -228,17 +228,18 @@ final readonly class TableChanges
 
     private static function column(FieldDescriptor $field, ColumnDescriptor $column, int $step): LockedColumn
     {
-        return new LockedColumn($column->name, $column->type, $column->notNull, $column->checks, $field->filterable || $field->sortable, $step);
+        return new LockedColumn($column->name, $column->type, $column->notNull, $column->checks, $field->filterable || $field->sortable, $step, $column->references);
     }
 
     private static function describe(LockedColumn $column): string
     {
         return sprintf(
-            '%s%s with %s and %s',
+            '%s%s with %s and %s%s',
             $column->type,
             $column->notNull ? ' not null' : '',
             $column->checks === [] ? 'no checks' : 'the checks '.implode(', ', $column->checks),
             $column->indexed ? 'an index' : 'no index',
+            $column->references === null ? '' : ' and a foreign key to '.$column->references,
         );
     }
 }

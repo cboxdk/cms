@@ -9,11 +9,13 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Contracts\Validation\TypeValidators;
 use Cbox\Cms\Contracts\Validation\ValidationReport;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
 use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
+use Cbox\Cms\Core\Pipeline\Domain\RelationReferences;
 use Cbox\Cms\Core\Validation\Boundary\InputValidator;
 use LogicException;
 use Override;
@@ -23,7 +25,8 @@ use Override;
  * finds the validator through TypeValidators, keeps the rules of the fields the revision's variant
  * holds (PRD 10.1, TypeRules::forVariant()), puts the fields in the input form with
  * FieldValuesInput and checks them with the kernel's InputValidator, so a plan meets the same rules
- * as input from outside.
+ * as input from outside. references() reads the targets of the relation fields with the same
+ * rules (RelationReferences).
  */
 #[Internal]
 final readonly class TypeRulesFieldValidation implements FieldValidation
@@ -39,12 +42,29 @@ final readonly class TypeRulesFieldValidation implements FieldValidation
     #[Override]
     public function validate(TypeDefinition $type, VariantKey $variant, FieldValues $fields, ValidationStage $stage, FieldPath $at): ValidationReport
     {
+        return $this->input->validate($this->rules($type, $variant), FieldValuesInput::of($fields), $stage, $at);
+    }
+
+    /**
+     * @throws LogicException when the type has no generated validator: the generated code is out of step
+     */
+    #[Override]
+    public function references(TypeDefinition $type, VariantKey $variant, FieldValues $fields, FieldPath $at): array
+    {
+        return RelationReferences::of($this->rules($type, $variant), $fields, $at);
+    }
+
+    /**
+     * @throws LogicException when the type has no generated validator
+     */
+    private function rules(TypeDefinition $type, VariantKey $variant): TypeRules
+    {
         $validator = $this->validators->find($type->id);
 
         if (! $validator instanceof TypeValidator) {
             throw new LogicException(sprintf('The type %s has no generated validator. Run cms:generate.', $type->name->value));
         }
 
-        return $this->input->validate($validator->rules()->forVariant($variant, $type->capabilities->localization), FieldValuesInput::of($fields), $stage, $at);
+        return $validator->rules()->forVariant($variant, $type->capabilities->localization);
     }
 }

@@ -185,6 +185,7 @@
         "presence",
         "repeat",
         "rule",
+        "targets",
         "translatable",
         "type",
         "ui",
@@ -199,7 +200,7 @@
         "base": {
           "description": "The core field type whose form the value takes: the field type itself for a core field type, and the base of its shape for an addon's. A form picks its input by it.",
           "type": "string",
-          "enum": ["boolean", "date", "datetime", "decimal", "group", "integer", "long_text", "rich_text", "select", "text"]
+          "enum": ["boolean", "date", "datetime", "decimal", "group", "integer", "long_text", "relation", "rich_text", "select", "text"]
         },
         "choices": {
           "description": "The options of a select, in the blueprint's order, each value once; empty for any other base.",
@@ -299,6 +300,15 @@
         "type": {
           "description": "The field type as the blueprint names it: a core field type such as text, or <namespace>:<handle> for a field type an addon contributes (PRD 13.1).",
           "type": "string"
+        },
+        "targets": {
+          "description": "The types a relation's targets may have, each <owner>:<handle>, in the blueprint's order, so a picker searches entries of those types (PRD 5.11); empty for any other base.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "maxLength": 84,
+            "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+          }
         },
         "ui": {
           "description": "The hints the form takes for the input.",

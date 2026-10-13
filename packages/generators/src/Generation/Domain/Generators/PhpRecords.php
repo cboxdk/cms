@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
@@ -84,6 +85,7 @@ final readonly class PhpRecords implements Generator
         'group' => 'a <Field>Group, or a list of <Field>Item when the group repeats',
         'integer' => 'int',
         'long_text' => 'string',
+        'relation' => 'the target\'s EntryId, or a list of them when the field holds several',
         'rich_text' => 'the kernel\'s ListValue of Portable Text blocks',
         'select' => 'a case of the enum <Field>Choice, or a list of them when the field allows several',
         'text' => 'string',
@@ -288,6 +290,9 @@ final readonly class PhpRecords implements Generator
             'date' => $this->scalar($field, 'DateTimeImmutable', null, 'date', DateTimeImmutable::class),
             'datetime' => $this->scalar($field, 'DateTimeImmutable', null, 'dateTime', DateTimeImmutable::class),
             'rich_text' => $this->scalar($field, 'ListValue', null, 'list', ListValue::class),
+            'relation' => $this->hasRule($field, ValidationRuleName::Relations)
+                ? $this->scalar($field, 'array', 'list<EntryId>', 'entries', EntryId::class)
+                : $this->scalar($field, 'EntryId', null, 'entry', EntryId::class),
             'select' => $this->select($type, $field, $name, $class.'Choice', $or, $quoted, $repeated, $classes, $names, $problems),
             default => $this->group($type, $field, $name, $class.($repeated ? 'Item' : 'Group'), $repeated, $classes, $names, $problems),
         };

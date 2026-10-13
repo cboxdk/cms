@@ -38,11 +38,11 @@ A `TypeEditor` holds what a form needs and the catalog does not:
 An `EditorField` is one input:
 
 - `path` addresses it: the handle of a top-level field of the owner, `ext.<namespace>.<handle>` for a top-level extension field, and the parent's path, a dot and the handle inside a group. `handle`, `namespace` and `parent` are the parts.
-- `fieldType` is the field type as the blueprint names it, a core field type or `<namespace>:<handle>` for an [addon's](field-types.md), and `base` the `EditorBase` whose form the value takes, one of the ten core field types; a form picks its input by the base.
+- `fieldType` is the field type as the blueprint names it, a core field type or `<namespace>:<handle>` for an [addon's](field-types.md), and `base` the `EditorBase` whose form the value takes, one of the eleven core field types; a form picks its input by the base.
 - `label` and `description` are the blueprint's; the description is the help text of the input.
 - `presence` is what the generated validator requires: `Required` at every write, `RequiredOnRelease` for an extension field the blueprint requires (PRD 11.12, point 1), else `Optional`.
 - `classification`, `agents` and `encrypted` are the field's as the catalog has them, and `readableBy()` is the rule the queries filter by.
-- `choices` are the options of a select with their labels, in the blueprint's order; `repeat` is how a group repeats, its `minItems` and `maxItems`, or `null`.
+- `choices` are the options of a select with their labels, in the blueprint's order; `targets` are the type names `<owner>:<handle>` a relation's targets may have, in the blueprint's order, so a picker searches entries of those types, and empty for any other base; `repeat` is how a group repeats, its `minItems` and `maxItems`, or `null`.
 - `rule` is the field's value rule in the form of the generated validation runtime: a `JsonDocument` holding the `ValueRule` that the type's generated TypeScript record module declares for the field, so a form validates with the same interpreter. A group has no rule; a form builds its `object` rule, or its `list` rule when it repeats, from the fields below it and `repeat`.
 - `labels` and `descriptions` are the field's label and description per locale, as the type's are, and a choice carries its `labels` too.
 - `ui` is an `EditorUi`, the hints the blueprint's `ui` gives the input: `instructions` and `inputHint`, each with its texts per locale, `readOnly`, `hidden`, the `SelectDisplay` of a select (`Radio`, `Buttons` or `Dropdown`, only for the base select) and the `summary` template of a repeated group, which names the group's nested fields in braces. A field without hints has an empty `EditorUi`. The hints bind the form, not the kernel: a read-only or hidden field is still written by the commands and validated by its rule.
@@ -130,7 +130,7 @@ it('carries per leaf field the value rule of the validation runtime, and per gro
 });
 ```
 
-The shared suite `Cbox\Cms\Testkit\Editors\TypeEditorsContract` holds a `TypeEditors` to its lookups and to the rules a form relies on: the field tree is flat in form order with every group before the fields below it, a leaf field carries a value rule of the runtime and a group none, a select has its choices, the title field is a top-level text field of the owner, an extension field belongs to a declared extender and only it is required on release, and `visibleTo()` keeps for a reader exactly the fields the reader may see. The testkit runs it against the fake, the generators module against the workbench's generated class and the comprehensive example's, and this example runs it against the generated class in the `Contract` suite:
+The shared suite `Cbox\Cms\Testkit\Editors\TypeEditorsContract` holds a `TypeEditors` to its lookups and to the rules a form relies on: the field tree is flat in form order with every group before the fields below it, a leaf field carries a value rule of the runtime and a group none, a select has its choices, a relation its target types with an id rule, the title field is a top-level text field of the owner, an extension field belongs to a declared extender and only it is required on release, and `visibleTo()` keeps for a reader exactly the fields the reader may see. The testkit runs it against the fake, the generators module against the workbench's generated class and the comprehensive example's, and this example runs it against the generated class in the `Contract` suite:
 
 <!-- example: examples/Contract/Editors/GeneratedTypeEditorsContractTest.php -->
 ```php

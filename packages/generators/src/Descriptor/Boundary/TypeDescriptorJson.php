@@ -74,6 +74,7 @@ final readonly class TypeDescriptorJson
                 'checks' => $field->column->checks,
                 'name' => $field->column->name,
                 'not_null' => $field->column->notNull,
+                'references' => $field->column->references,
                 'type' => $field->column->type,
             ] : null,
             'description' => $field->description,

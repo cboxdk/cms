@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedableType;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeededEntry;
+use Cbox\Cms\Core\Seeding\Domain\Dto\SeededIdentity;
 use InvalidArgumentException;
 use Random\Engine\Xoshiro256StarStar;
 use Random\Randomizer;
@@ -31,7 +32,8 @@ use Random\Randomizer;
  * node skew over the nodes (sorted by id), its fields the FieldValueGenerator, and an entry of a
  * releasable type is released in releasedPercent of the cases. An entry of a type with localization
  * variants gets a variant in each of the locales given, in their order, its fields from the type's
- * rules for a language's variant (PRD 10.1); such a type needs at least one locale.
+ * rules for a language's variant (PRD 10.1); such a type needs at least one locale. A relation
+ * names entries seeded before it (EarlierEntries), so its targets exist when it is written.
  */
 #[Internal]
 final readonly class EntryGenerator
@@ -81,20 +83,42 @@ final readonly class EntryGenerator
             throw new InvalidArgumentException(sprintf('An entry index is 0 to %d, got %d.', SeedRequestLimits::MAX_ENTRIES - 1, $index));
         }
 
-        $random = new Randomizer(new Xoshiro256StarStar(hash('sha256', sprintf('%s:%d:%d', $this->profile->label(), $this->seed, $index), true)));
-        $id = new EntryId(Uuid7::generate($this->epoch + $index, $random));
-        $type = $this->types[$this->typeMix->pick($random)];
+        $random = $this->randomizer($index);
+        $identity = $this->identityFrom($random, $index);
+        $type = $identity->type;
+        $relations = new EarlierEntries($this, $identity, $index);
         $home = $this->nodes[$this->nodeSpread->pick($random)];
         $release = $type->releasable && $random->getInt(1, 100) <= $this->profile->releasedPercent;
-        $shared = $this->fields->fields($type, $this->access, $random);
+        $shared = $this->fields->fields($type, $this->access, $random, relations: $relations);
         $languages = [];
 
         if ($type->languageRules instanceof TypeRules) {
             foreach ($this->locales as $locale) {
-                $languages[] = new LocaleFields($locale, $this->fields->fields($type, $this->access, $random, $type->languageRules));
+                $languages[] = new LocaleFields($locale, $this->fields->fields($type, $this->access, $random, $type->languageRules, $relations));
             }
         }
 
-        return new SeededEntry($id, $type->definition->id, $home, $shared, $release, $languages);
+        return new SeededEntry($identity->id, $type->definition->id, $home, $shared, $release, $languages);
+    }
+
+    /**
+     * The id and the type of entry n, without its fields: the first draws of its randomizer, as
+     * entry() makes them. EarlierEntries reads the targets of a relation with it.
+     */
+    public function identity(int $index): SeededIdentity
+    {
+        return $this->identityFrom($this->randomizer($index), $index);
+    }
+
+    private function randomizer(int $index): Randomizer
+    {
+        return new Randomizer(new Xoshiro256StarStar(hash('sha256', sprintf('%s:%d:%d', $this->profile->label(), $this->seed, $index), true)));
+    }
+
+    private function identityFrom(Randomizer $random, int $index): SeededIdentity
+    {
+        $id = new EntryId(Uuid7::generate($this->epoch + $index, $random));
+
+        return new SeededIdentity($id, $this->types[$this->typeMix->pick($random)]);
     }
 }

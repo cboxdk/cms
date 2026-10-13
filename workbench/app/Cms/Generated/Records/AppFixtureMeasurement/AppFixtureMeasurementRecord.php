@@ -6,6 +6,7 @@ namespace Workbench\App\Cms\Generated\Records\AppFixtureMeasurement;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 
 /**
@@ -34,6 +35,18 @@ interface AppFixtureMeasurementRecord
      * Calibrated on: The day the sensor was last calibrated.
      */
     public ?DateTimeImmutable $fixtureCalibratedOn { get; }
+
+    /**
+     * Cited in: The articles and readings that cite this reading.
+     *
+     * @var list<EntryId>|null
+     */
+    public ?array $fixtureCitedIn { get; }
+
+    /**
+     * Corrects: The earlier reading this one corrects.
+     */
+    public ?EntryId $fixtureCorrects { get; }
 
     /**
      * Measured at: When the sensor took the reading.

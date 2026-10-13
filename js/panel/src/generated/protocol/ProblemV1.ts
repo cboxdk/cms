@@ -128,6 +128,7 @@ export type ErrorCode =
   | 'generate_type_removed'
   | 'generate_unknown_extends_target'
   | 'generate_unknown_field_type'
+  | 'generate_unknown_relation_type'
   | 'generate_when_classification_above'
   | 'generate_when_cycle'
   | 'generate_when_foreign_namespace'
@@ -273,6 +274,8 @@ export type ErrorCode =
   | 'validation_invalid_format'
   | 'validation_invalid_rich_text'
   | 'validation_not_an_option'
+  | 'validation_relation_target_missing'
+  | 'validation_relation_target_type'
   | 'validation_required'
   | 'validation_rich_text_not_allowed'
   | 'validation_too_few_items'
@@ -467,6 +470,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'generate_unknown_relation_type',
           'generate_when_classification_above',
           'generate_when_cycle',
           'generate_when_foreign_namespace',
@@ -612,6 +616,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'validation_invalid_format',
           'validation_invalid_rich_text',
           'validation_not_an_option',
+          'validation_relation_target_missing',
+          'validation_relation_target_type',
           'validation_required',
           'validation_rich_text_not_allowed',
           'validation_too_few_items',
@@ -770,6 +776,7 @@ const problemV1Rule: ObjectRule = {
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'generate_unknown_relation_type',
           'generate_when_classification_above',
           'generate_when_cycle',
           'generate_when_foreign_namespace',
@@ -915,6 +922,8 @@ const problemV1Rule: ObjectRule = {
           'validation_invalid_format',
           'validation_invalid_rich_text',
           'validation_not_an_option',
+          'validation_relation_target_missing',
+          'validation_relation_target_type',
           'validation_required',
           'validation_rich_text_not_allowed',
           'validation_too_few_items',

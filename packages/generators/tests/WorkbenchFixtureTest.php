@@ -21,6 +21,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
@@ -120,6 +121,8 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
             ['fixture_calibrated_on', DateOptions::class, Classification::Public, false],
             ['fixture_alerts', SelectOptions::class, Classification::Public, false],
             ['fixture_remark', RichTextOptions::class, Classification::Public, false],
+            ['fixture_corrects', RelationOptions::class, Classification::Public, false],
+            ['fixture_cited_in', RelationOptions::class, Classification::Public, false],
             ['fixture_sensor', GroupOptions::class, Classification::Internal, false],
             ['fixture_series', GroupOptions::class, Classification::Public, false],
         ])

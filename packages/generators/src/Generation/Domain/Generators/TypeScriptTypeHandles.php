@@ -53,6 +53,7 @@ final readonly class TypeScriptTypeHandles implements Generator
         'group' => 'group',
         'integer' => 'integer',
         'long_text' => 'long_text',
+        'relation' => 'relation',
         'rich_text' => 'rich_text',
         'select' => 'select',
         'text' => 'text',

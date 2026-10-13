@@ -52,7 +52,9 @@ const ARTICLE_JSON = '{"cms_id":"'.ARTICLE_ID.'",'
     .'"fixture_topics":["fixture_politics","fixture_science"]}';
 
 /** The measurement with every field set, as a caller with internal access sees it. */
-const MEASUREMENT_JSON = '{"cms_id":"'.MEASUREMENT_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_note":"Sensor cleaned first.","fixture_reading":"-12.500","fixture_scale":"fixture_celsius","fixture_station":"DK-042"}';
+const CORRECTED_ID = '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03';
+
+const MEASUREMENT_JSON = '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_note":"Sensor cleaned first.","fixture_reading":"-12.500","fixture_scale":"fixture_celsius","fixture_station":"DK-042"}';
 
 /**
  * The rich text of the article: one heading with a decorator and a link.
@@ -97,6 +99,8 @@ function measurement(): AppFixtureMeasurementV1
         fixtureAlerts: Omitted::Field,
         fixtureCalibrated: Omitted::Field,
         fixtureCalibratedOn: Omitted::Field,
+        fixtureCitedIn: [EntryId::fromString(ARTICLE_ID), EntryId::fromString(CORRECTED_ID)],
+        fixtureCorrects: EntryId::fromString(CORRECTED_ID),
         fixtureMeasuredAt: new DateTimeImmutable('2026-03-10T12:59:59.25+01:00'),
         fixtureNote: 'Sensor cleaned first.',
         fixtureReading: '-12.5',
@@ -144,12 +148,30 @@ it('encodes every field type into the canonical JSON and decodes it into an equa
         ->and($decoded->cmsId->equals(EntryId::fromString(MEASUREMENT_ID)))->toBeTrue();
 });
 
+it('holds a relation\'s targets as entry ids, and refuses a target that is no id or one named twice', function (): void {
+    $codec = new AppFixtureMeasurementCodecV1;
+    $decoded = $codec->decode(MEASUREMENT_JSON, ClassificationAccess::Internal);
+    $base = '{"cms_id":"'.MEASUREMENT_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius"';
+    $tooMany = array_map(static fn (int $item): string => sprintf('0199a3c1-2b4d-7e5f-8a6b-%012x', $item), range(1, 201));
+
+    expect($decoded->fixtureCorrects)->toEqual(EntryId::fromString(CORRECTED_ID))
+        ->and($decoded->fixtureCitedIn)->toEqual([EntryId::fromString(ARTICLE_ID), EntryId::fromString(CORRECTED_ID)])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_corrects":"DK-042"}', ClassificationAccess::Public)))
+        ->toBe(['json_invalid', 'fixture_corrects', 'is not a valid id: Expected a UUID in the form xxxxxxxx-xxxx-xxxx-xxxx-xxxxxxxxxxxx with hex digits, got "DK-042".'])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_cited_in":["'.ARTICLE_ID.'","'.ARTICLE_ID.'"]}', ClassificationAccess::Public)))
+        ->toBe(['json_invalid', 'fixture_cited_in[1]', 'is an item the list already has'])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_cited_in":'.json_encode($tooMany).'}', ClassificationAccess::Public)))
+        ->toBe(['json_invalid', 'fixture_cited_in', 'has 201 items, more than the 200 the field allows']);
+});
+
 it('decodes the same record from any key order, whitespace and offset, and encodes it canonically', function (): void {
     $document = <<<'JSON'
         {
           "fixture_station": "DK-042", "fixture_scale": "fixture_celsius",
           "fixture_reading": "-0012.5", "fixture_note": "Sensor cleaned first.",
           "fixture_measured_at": "2026-03-10T13:59:59.25+02:00",
+          "fixture_corrects": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03",
+          "fixture_cited_in": ["0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01", "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03"],
           "cms_id": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"
         }
         JSON;
@@ -204,7 +226,7 @@ it('leaves out every field classified above the caller\'s classification access'
     'public' => [
         ClassificationAccess::Public,
         '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],"fixture_featured":true,"fixture_published_on":"2026-03-09","fixture_reading_minutes":7,"fixture_slug":"the-report","fixture_title":"Budget: the report is out","fixture_topics":["fixture_politics","fixture_science"]}',
-        '{"cms_id":"'.MEASUREMENT_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius"}',
+        '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius"}',
     ],
     'internal' => [
         ClassificationAccess::Internal,

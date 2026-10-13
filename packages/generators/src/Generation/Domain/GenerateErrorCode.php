@@ -46,6 +46,9 @@ enum GenerateErrorCode: string
     /** An extension's `extends` is a type_id that no blueprint file below the schema roots defines. */
     case UnknownExtendsTarget = 'generate_unknown_extends_target';
 
+    /** A relation field's `types` names a type that no blueprint file below the schema roots defines. */
+    case UnknownRelationType = 'generate_unknown_relation_type';
+
     /**
      * An extension extends a type of its own owner. A type has one owner, and only others extend it
      * (PRD 11.12, 13.3): the owner adds fields to its type in the type file, never under `ext`.

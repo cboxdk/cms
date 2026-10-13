@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 use Override;
 
@@ -27,12 +28,14 @@ use Override;
 final readonly class ShopProduct implements ShopProductAppExtension, ShopProductRecord
 {
     /**
+     * @param  list<EntryId>|null  $accessories
      * @param  list<DimensionsItem>|null  $dimensions
      * @param  numeric-string  $price
      * @param  numeric-string|null  $purchasePrice
      * @param  list<TagsChoice>|null  $tags
      */
     public function __construct(
+        public ?array $accessories,
         public ?ListValue $body,
         public ?ListValue $care,
         public ?DateTimeImmutable $checkedAt,
@@ -44,6 +47,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
         public string $price,
         public ?string $purchasePrice,
         public ?int $stock,
+        public ?EntryId $successor,
         public ?string $summary,
         public ?SupplierGroup $supplier,
         public ?string $supportEmail,
@@ -57,6 +61,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
         $fields = FieldReader::of($values->own);
 
         return new self(
+            accessories: $fields->entriesOrNull('accessories'),
             body: $fields->listOrNull('body'),
             care: $fields->listOrNull('care'),
             checkedAt: $fields->dateTimeOrNull('checked_at'),
@@ -68,6 +73,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
             price: $fields->decimal('price'),
             purchasePrice: $fields->decimalOrNull('purchase_price'),
             stock: $fields->integerOrNull('stock'),
+            successor: $fields->entryOrNull('successor'),
             summary: $fields->textOrNull('summary'),
             supplier: SupplierGroup::fromFieldsOrNull($fields->groupOrNull('supplier')),
             supportEmail: $fields->textOrNull('support_email'),
@@ -84,6 +90,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
     {
         return new FieldValues(
             new FieldMap(
+                new NamedValue(new FieldHandle('accessories'), FieldWriter::entries($this->accessories)),
                 new NamedValue(new FieldHandle('body'), FieldWriter::list($this->body)),
                 new NamedValue(new FieldHandle('care'), FieldWriter::list($this->care)),
                 new NamedValue(new FieldHandle('checked_at'), FieldWriter::dateTime($this->checkedAt)),
@@ -95,6 +102,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
                 new NamedValue(new FieldHandle('price'), FieldWriter::decimal($this->price)),
                 new NamedValue(new FieldHandle('purchase_price'), FieldWriter::decimal($this->purchasePrice)),
                 new NamedValue(new FieldHandle('stock'), FieldWriter::integer($this->stock)),
+                new NamedValue(new FieldHandle('successor'), FieldWriter::entry($this->successor)),
                 new NamedValue(new FieldHandle('summary'), FieldWriter::text($this->summary)),
                 new NamedValue(new FieldHandle('supplier'), FieldWriter::group($this->supplier?->toFieldMap())),
                 new NamedValue(new FieldHandle('support_email'), FieldWriter::text($this->supportEmail)),

@@ -93,7 +93,7 @@ A field in `fields` at the top of the document also has:
 | `translatable` | no | `true` or `false`, default `false`. In a type with `localization: variants`, which variant holds the field (PRD 10.1): a language's variant when `true`, the shared variant when `false`. Only a type with `localization: variants` may have it. |
 | `fallback` | no | `variant` or `field`, default `variant`. How a translatable field falls back when the reader's language has no value for it (PRD 10.3): with its whole variant along the site's chain, so a page never mixes languages, or on its own. Only a translatable field may have it. |
 
-A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the five keys: it inherits the group's classification, `translatable` and `fallback`. A field inside a group may have `ui` and `default`.
+A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text`, `group` and `relation` cannot have either key, and a `relation` is `public` or `internal`, never `confidential`, because its target is kept where a foreign key or the relations can read it, never as ciphertext (PRD 5.11, 12.2). A field inside a group has none of the five keys: it inherits the group's classification, `translatable` and `fallback`. A field inside a group may have `ui` and `default`.
 
 ## Presentation keys
 
@@ -135,7 +135,7 @@ A read-only or hidden field is still written by the commands and validated as it
 
 ### Form defaults
 
-`default` is the value the form starts a new entry's input with, and nothing more: a command never fills it in, and an entry written without the field has no value. Its kind follows the field type: a string for `text` and `long_text`, an integer for `integer`, a decimal as a quoted string for `decimal`, `true` or `false` for `boolean`, a quoted date for `date` or the token `today`, a quoted time with its offset for `datetime` or the token `now`, an option's value for `select`, or a list of them with `multiple: true`. The tokens are resolved by the form from the clock when it opens. `rich_text` and `group` take no default, and an addon's field type takes what its base takes.
+`default` is the value the form starts a new entry's input with, and nothing more: a command never fills it in, and an entry written without the field has no value. Its kind follows the field type: a string for `text` and `long_text`, an integer for `integer`, a decimal as a quoted string for `decimal`, `true` or `false` for `boolean`, a quoted date for `date` or the token `today`, a quoted time with its offset for `datetime` or the token `now`, an option's value for `select`, or a list of them with `multiple: true`. The tokens are resolved by the form from the clock when it opens. `rich_text`, `group` and `relation` take no default, and an addon's field type takes what its base takes.
 
 ### Agents
 
@@ -193,8 +193,15 @@ A conditional field is never NOT NULL, because a hidden field holds no value, an
 | `select` | a choice from a fixed list | `options`, a list of 1 to 500 items with `value` (a handle) and `label`, is required; `multiple`; `min_items` and `max_items` only with `multiple: true` |
 | `rich_text` | Portable Text (PRD 11.10) | `styles`, `marks`, `lists`, `links`: `url` |
 | `group` | nested fields, once or repeated | `fields` is required; `repeat` with `min_items` (at most 500) and `max_items` (default 500, at most 500), so a repeated group holds at most 500 items (PRD 11.6) |
+| `relation` | a reference to another entry, or to several (PRD 5.11) | `types`, a list of 1 to 50 type names `<owner>:<handle>` that a target may have, is required; `multiple`; `max_items` (default 1,000, at most 1,000) only with `multiple: true`, so a relation field holds at most 1,000 targets (PRD 11.6) |
 
 A choice that the field's type does not have is refused.
+
+### Relations
+
+A `relation` names entries by their ids. With `multiple: false`, the default, it names one entry; with `multiple: true` a list of entries, each once, in the order the writer gives them. `types` lists the types a target may have, each as its name in code, `<owner>:<handle>`, such as `app:article` or `shop:product`: a type of the same owner, of another owner, or the type itself. `cms:generate` refuses a name that no blueprint file below the schema roots defines with `generate_unknown_relation_type`. The article in [Examples](#examples) has a relation to several articles, `related`, and one to one article, `follows`.
+
+When a command writes a revision, the kernel validates each target (PRD 6.2 phase 5): an id that is not a UUIDv7 is `validation_wrong_type` and an id named twice in one field is `validation_duplicate_item`, as for any value. Then every target must be an entry that exists and that the writer can read, or `validation_relation_target_missing`, of one of the field's `types`, or `validation_relation_target_type`, both at the field's path, such as `fields.related`. An entry the same command creates counts, so one changeset may create entries that name each other. The targets of a command are read in one statement, whatever their number. A relation inside a group is checked the same way. `cms:seed-scale` gives a relation targets among the entries it seeded before; see [Seeding](../developers/seeding.md).
 
 ## Addon field types
 
@@ -220,6 +227,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | `min_items` is at most `max_items`, on a `select` field and in the `repeat` of a group, where it is at most the default `max_items` when the repeat has none. | `generate_min_items_above_max_items` |
 | The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3): an addon whose manifest lists it and that `schema.php` holds. | `generate_unknown_field_type` |
+| Every type a `relation` field's `types` names, `<owner>:<handle>`, is a type a blueprint file below the schema roots defines. It is checked only when every file was read. | `generate_unknown_relation_type` |
 | The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |
 | The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. The records' DTOs also give different classes: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class `AppAV1BV1`. See [Records and JSON codecs](codecs.md). | `generate_name_collision` |
 | `translatable` and `fallback` belong to the fields of a type with `localization: variants`, its own and those its extensions add; a type with `localization: none` has only the shared variant, which holds every field (PRD 10.1). | `generate_translatable_without_variants` |
@@ -229,9 +237,9 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | A placement names a top-level field of its own file: no field inside a group, which the group's input holds, and no field of another owner. | `generate_layout_field_unknown` |
 | A placement's `width` is `full`, `half`, `third` or `two_thirds`. The schema takes any word, so a new preset can arrive as an addition; `cms:generate` knows these four. | `generate_layout_width_unknown` |
 | The tabs of a layout have different handles, and so do the sections of one tab and the sections of the sidebar, because a fragment joins a tab or a section by its handle. | `generate_layout_duplicate_handle` |
-| A `default` is of the kind the field's type takes, see [Form defaults](#form-defaults): a `select` default is one of its options, or a list of them, each once, with `multiple: true`; `rich_text` and `group` take none. | `generate_default_wrong_kind` |
+| A `default` is of the kind the field's type takes, see [Form defaults](#form-defaults): a `select` default is one of its options, or a list of them, each once, with `multiple: true`; `rich_text`, `group` and `relation` take none. | `generate_default_wrong_kind` |
 | The `ui.summary` of a repeated group names, in braces, only fields the group has. | `generate_summary_field_unknown` |
-| A field declared `filterable` or `sortable` has an order the typed query builder can compare: a `select` field that allows several options with `multiple: true` has none, so it is neither. The blueprint schema already refuses both flags on `long_text`, `rich_text` and `group`. See [Type tables and query builders](contracts/type-table-reader.md). | `generate_field_not_queryable` |
+| A field declared `filterable` or `sortable` has an order the typed query builder can compare: a `select` field that allows several options with `multiple: true` has none, so it is neither. The blueprint schema already refuses both flags on `long_text`, `rich_text`, `group` and `relation`. See [Type tables and query builders](contracts/type-table-reader.md). | `generate_field_not_queryable` |
 | A type's table name, `<owner>__<handle>`, has at most 54 bytes, so the names of its row level security policies, `<table>_actor` and `<table>_released`, fit in Postgres' 63: an owner of `app` leaves 49 bytes for the handle. | `generate_table_name_too_long` |
 | A schema lock in the migrations directory, `<table>.lock`, is exactly what `cms:generate` wrote, and its file is named after its table. | `generate_lock_invalid` |
 | Until schema evolution comes (B3), a type table only grows. A type whose table has a schema lock stays in the schema. | `generate_type_removed` |
@@ -246,7 +254,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | In a type with `localization: variants`, a field's `when` reads a field the same variant holds: a translatable field a translatable one, a shared field a shared one, because a revision holds the fields of one variant (PRD 10.1). | `generate_when_other_variant` |
 | `eq`, `neq` and `in` compare a field with values of its kind: strings for `text`, `long_text` and `select`, a `select`'s options only, whole numbers for `integer` and booleans for `boolean`. Any other field, and a `select` with `multiple: true`, takes only `null` and `not_null`. | `generate_when_value_wrong_kind` |
 
-An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
+An unknown `extends` or relation type is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 
 ## What cms:generate compiles
 
@@ -263,6 +271,7 @@ Once the rules hold, `cms:generate` compiles every type, with the fields every e
 | `select` | `text`, one of the values, or `text[]` of them with `multiple: true` | the values as literal types, or a list of them | the values as a union, or an array of them |
 | `rich_text` | `jsonb`, a list of Portable Text blocks | a list of blocks | an array of blocks |
 | `group` | `jsonb`, an object, or a list of at most `max_items` objects with `repeat` | an array shape of its fields, or a list of them | an object type of its fields, or an array of them |
+| `relation` | `uuid` with a foreign key to `entries` ON DELETE RESTRICT and an index, or with `multiple: true` `jsonb`, a list of at most `max_items` ids | `EntryId`, or a list of them | `string`, or an array of them |
 
 A few rules decide more than the field type does:
 
@@ -270,6 +279,7 @@ A few rules decide more than the field type does:
 - A `confidential` field is encrypted (PRD 12.2): its column is `bytea` holding ciphertext, without checks, whatever its type. The fields inside a confidential group are encrypted with it.
 - A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable, unless it is conditional, see [Conditional fields](#conditional-fields). An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
 - A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
+- A `relation` that holds one entry has a foreign key to `entries`, so an entry another entry names is never deleted (PRD 5.11); a `relation` inside a group, and one that holds several, keep the ids in the `jsonb` they are in. The revision payload holds the ids either way. The relations table that records every target as an edge comes later (PRD 5.11).
 
 From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO, its JSON codec and a TypeScript module with its validator, described on [Records and JSON codecs](codecs.md).
 
@@ -396,6 +406,20 @@ fields:
         max_length: 50
         agents: false
     classification: confidential
+  - handle: related
+    label: Related
+    description: The articles to read next, in order.
+    type: relation
+    multiple: true
+    max_items: 5
+    types: [app:article]
+    classification: public
+  - handle: follows
+    label: Follows
+    description: The article this one follows up on.
+    type: relation
+    types: [app:article]
+    classification: internal
 ```
 
 An extension that adds a field to another owner's type:

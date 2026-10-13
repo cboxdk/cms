@@ -56,7 +56,7 @@ trait TypeEditorsContract
      *
      * @var list<string>
      */
-    private const array RULE_KINDS = ['boolean', 'choice', 'date', 'datetime', 'decimal', 'integer', 'list', 'portable_text', 'text'];
+    private const array RULE_KINDS = ['boolean', 'choice', 'date', 'datetime', 'decimal', 'integer', 'list', 'portable_text', 'string', 'text'];
 
     abstract protected function editors(): TypeEditors;
 
@@ -152,9 +152,13 @@ trait TypeEditorsContract
                 $rule = RuleShape::of($field->rule);
                 Assert::assertContains($rule->kind, self::RULE_KINDS, $where);
 
-                if ($rule->kind === 'list') {
+                if ($field->base === EditorBase::Relation) {
+                    Assert::assertContains($rule->kind === 'list' ? $rule->itemKind : $rule->kind, ['string'], $where);
+                } elseif ($rule->kind === 'list') {
                     Assert::assertSame(EditorBase::Select, $field->base, $where);
                     Assert::assertSame('choice', $rule->itemKind, $where);
+                } else {
+                    Assert::assertNotSame('string', $rule->kind, $where);
                 }
             }
         }
@@ -169,6 +173,19 @@ trait TypeEditorsContract
 
                 Assert::assertSame($field->base === EditorBase::Select, $values !== [], $editor->name->value.' '.$field->path);
                 Assert::assertSame(array_values(array_unique($values)), $values, $editor->name->value.' '.$field->path);
+            }
+        }
+    }
+
+    #[Test]
+    public function a_relation_has_its_target_types_each_once_and_no_other_field_has_any(): void
+    {
+        foreach ($this->editors()->all() as $editor) {
+            foreach ($editor->fields as $field) {
+                $targets = array_map(static fn (TypeName $target): string => $target->value, $field->targets);
+
+                Assert::assertSame($field->base === EditorBase::Relation, $targets !== [], $editor->name->value.' '.$field->path);
+                Assert::assertSame(array_values(array_unique($targets)), $targets, $editor->name->value.' '.$field->path);
             }
         }
     }

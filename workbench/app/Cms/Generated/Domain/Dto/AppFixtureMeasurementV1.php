@@ -24,6 +24,8 @@ final readonly class AppFixtureMeasurementV1
      * @param  list<'fixture_low'|'fixture_high'|'fixture_drift'>|Omitted|null  $fixtureAlerts  Alerts: The alerts the reading raised.
      * @param  bool|Omitted|null  $fixtureCalibrated  Calibrated: Whether the sensor was calibrated when it took the reading.
      * @param  DateTimeImmutable|Omitted|null  $fixtureCalibratedOn  Calibrated on: The day the sensor was last calibrated.
+     * @param  list<EntryId>|Omitted|null  $fixtureCitedIn  Cited in: The articles and readings that cite this reading.
+     * @param  EntryId|Omitted|null  $fixtureCorrects  Corrects: The earlier reading this one corrects.
      * @param  DateTimeImmutable  $fixtureMeasuredAt  Measured at: When the sensor took the reading.
      * @param  string|Omitted|null  $fixtureNote  Note.
      * @param  numeric-string  $fixtureReading  Reading: The value the sensor read, in the unit of the scale.
@@ -39,6 +41,8 @@ final readonly class AppFixtureMeasurementV1
         public array|Omitted|null $fixtureAlerts,
         public bool|Omitted|null $fixtureCalibrated,
         public DateTimeImmutable|Omitted|null $fixtureCalibratedOn,
+        public array|Omitted|null $fixtureCitedIn,
+        public EntryId|Omitted|null $fixtureCorrects,
         public DateTimeImmutable $fixtureMeasuredAt,
         public string|Omitted|null $fixtureNote,
         public string $fixtureReading,
@@ -61,6 +65,8 @@ final readonly class AppFixtureMeasurementV1
             fixtureAlerts: $this->fixtureAlerts,
             fixtureCalibrated: $this->fixtureCalibrated,
             fixtureCalibratedOn: $this->fixtureCalibratedOn,
+            fixtureCitedIn: $this->fixtureCitedIn,
+            fixtureCorrects: $this->fixtureCorrects,
             fixtureMeasuredAt: $this->fixtureMeasuredAt,
             fixtureNote: $access->allows(ClassificationAccess::Internal) ? $this->fixtureNote : Omitted::Field,
             fixtureReading: $this->fixtureReading,

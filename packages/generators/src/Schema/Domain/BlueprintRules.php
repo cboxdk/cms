@@ -46,6 +46,8 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  *   names its tabs and sections once (LayoutRules, gap G2).
  * - A `default` is of the kind the field's type takes, and a repeated group's `ui.summary` names
  *   only the group's fields (PresentationRules, gap G2).
+ * - A relation field's `types` names only types that blueprint files define (RelationRules,
+ *   PRD 5.11), checked when every file was read.
  * - A field's `when` names a field of its own set it can reach, of its classification or lower,
  *   held by its variant, with values of that field's kind, and the conditions of a set never read
  *   each other in a circle (ConditionRules, gap G3). The fields one owner adds to one type are one
@@ -68,6 +70,7 @@ final readonly class BlueprintRules
         $this->types($blueprints->types, $problems);
         $this->extensions($blueprints, $complete, $problems);
         array_push($problems, ...TypeFieldLimit::problems($blueprints));
+        array_push($problems, ...RelationRules::problems($blueprints, $complete));
 
         return $problems;
     }

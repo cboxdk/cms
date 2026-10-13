@@ -46,6 +46,7 @@
                 "minLength": 1,
                 "maxLength": 120
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -84,6 +85,7 @@
                 "maxLength": 255,
                 "format": "email"
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -128,6 +130,7 @@
                 "kind": "text",
                 "maxLength": 2000
             },
+            "targets": [],
             "translatable": false,
             "type": "long_text",
             "ui": {
@@ -169,6 +172,7 @@
                 "min": 0,
                 "max": 1000000
             },
+            "targets": [],
             "translatable": false,
             "type": "integer",
             "ui": {
@@ -206,6 +210,7 @@
                 "kind": "integer",
                 "min": 1
             },
+            "targets": [],
             "translatable": false,
             "type": "integer",
             "ui": {
@@ -249,6 +254,7 @@
                 "min": "0.00",
                 "max": "99999999.99"
             },
+            "targets": [],
             "translatable": false,
             "type": "decimal",
             "ui": {
@@ -288,6 +294,7 @@
             "rule": {
                 "kind": "boolean"
             },
+            "targets": [],
             "translatable": false,
             "type": "boolean",
             "ui": {
@@ -329,6 +336,7 @@
                 "min": "2000-01-01",
                 "max": "2099-12-31"
             },
+            "targets": [],
             "translatable": false,
             "type": "date",
             "ui": {
@@ -369,6 +377,7 @@
                 "kind": "datetime",
                 "min": "2000-01-01T00:00:00Z"
             },
+            "targets": [],
             "translatable": false,
             "type": "datetime",
             "ui": {
@@ -438,6 +447,7 @@
                     "blue"
                 ]
             },
+            "targets": [],
             "translatable": false,
             "type": "select",
             "ui": {
@@ -515,6 +525,7 @@
                 "maxItems": 3,
                 "distinct": true
             },
+            "targets": [],
             "translatable": false,
             "type": "select",
             "ui": {
@@ -566,6 +577,7 @@
                     "url"
                 ]
             },
+            "targets": [],
             "translatable": false,
             "type": "rich_text",
             "ui": {
@@ -627,6 +639,7 @@
                     "url"
                 ]
             },
+            "targets": [],
             "translatable": false,
             "type": "rich_text",
             "ui": {
@@ -661,6 +674,7 @@
             "presence": "optional",
             "repeat": null,
             "rule": null,
+            "targets": [],
             "translatable": false,
             "type": "group",
             "ui": {
@@ -698,6 +712,7 @@
                 "kind": "text",
                 "maxLength": 255
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -736,6 +751,7 @@
                 "maxLength": 255,
                 "format": "url"
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -773,6 +789,7 @@
                 "kind": "text",
                 "maxLength": 10000
             },
+            "targets": [],
             "translatable": false,
             "type": "long_text",
             "ui": {
@@ -810,6 +827,7 @@
                 "min_items": 1
             },
             "rule": null,
+            "targets": [],
             "translatable": false,
             "type": "group",
             "ui": {
@@ -861,6 +879,7 @@
                     "large"
                 ]
             },
+            "targets": [],
             "translatable": false,
             "type": "select",
             "ui": {
@@ -898,6 +917,7 @@
                 "kind": "integer",
                 "min": 1
             },
+            "targets": [],
             "translatable": false,
             "type": "integer",
             "ui": {
@@ -933,6 +953,91 @@
             "when_hidden": "keep"
         },
         {
+            "agents": true,
+            "base": "relation",
+            "choices": [],
+            "classification": "internal",
+            "default": null,
+            "description": "The product that replaces this one.",
+            "descriptions": [],
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "successor",
+            "label": "Successor",
+            "labels": [],
+            "namespace": null,
+            "parent": null,
+            "path": "successor",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "string",
+                "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+            },
+            "targets": [
+                "shop:product"
+            ],
+            "translatable": false,
+            "type": "relation",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            },
+            "when": null,
+            "when_hidden": null
+        },
+        {
+            "agents": true,
+            "base": "relation",
+            "choices": [],
+            "classification": "public",
+            "default": null,
+            "description": "The products sold with this one.",
+            "descriptions": [],
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "accessories",
+            "label": "Accessories",
+            "labels": [],
+            "namespace": null,
+            "parent": null,
+            "path": "accessories",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "list",
+                "item": {
+                    "kind": "string",
+                    "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+                },
+                "maxItems": 20,
+                "distinct": true
+            },
+            "targets": [
+                "shop:product"
+            ],
+            "translatable": false,
+            "type": "relation",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            },
+            "when": null,
+            "when_hidden": null
+        },
+        {
             "agents": false,
             "base": "decimal",
             "choices": [],
@@ -955,6 +1060,7 @@
                 "precision": 10,
                 "scale": 2
             },
+            "targets": [],
             "translatable": false,
             "type": "decimal",
             "ui": {
@@ -992,6 +1098,7 @@
                 "kind": "text",
                 "maxLength": 20
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -1029,6 +1136,7 @@
                 "kind": "text",
                 "maxLength": 255
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -1191,6 +1299,14 @@
                             },
                             {
                                 "path": "dimensions",
+                                "width": "full"
+                            },
+                            {
+                                "path": "accessories",
+                                "width": "full"
+                            },
+                            {
+                                "path": "successor",
                                 "width": "full"
                             }
                         ],

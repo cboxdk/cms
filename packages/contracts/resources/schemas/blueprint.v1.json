@@ -388,7 +388,8 @@
                 "datetime",
                 "select",
                 "rich_text",
-                "group"
+                "group",
+                "relation"
               ]
             },
             {
@@ -426,7 +427,7 @@
           "enum": ["clear", "keep"]
         },
         "default": {
-          "description": "The value the form starts the input with (gap G2), form only and never filled in by a command: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, a boolean for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, an option's value for select, or a list of them with multiple: true. A group and rich text take none. cms:generate refuses another kind with generate_default_wrong_kind.",
+          "description": "The value the form starts the input with (gap G2), form only and never filled in by a command: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, a boolean for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, an option's value for select, or a list of them with multiple: true. A group, rich text and a relation take none. cms:generate refuses another kind with generate_default_wrong_kind.",
           "type": ["string", "integer", "boolean", "array"],
           "maxItems": 500,
           "items": { "type": "string" }
@@ -457,6 +458,7 @@
         { "if": { "properties": { "type": { "const": "select" } } }, "then": { "$ref": "#/$defs/selectOptions" } },
         { "if": { "properties": { "type": { "const": "rich_text" } } }, "then": { "$ref": "#/$defs/richTextOptions" } },
         { "if": { "properties": { "type": { "const": "group" } } }, "then": { "$ref": "#/$defs/groupOptions" } },
+        { "if": { "properties": { "type": { "const": "relation" } } }, "then": { "$ref": "#/$defs/relationOptions" } },
         {
           "if": { "properties": { "type": { "type": "string", "pattern": ":" } } },
           "then": { "$ref": "#/$defs/addonOptions" }
@@ -589,6 +591,33 @@
         }
       },
       "required": ["fields"],
+      "not": { "anyOf": [{ "required": ["filterable"] }, { "required": ["sortable"] }] }
+    },
+    "relationOptions": {
+      "description": "A reference to other entries (PRD 5.11, 11.6): one entry, a uuid column with a foreign key to entries, or with multiple: true a list of at most max_items entries, each once, kept in a jsonb column. The kernel refuses a target that does not exist or whose type is not one of types. A relation is public or internal, because a foreign key cannot hold ciphertext (PRD 12.2), and it is neither filterable nor sortable.",
+      "required": ["types"],
+      "properties": {
+        "types": {
+          "description": "The types a target may have, each `<owner>:<handle>` of a type a blueprint file defines, such as `app:article`. cms:generate refuses a name no blueprint defines with generate_unknown_relation_type.",
+          "type": "array",
+          "minItems": 1,
+          "maxItems": 50,
+          "uniqueItems": true,
+          "items": { "type": "string", "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$" }
+        },
+        "multiple": { "type": "boolean", "default": false },
+        "max_items": { "type": "integer", "minimum": 1, "maximum": 1000, "default": 1000 }
+      },
+      "allOf": [
+        {
+          "if": { "not": { "required": ["multiple"], "properties": { "multiple": { "const": true } } } },
+          "then": { "not": { "required": ["max_items"] } }
+        },
+        {
+          "if": { "required": ["classification"] },
+          "then": { "properties": { "classification": { "enum": ["public", "internal"] } } }
+        }
+      ],
       "not": { "anyOf": [{ "required": ["filterable"] }, { "required": ["sortable"] }] }
     },
     "addonOptions": {

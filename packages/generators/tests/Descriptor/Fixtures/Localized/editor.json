@@ -36,6 +36,7 @@
                 "kind": "text",
                 "maxLength": 120
             },
+            "targets": [],
             "translatable": true,
             "type": "text",
             "ui": {
@@ -73,6 +74,7 @@
                 "kind": "text",
                 "maxLength": 500
             },
+            "targets": [],
             "translatable": true,
             "type": "long_text",
             "ui": {
@@ -134,6 +136,7 @@
                     "url"
                 ]
             },
+            "targets": [],
             "translatable": true,
             "type": "rich_text",
             "ui": {
@@ -171,6 +174,7 @@
                 "min_items": null
             },
             "rule": null,
+            "targets": [],
             "translatable": true,
             "type": "group",
             "ui": {
@@ -208,6 +212,7 @@
                 "kind": "text",
                 "maxLength": 255
             },
+            "targets": [],
             "translatable": true,
             "type": "text",
             "ui": {
@@ -245,6 +250,7 @@
                 "kind": "text",
                 "maxLength": 255
             },
+            "targets": [],
             "translatable": true,
             "type": "text",
             "ui": {
@@ -281,6 +287,7 @@
             "rule": {
                 "kind": "date"
             },
+            "targets": [],
             "translatable": false,
             "type": "date",
             "ui": {
@@ -332,6 +339,7 @@
                     "essay"
                 ]
             },
+            "targets": [],
             "translatable": false,
             "type": "select",
             "ui": {
@@ -370,6 +378,7 @@
                 "maxLength": 255,
                 "format": "email"
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {
@@ -407,6 +416,7 @@
                 "kind": "text",
                 "maxLength": 160
             },
+            "targets": [],
             "translatable": true,
             "type": "text",
             "ui": {
@@ -444,6 +454,7 @@
                 "kind": "text",
                 "maxLength": 40
             },
+            "targets": [],
             "translatable": false,
             "type": "text",
             "ui": {

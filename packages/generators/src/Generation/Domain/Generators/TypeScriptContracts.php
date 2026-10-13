@@ -57,6 +57,7 @@ final readonly class TypeScriptContracts implements Generator
         'group' => 'an interface of its fields, or a readonly list of them when it repeats',
         'integer' => 'number, an integer a JavaScript number holds exactly',
         'long_text' => 'string',
+        'relation' => 'string, the target entry\'s id, or a readonly list of them with multiple',
         'rich_text' => 'PortableText, a list of Portable Text blocks',
         'select' => 'a union of its values, or a readonly list of them with multiple',
         'text' => 'string, in its format',

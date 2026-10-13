@@ -108,10 +108,10 @@ function registryType(array $fields): string
 it('registers the core field types through CoreFieldTypes, sorted by name', function (): void {
     $registry = new FieldTypeRegistry(new CoreFieldTypes);
 
-    expect($registry->names())->toBe(['boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'rich_text', 'select', 'text'])
+    expect($registry->names())->toBe(['boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'relation', 'rich_text', 'select', 'text'])
         ->and($registry->find('text'))->toBeInstanceOf(TextFieldType::class)
         ->and($registry->find('acme:colour'))->toBeNull()
-        ->and(array_map(static fn (FieldType $type): string => $type->name(), new CoreFieldTypes()->fieldTypes()))->toHaveCount(10);
+        ->and(array_map(static fn (FieldType $type): string => $type->name(), new CoreFieldTypes()->fieldTypes()))->toHaveCount(11);
 });
 
 it('reads no core field type that the registry lacks, because the core types go through the registry too', function (): void {
@@ -146,7 +146,7 @@ it('refuses a <namespace>:<handle> that no contributor registers with generate_u
     $failed = registryFailure(new FieldTypeRegistry(new CoreFieldTypes), $root);
 
     expect($failed->codes())->toBe([GenerateErrorCode::UnknownFieldType])
-        ->and($failed->problems[0]->message)->toBe('schema/article.yaml, /fields/0/type: no field type contributor registers the field type acme:colour, so it cannot be read. The registered field types are boolean, date, datetime, decimal, group, integer, long_text, rich_text, select, text.');
+        ->and($failed->problems[0]->message)->toBe('schema/article.yaml, /fields/0/type: no field type contributor registers the field type acme:colour, so it cannot be read. The registered field types are boolean, date, datetime, decimal, group, integer, long_text, relation, rich_text, select, text.');
 });
 
 it('refuses two field types with the same name, whichever contributors register them', function (): void {
@@ -198,7 +198,7 @@ it('registers the core field types without a namespace, each a bare handle', fun
 it('registers field types of several namespaces beside the core\'s', function (): void {
     $registry = new FieldTypeRegistry(new CoreFieldTypes, FakeFieldTypeContributor::acme(new ColourFieldType, new ColourFieldType('acme:dark_colour')), new FakeFieldTypeContributor(new Owner('beta2'), new ColourFieldType('beta2:colour')));
 
-    expect($registry->names())->toBe(['acme:colour', 'acme:dark_colour', 'beta2:colour', 'boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'rich_text', 'select', 'text']);
+    expect($registry->names())->toBe(['acme:colour', 'acme:dark_colour', 'beta2:colour', 'boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'relation', 'rich_text', 'select', 'text']);
 });
 
 it('gives each core field type the option keys of its options in the installed blueprint schema', function (): void {

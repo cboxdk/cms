@@ -67,6 +67,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeCommandHooks;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeFieldValidation;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeHookOverruns;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakePublicPlacements;
+use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRelationTargets;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRevisionContents;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
@@ -152,6 +153,7 @@ final readonly class GrantWorld
             new FakeFieldValidation(new FakeTypeValidators),
             new FakeRevisionContents,
             new FakePublicPlacements,
+            new FakeRelationTargets,
             new PostgresChangesetCommitter(
                 $this->connections,
                 $this->clock,

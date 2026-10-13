@@ -64,6 +64,7 @@ final readonly class RecordContracts
         'group' => 'a DTO of its fields, or a list of them when it repeats',
         'integer' => 'int, a JSON integer',
         'long_text' => 'string',
+        'relation' => 'the target\'s EntryId, a JSON string, or a list of them with multiple',
         'rich_text' => 'ListValue of Portable Text blocks',
         'select' => 'one of the values, or a list of them with multiple',
         'text' => 'string',
@@ -79,7 +80,7 @@ final readonly class RecordContracts
         $name = PhpTypeHandleEnum::caseName($type);
         $className = $name.'V'.self::VERSION;
         $generated = self::generatedBy();
-        $properties = [new CodecProperty(self::ID_KEY, 'cmsId', CodecValue::id(EntryId::class, new StringForm(self::ID_PATTERN)), true, null, 'The id of the entry (PRD 5.3).')];
+        $properties = [new CodecProperty(self::ID_KEY, 'cmsId', self::entryId(), true, null, 'The id of the entry (PRD 5.3).')];
 
         foreach ($type->ownFields() as $field) {
             $properties[] = self::property($field, $className, $type, true);
@@ -233,6 +234,13 @@ final readonly class RecordContracts
             'date' => CodecValue::of(CodecKind::Date, $rules),
             'datetime' => CodecValue::of(CodecKind::Datetime, $rules),
             'rich_text' => CodecValue::of(CodecKind::PortableText, $rules),
+            'relation' => self::has($rules, ValidationRuleName::Relations)
+                ? CodecValue::list(self::entryId(), [
+                    new ValidationRule(ValidationRuleName::List),
+                    new ValidationRule(ValidationRuleName::Distinct),
+                    ...array_values(array_filter($rules, static fn (ValidationRule $rule): bool => $rule->name === ValidationRuleName::MaxItems)),
+                ])
+                : self::entryId(),
             'select' => $list
                 ? CodecValue::list(
                     CodecValue::of(CodecKind::Choice, [new ValidationRule(ValidationRuleName::In, self::arguments($rules, ValidationRuleName::ItemsIn))]),
@@ -261,6 +269,15 @@ final readonly class RecordContracts
         return $list
             ? CodecValue::list(CodecValue::object($object), $rules)
             : CodecValue::object($object, $rules);
+    }
+
+    /**
+     * An entry's id, as the record writes its own id and a relation's target (PRD 5.3, 5.11): which
+     * entries a relation may name the kernel checks when it writes the relation, not the codec.
+     */
+    private static function entryId(): CodecValue
+    {
+        return CodecValue::id(EntryId::class, new StringForm(self::ID_PATTERN));
     }
 
     /**

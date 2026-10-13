@@ -34,6 +34,7 @@ A record is one JSON object: the entry's id under `cms_id` (a handle never start
 | `select` | one of the values, or a list with `multiple` | the value, or a list of them |
 | `rich_text` | a `ListValue` of Portable Text blocks | the blocks |
 | `group` | a DTO of its fields, or a list with `repeat` | an object, or a list of objects |
+| `relation` | the target's `EntryId`, or a list of them with `multiple` | the id, a UUIDv7, or a list of ids, each once |
 
 An id is its canonical string. A field that holds `null` is written as `null`. A field the DTO holds as `Omitted` is left out.
 
@@ -129,6 +130,8 @@ it('serves a record without the fields above the caller\'s classification access
         fixtureAlerts: Omitted::Field,
         fixtureCalibrated: Omitted::Field,
         fixtureCalibratedOn: Omitted::Field,
+        fixtureCitedIn: Omitted::Field,
+        fixtureCorrects: Omitted::Field,
         fixtureMeasuredAt: new DateTimeImmutable('2026-03-10T13:00:00+01:00'),
         fixtureNote: null,
         fixtureReading: '21.5',

@@ -16,6 +16,67 @@
     "fields": [
         {
             "agents": true,
+            "base": "relation",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "CASE WHEN jsonb_typeof(\"accessories\") = 'array' THEN jsonb_array_length(\"accessories\") <= 20 ELSE \"accessories\" IS NULL END"
+                ],
+                "name": "accessories",
+                "not_null": false,
+                "references": null,
+                "type": "jsonb"
+            },
+            "description": "The products sold with this one.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "accessories",
+            "label": "Accessories",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "list<\\Cbox\\Cms\\Contracts\\Ids\\EntryId>",
+                "native": "array",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": false,
+            "type": "relation",
+            "typescript": {
+                "nullable": true,
+                "type": "Array<string>"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "relations"
+                },
+                {
+                    "arguments": [
+                        "shop:product"
+                    ],
+                    "rule": "targets"
+                },
+                {
+                    "arguments": [
+                        "20"
+                    ],
+                    "rule": "max_items"
+                }
+            ],
+            "when": null,
+            "when_hidden": null
+        },
+        {
+            "agents": true,
             "base": "rich_text",
             "choices": [],
             "classification": "public",
@@ -25,6 +86,7 @@
                 ],
                 "name": "body",
                 "not_null": false,
+                "references": null,
                 "type": "jsonb"
             },
             "description": "The description of the product on its page.",
@@ -100,6 +162,7 @@
                 ],
                 "name": "care",
                 "not_null": false,
+                "references": null,
                 "type": "jsonb"
             },
             "description": "How to take care of the product.",
@@ -185,6 +248,7 @@
                 ],
                 "name": "checked_at",
                 "not_null": false,
+                "references": null,
                 "type": "timestamptz"
             },
             "description": "When the product data was last checked.",
@@ -252,6 +316,7 @@
                 ],
                 "name": "colour",
                 "not_null": true,
+                "references": null,
                 "type": "text"
             },
             "description": "The colour of the product.",
@@ -304,6 +369,7 @@
                 ],
                 "name": "dimensions",
                 "not_null": false,
+                "references": null,
                 "type": "jsonb"
             },
             "description": "The sizes the product comes in.",
@@ -483,6 +549,7 @@
                 "checks": [],
                 "name": "discontinued",
                 "not_null": false,
+                "references": null,
                 "type": "boolean"
             },
             "description": "Whether the shop no longer sells the product.",
@@ -531,6 +598,7 @@
                 ],
                 "name": "ext__app__name",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "The name the customer's own systems use for the product.",
@@ -585,6 +653,7 @@
                 ],
                 "name": "ext__app__tax_code",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "The customer's tax code for the product.",
@@ -640,6 +709,7 @@
                 ],
                 "name": "launch_date",
                 "not_null": false,
+                "references": null,
                 "type": "date"
             },
             "description": "The day the product went on sale.",
@@ -701,6 +771,7 @@
                 ],
                 "name": "name",
                 "not_null": true,
+                "references": null,
                 "type": "text"
             },
             "description": "The name of the product, as the shop shows it.",
@@ -762,6 +833,7 @@
                 ],
                 "name": "price",
                 "not_null": true,
+                "references": null,
                 "type": "numeric(10, 2)"
             },
             "description": "The price of one item, in euro.",
@@ -823,6 +895,7 @@
                 "checks": [],
                 "name": "purchase_price",
                 "not_null": false,
+                "references": null,
                 "type": "bytea"
             },
             "description": "What the shop pays the supplier for one item.",
@@ -875,6 +948,7 @@
                 ],
                 "name": "stock",
                 "not_null": false,
+                "references": null,
                 "type": "bigint"
             },
             "description": "How many items the warehouse holds.",
@@ -925,6 +999,59 @@
             "when_hidden": null
         },
         {
+            "agents": true,
+            "base": "relation",
+            "choices": [],
+            "classification": "internal",
+            "column": {
+                "checks": [],
+                "name": "successor",
+                "not_null": false,
+                "references": "entries",
+                "type": "uuid"
+            },
+            "description": "The product that replaces this one.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "successor",
+            "label": "Successor",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "\\Cbox\\Cms\\Contracts\\Ids\\EntryId",
+                "native": "\\Cbox\\Cms\\Contracts\\Ids\\EntryId",
+                "nullable": true
+            },
+            "required": false,
+            "sortable": false,
+            "translatable": false,
+            "type": "relation",
+            "typescript": {
+                "nullable": true,
+                "type": "string"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "relation"
+                },
+                {
+                    "arguments": [
+                        "shop:product"
+                    ],
+                    "rule": "targets"
+                }
+            ],
+            "when": null,
+            "when_hidden": null
+        },
+        {
             "agents": false,
             "base": "long_text",
             "choices": [],
@@ -935,6 +1062,7 @@
                 ],
                 "name": "summary",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": null,
@@ -987,6 +1115,7 @@
                 "checks": [],
                 "name": "supplier",
                 "not_null": false,
+                "references": null,
                 "type": "bytea"
             },
             "description": "Who supplies the product, and how to reach them.",
@@ -1183,6 +1312,7 @@
                 ],
                 "name": "support_email",
                 "not_null": false,
+                "references": null,
                 "type": "text"
             },
             "description": "Where customers write about the product.",
@@ -1265,6 +1395,7 @@
                 ],
                 "name": "tags",
                 "not_null": false,
+                "references": null,
                 "type": "text[]"
             },
             "description": "The tags the shop lists the product under.",
@@ -1337,6 +1468,7 @@
                 ],
                 "name": "weight",
                 "not_null": false,
+                "references": null,
                 "type": "bigint"
             },
             "description": "The weight of one item in grams.",

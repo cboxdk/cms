@@ -133,6 +133,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_type_removed`](#generate_type_removed) | 500 | 65 | internal_error | no |
 | [`generate_unknown_extends_target`](#generate_unknown_extends_target) | 500 | 65 | internal_error | no |
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
+| [`generate_unknown_relation_type`](#generate_unknown_relation_type) | 500 | 65 | internal_error | no |
 | [`generate_when_classification_above`](#generate_when_classification_above) | 500 | 65 | internal_error | no |
 | [`generate_when_cycle`](#generate_when_cycle) | 500 | 65 | internal_error | no |
 | [`generate_when_foreign_namespace`](#generate_when_foreign_namespace) | 500 | 65 | internal_error | no |
@@ -278,6 +279,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`validation_invalid_format`](#validation_invalid_format) | 422 | 65 | tool_error | no |
 | [`validation_invalid_rich_text`](#validation_invalid_rich_text) | 422 | 65 | tool_error | no |
 | [`validation_not_an_option`](#validation_not_an_option) | 422 | 65 | tool_error | no |
+| [`validation_relation_target_missing`](#validation_relation_target_missing) | 422 | 65 | tool_error | no |
+| [`validation_relation_target_type`](#validation_relation_target_type) | 422 | 65 | tool_error | no |
 | [`validation_required`](#validation_required) | 422 | 65 | tool_error | no |
 | [`validation_rich_text_not_allowed`](#validation_rich_text_not_allowed) | 422 | 65 | tool_error | no |
 | [`validation_too_few_items`](#validation_too_few_items) | 422 | 65 | tool_error | no |
@@ -1356,6 +1359,15 @@ An extension's extends names a type_id that no blueprint file below the schema r
 ### generate_unknown_field_type
 
 A field's type is a <namespace>:<handle> that no installed module or addon registers. Correct the type, or install the addon that provides it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_unknown_relation_type
+
+A relation field's types names a type, <owner>:<handle>, that no blueprint file below the schema roots defines. Correct the name, or add the schema root of the type's owner.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -2661,6 +2673,24 @@ The rich text is not Portable Text as the field holds it (PRD 11.10): each block
 ### validation_not_an_option
 
 The value is not one of the options of its select field. Nothing was committed. Send one of the options the error lists.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### validation_relation_target_missing
+
+A relation names an entry that does not exist, or one the caller cannot read. Nothing was committed. Name an existing entry of one of the types the field allows.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### validation_relation_target_type
+
+A relation names an entry whose type is not one of the types the field allows. Nothing was committed. Name an entry of one of the field's types.
 
 - HTTP status: 422 Unprocessable Content
 - CLI exit code: 65 (EX_DATAERR)

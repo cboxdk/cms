@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Validation;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
+use Cbox\Cms\Contracts\Schema\TypeName;
 
 /**
  * One rule of a field's runtime validator (PRD 11.12): its name and its arguments, each written as
@@ -18,7 +20,8 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * - `min` and `max` take one bound, which FieldRules reads as its type rule's kind;
  * - `format` takes `email` or `url`;
  * - `in` and `items_in` take one or more options, `styles`, `marks`, `lists` and `links` any
- *   number of allowed values, each non-empty and each once.
+ *   number of allowed values, each non-empty and each once;
+ * - `targets` takes one or more type names, each `<owner>:<handle>` and each once.
  */
 #[Experimental]
 final readonly class Rule
@@ -48,6 +51,9 @@ final readonly class Rule
             $this->oneOf($first, RuleName::FORMATS);
         } elseif (in_array($name, [RuleName::In, RuleName::ItemsIn, RuleName::Styles, RuleName::Marks, RuleName::Lists, RuleName::Links], true)) {
             $this->values($name === RuleName::In || $name === RuleName::ItemsIn);
+        } elseif ($name === RuleName::Targets) {
+            $this->values(true);
+            $this->typeNames();
         } else {
             $this->count(0);
         }
@@ -96,6 +102,17 @@ final readonly class Rule
     {
         if (! in_array($argument, $allowed, true)) {
             throw InvalidRules::argument($this->name, 'one of '.implode(', ', $allowed), $argument);
+        }
+    }
+
+    private function typeNames(): void
+    {
+        foreach ($this->arguments as $argument) {
+            try {
+                new TypeName($argument);
+            } catch (InvalidTypeDefinition) {
+                throw InvalidRules::argument($this->name, 'type names, each <owner>:<handle>', $argument);
+            }
         }
     }
 

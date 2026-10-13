@@ -30,6 +30,8 @@ use Override;
  *   fixture_alerts: select, optional
  *   fixture_calibrated: boolean, optional
  *   fixture_calibrated_on: date, optional
+ *   fixture_cited_in: relation, optional
+ *   fixture_corrects: relation, optional
  *   fixture_measured_at: datetime, required
  *   fixture_note: long_text, optional
  *   fixture_reading: decimal, required
@@ -37,6 +39,7 @@ use Override;
  *   fixture_samples: integer, optional
  *   fixture_scale: select, required
  *   fixture_sensor: group, optional
+ *   fixture_sensor.fixture_sensor_calibration: relation, optional
  *   fixture_sensor.fixture_sensor_code: text, required
  *   fixture_sensor.fixture_sensor_contact: text, optional
  *   fixture_sensor.fixture_sensor_manual: text, optional
@@ -87,6 +90,23 @@ final readonly class AppFixtureMeasurementValidator implements TypeValidator
                         new Rule(RuleName::Date),
                         new Rule(RuleName::Min, ['2000-01-01']),
                         new Rule(RuleName::Max, ['2099-12-31']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_cited_in'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relations),
+                        new Rule(RuleName::Targets, ['app:fixture_article', 'app:fixture_measurement']),
+                        new Rule(RuleName::MaxItems, ['200']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_corrects'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relation),
+                        new Rule(RuleName::Targets, ['app:fixture_measurement']),
                     ],
                 ),
                 new FieldRules(
@@ -146,6 +166,14 @@ final readonly class AppFixtureMeasurementValidator implements TypeValidator
                         new Rule(RuleName::Object),
                     ],
                     [
+                        new FieldRules(
+                            new FieldHandle('fixture_sensor_calibration'),
+                            Presence::Optional,
+                            [
+                                new Rule(RuleName::Relation),
+                                new Rule(RuleName::Targets, ['app:fixture_measurement']),
+                            ],
+                        ),
                         new FieldRules(
                             new FieldHandle('fixture_sensor_code'),
                             Presence::Required,

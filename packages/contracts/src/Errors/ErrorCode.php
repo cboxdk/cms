@@ -145,6 +145,7 @@ enum ErrorCode: string
     case GenerateTypeRemoved = 'generate_type_removed';
     case GenerateUnknownExtendsTarget = 'generate_unknown_extends_target';
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
+    case GenerateUnknownRelationType = 'generate_unknown_relation_type';
     case GenerateWhenClassificationAbove = 'generate_when_classification_above';
     case GenerateWhenCycle = 'generate_when_cycle';
     case GenerateWhenForeignNamespace = 'generate_when_foreign_namespace';
@@ -290,6 +291,8 @@ enum ErrorCode: string
     case ValidationInvalidFormat = 'validation_invalid_format';
     case ValidationInvalidRichText = 'validation_invalid_rich_text';
     case ValidationNotAnOption = 'validation_not_an_option';
+    case ValidationRelationTargetMissing = 'validation_relation_target_missing';
+    case ValidationRelationTargetType = 'validation_relation_target_type';
     case ValidationRequired = 'validation_required';
     case ValidationRichTextNotAllowed = 'validation_rich_text_not_allowed';
     case ValidationTooFewItems = 'validation_too_few_items';
@@ -710,6 +713,9 @@ enum ErrorCode: string
             ),
             self::GenerateUnknownFieldType => $this->refusedInput(
                 'A field\'s type is a <namespace>:<handle> that no installed module or addon registers. Correct the type, or install the addon that provides it.',
+            ),
+            self::GenerateUnknownRelationType => $this->refusedInput(
+                'A relation field\'s types names a type, <owner>:<handle>, that no blueprint file below the schema roots defines. Correct the name, or add the schema root of the type\'s owner.',
             ),
             self::GenerateWhenClassificationAbove => $this->refusedInput(
                 'A field\'s when reads a field classified above the conditional field, so a reader who may see the field could not tell whether it is shown. Read a field of the same classification or lower, or raise the conditional field\'s classification.',
@@ -1299,6 +1305,16 @@ enum ErrorCode: string
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'The value is not one of the options of its select field. Nothing was committed. Send one of the options the error lists.',
+            ),
+            self::ValidationRelationTargetMissing => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'A relation names an entry that does not exist, or one the caller cannot read. Nothing was committed. Name an existing entry of one of the types the field allows.',
+            ),
+            self::ValidationRelationTargetType => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'A relation names an entry whose type is not one of the types the field allows. Nothing was committed. Name an entry of one of the field\'s types.',
             ),
             self::ValidationRequired => $this->caller(
                 HttpStatus::UnprocessableContent,

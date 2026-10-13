@@ -206,7 +206,7 @@ it('names the type rules and what may follow each', function (): void {
     $types = array_values(array_filter(RuleName::cases(), static fn (RuleName $name): bool => $name->isType()));
 
     expect(array_map(static fn (RuleName $name): string => $name->value, $types))
-        ->toBe(['string', 'integer', 'decimal', 'boolean', 'date', 'datetime', 'object', 'list', 'portable_text'])
+        ->toBe(['string', 'integer', 'decimal', 'boolean', 'date', 'datetime', 'object', 'list', 'portable_text', 'relation', 'relations'])
         ->and(RuleName::Boolean->modifiers())->toBe([])
         ->and(RuleName::Object->modifiers())->toBe([])
         ->and(RuleName::MaxLength->modifiers())->toBe([])
@@ -216,5 +216,22 @@ it('names the type rules and what may follow each', function (): void {
         ->and(RuleName::Integer->modifiers())->toBe([RuleName::Min, RuleName::Max])
         ->and(RuleName::String->modifiers())->toBe([RuleName::MinLength, RuleName::MaxLength, RuleName::Format, RuleName::In])
         ->and(RuleName::List->modifiers())->toBe([RuleName::Distinct, RuleName::ItemsIn, RuleName::MinItems, RuleName::MaxItems])
-        ->and(RuleName::PortableText->modifiers())->toBe([RuleName::Styles, RuleName::Marks, RuleName::Lists, RuleName::Links]);
+        ->and(RuleName::PortableText->modifiers())->toBe([RuleName::Styles, RuleName::Marks, RuleName::Lists, RuleName::Links])
+        ->and(RuleName::Relation->modifiers())->toBe([RuleName::Targets])
+        ->and(RuleName::Relations->modifiers())->toBe([RuleName::Targets, RuleName::MaxItems]);
+});
+
+it('takes one or more type names as the targets of a relation, each once', function (): void {
+    $rules = new FieldRules(new FieldHandle('related'), Presence::Optional, [
+        new Rule(RuleName::Relations),
+        new Rule(RuleName::Targets, ['app:article', 'shop:product']),
+        new Rule(RuleName::MaxItems, ['5']),
+    ]);
+
+    expect($rules->type)->toBe(RuleName::Relations)
+        ->and($rules->rule(RuleName::Targets)?->arguments)->toBe(['app:article', 'shop:product'])
+        ->and(static fn (): Rule => new Rule(RuleName::Targets))->toThrow(InvalidRules::class)
+        ->and(static fn (): Rule => new Rule(RuleName::Targets, ['app:article', 'app:article']))->toThrow(InvalidRules::class)
+        ->and(static fn (): Rule => new Rule(RuleName::Targets, ['article']))->toThrow(InvalidRules::class, 'type names, each <owner>:<handle>')
+        ->and(static fn (): FieldRules => new FieldRules(new FieldHandle('related'), Presence::Optional, [new Rule(RuleName::Relation), new Rule(RuleName::MaxItems, ['5'])]))->toThrow(InvalidRules::class);
 });

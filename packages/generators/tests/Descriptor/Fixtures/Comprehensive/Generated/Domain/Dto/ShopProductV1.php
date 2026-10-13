@@ -20,6 +20,7 @@ use DateTimeImmutable;
 final readonly class ShopProductV1
 {
     /**
+     * @param  list<EntryId>|Omitted|null  $accessories  Accessories: The products sold with this one.
      * @param  ListValue|Omitted|null  $body  Body: The description of the product on its page.
      * @param  ListValue|Omitted|null  $care  Care: How to take care of the product.
      * @param  DateTimeImmutable|Omitted|null  $checkedAt  Checked at: When the product data was last checked.
@@ -33,6 +34,7 @@ final readonly class ShopProductV1
      * @param  numeric-string  $price  Price: The price of one item, in euro.
      * @param  numeric-string|Omitted|null  $purchasePrice  Purchase price: What the shop pays the supplier for one item.
      * @param  int|Omitted|null  $stock  Stock: How many items the warehouse holds.
+     * @param  EntryId|Omitted|null  $successor  Successor: The product that replaces this one.
      * @param  string|Omitted|null  $summary  Summary.
      * @param  ShopProductV1Supplier|Omitted|null  $supplier  Supplier: Who supplies the product, and how to reach them.
      * @param  string|Omitted|null  $supportEmail  Support email: Where customers write about the product.
@@ -40,6 +42,7 @@ final readonly class ShopProductV1
      * @param  int|Omitted|null  $weight  Weight: The weight of one item in grams.
      */
     public function __construct(
+        public array|Omitted|null $accessories,
         public ListValue|Omitted|null $body,
         public ListValue|Omitted|null $care,
         public DateTimeImmutable|Omitted|null $checkedAt,
@@ -53,6 +56,7 @@ final readonly class ShopProductV1
         public string $price,
         public string|Omitted|null $purchasePrice,
         public int|Omitted|null $stock,
+        public EntryId|Omitted|null $successor,
         public string|Omitted|null $summary,
         public ShopProductV1Supplier|Omitted|null $supplier,
         public string|Omitted|null $supportEmail,
@@ -67,6 +71,7 @@ final readonly class ShopProductV1
     public function visibleTo(ClassificationAccess $access): self
     {
         return new self(
+            accessories: $this->accessories,
             body: $this->body,
             care: $this->care,
             checkedAt: $access->allows(ClassificationAccess::Internal) ? $this->checkedAt : Omitted::Field,
@@ -80,6 +85,7 @@ final readonly class ShopProductV1
             price: $this->price,
             purchasePrice: $access->allows(ClassificationAccess::Confidential) ? $this->purchasePrice : Omitted::Field,
             stock: $access->allows(ClassificationAccess::Internal) ? $this->stock : Omitted::Field,
+            successor: $access->allows(ClassificationAccess::Internal) ? $this->successor : Omitted::Field,
             summary: $access->allows(ClassificationAccess::Internal) ? $this->summary : Omitted::Field,
             supplier: $access->allows(ClassificationAccess::Confidential) ? $this->supplier : Omitted::Field,
             supportEmail: $this->supportEmail,

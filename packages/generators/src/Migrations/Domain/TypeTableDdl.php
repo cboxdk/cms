@@ -21,14 +21,18 @@ use Cbox\Cms\Generators\Schema\Domain\Stages;
  * entry), which the row level security of every type table reads (the core's TypeTableAccess), and
  * the key (cms_entry_id, cms_locale, cms_stage). Then one column per top-level field, sorted by
  * name, with the type, NOT NULL and CHECK constraints of its descriptor. The table has fillfactor
- * 80. Each foreign key has an index that leads with its column (the key leads with cms_entry_id),
- * and each filterable or sortable field an index on (cms_stage, cms_locale, <column>,
- * cms_entry_id), so a listing of one stage and locale filters and sorts on the index and pages
- * with the entry id as the last key (PRD 8.8).
+ * 80. A field's column that references a kernel table, the column of a to-one relation, has a
+ * foreign key to that table's `id` ON DELETE RESTRICT (PRD 5.11, 11.6), named as its index. Each
+ * foreign key has an index that leads with its column (the key leads with cms_entry_id), and each
+ * filterable or sortable field an index on (cms_stage, cms_locale, <column>, cms_entry_id), so a
+ * listing of one stage and locale filters and sorts on the index and pages with the entry id as
+ * the last key (PRD 8.8).
  *
  * A column added to an existing table is nullable, so ADD COLUMN changes only the catalog; its
  * index is built with CREATE INDEX CONCURRENTLY outside a transaction, after DROP INDEX
- * CONCURRENTLY of an invalid one a failed build left (PRD 4.2).
+ * CONCURRENTLY of an invalid one a failed build left (PRD 4.2). Its foreign key is added NOT VALID,
+ * which takes no scan of the table, after dropping one a failed run left, and then validated,
+ * which scans the table without blocking its writes.
  */
 #[Internal]
 final readonly class TypeTableDdl
@@ -55,7 +59,7 @@ final readonly class TypeTableDdl
             "    cms_stage text not null\n        check (".self::stageCheck($lock->stages).'),',
             '    cms_home_node uuid not null references nodes (id),',
             '    cms_owner_actor uuid references actors (id),',
-            ...array_map(static fn (LockedColumn $column): string => '    '.self::column($column).',', $lock->columnsOf(1)),
+            ...array_map(static fn (LockedColumn $column): string => '    '.self::column($column, $lock->table).',', $lock->columnsOf(1)),
             '    primary key (cms_entry_id, cms_locale, cms_stage)',
         ];
 
@@ -67,6 +71,10 @@ final readonly class TypeTableDdl
         foreach ($lock->columnsOf(1) as $column) {
             if ($column->indexed) {
                 $indexes[] = 'create index '.self::fieldIndex($lock->table, $column);
+            }
+
+            if ($column->references !== null) {
+                $indexes[] = 'create index '.self::referenceIndex($lock->table, $column);
             }
         }
 
@@ -96,6 +104,22 @@ final readonly class TypeTableDdl
                 $statements[] = 'drop index concurrently if exists '.SqlText::identifier(TypeTableNames::index($lock->table, $column->name));
                 $statements[] = 'create index concurrently '.self::fieldIndex($lock->table, $column);
             }
+
+            if ($column->references !== null) {
+                $table = SqlText::identifier($lock->table);
+                $name = SqlText::identifier(TypeTableNames::index($lock->table, $column->name));
+                $statements[] = 'drop index concurrently if exists '.$name;
+                $statements[] = 'create index concurrently '.self::referenceIndex($lock->table, $column);
+                $statements[] = sprintf('alter table %s drop constraint if exists %s', $table, $name);
+                $statements[] = sprintf(
+                    "alter table %s\n    add constraint %s foreign key (%s) %s not valid",
+                    $table,
+                    $name,
+                    SqlText::identifier($column->name),
+                    self::reference($column->references),
+                );
+                $statements[] = sprintf('alter table %s validate constraint %s', $table, $name);
+            }
         }
 
         return $statements;
@@ -122,11 +146,40 @@ final readonly class TypeTableDdl
         );
     }
 
-    private static function column(LockedColumn $column): string
+    /**
+     * A column of the table; in step 1, given the table, with its foreign key, named as its index,
+     * which a later step adds apart.
+     */
+    private static function column(LockedColumn $column, ?string $table = null): string
     {
         $checks = array_map(static fn (string $check): string => "\n        check (".$check.')', $column->checks);
+        $reference = $table !== null && $column->references !== null
+            ? sprintf("\n        constraint %s %s", SqlText::identifier(TypeTableNames::index($table, $column->name)), self::reference($column->references))
+            : '';
 
-        return SqlText::identifier($column->name).' '.$column->type.($column->notNull ? ' not null' : '').implode('', $checks);
+        return SqlText::identifier($column->name).' '.$column->type.($column->notNull ? ' not null' : '').$reference.implode('', $checks);
+    }
+
+    /**
+     * `references <table> (id) on delete restrict`: a referenced entry is never deleted while a
+     * row names it (PRD 5.11).
+     */
+    private static function reference(string $table): string
+    {
+        return 'references '.SqlText::identifier($table).' (id) on delete restrict';
+    }
+
+    /**
+     * `<name> on <table> (<column>)`: the index of a foreign key, which leads with its column.
+     */
+    private static function referenceIndex(string $table, LockedColumn $column): string
+    {
+        return sprintf(
+            '%s on %s (%s)',
+            SqlText::identifier(TypeTableNames::index($table, $column->name)),
+            SqlText::identifier($table),
+            SqlText::identifier($column->name),
+        );
     }
 
     /**

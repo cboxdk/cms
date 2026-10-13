@@ -6,6 +6,8 @@ namespace Cbox\Cms\Contracts\Fields;
 
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use DateTimeImmutable;
 use DateTimeZone;
 
@@ -242,6 +244,57 @@ final readonly class FieldReader
     }
 
     /**
+     * The target of a relation field (PRD 5.11): the entry's id its TextValue holds.
+     */
+    public function entry(string $handle): EntryId
+    {
+        return $this->entryOrNull($handle) ?? throw InvalidFieldValue::missing($this->pathOf($handle));
+    }
+
+    public function entryOrNull(string $handle): ?EntryId
+    {
+        $text = $this->textOrNull($handle);
+
+        return $text === null ? null : $this->entryOf($this->pathOf($handle), $text);
+    }
+
+    /**
+     * The targets of a relation field that holds several, in order.
+     *
+     * @return list<EntryId>
+     */
+    public function entries(string $handle): array
+    {
+        return $this->entriesOrNull($handle) ?? throw InvalidFieldValue::missing($this->pathOf($handle));
+    }
+
+    /**
+     * @return list<EntryId>|null
+     */
+    public function entriesOrNull(string $handle): ?array
+    {
+        $list = $this->listOrNull($handle);
+
+        if (! $list instanceof ListValue) {
+            return null;
+        }
+
+        $entries = [];
+
+        foreach ($list->items as $index => $item) {
+            $path = $this->pathOf($handle).'.'.$index;
+
+            if (! $item instanceof TextValue) {
+                throw InvalidFieldValue::kind($path, 'TextValue', $item);
+            }
+
+            $entries[] = $this->entryOf($path, $item->value);
+        }
+
+        return $entries;
+    }
+
+    /**
      * The reader of a group field's fields, whose paths start with the group's.
      */
     public function group(string $handle): self
@@ -310,6 +363,15 @@ final readonly class FieldReader
     private function pathOf(string $handle): string
     {
         return $this->path === '' ? $handle : $this->path.'.'.$handle;
+    }
+
+    private function entryOf(string $path, string $text): EntryId
+    {
+        try {
+            return EntryId::fromString($text);
+        } catch (InvalidUuid7) {
+            throw InvalidFieldValue::entryId($path, $text);
+        }
     }
 
     /**

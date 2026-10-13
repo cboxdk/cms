@@ -20,6 +20,7 @@ export type EditorBase =
   | 'group'
   | 'integer'
   | 'long_text'
+  | 'relation'
   | 'rich_text'
   | 'select'
   | 'text';
@@ -225,6 +226,11 @@ export interface EditorFieldV1 {
    * it and repeat.
    */
   rule: JsonObject | null;
+  /**
+   * The types a relation's targets may have, each <owner>:<handle>, in the blueprint's order, so a
+   * picker searches entries of those types (PRD 5.11); empty for any other base.
+   */
+  targets: readonly string[];
   /**
    * Which variant holds the field in a type with localization variants (PRD 10.1): a language's
    * variant when true, so a form shows the field once per language, and the shared variant when
@@ -490,6 +496,7 @@ const editorFieldV1Rule: ObjectRule = {
           'group',
           'integer',
           'long_text',
+          'relation',
           'rich_text',
           'select',
           'text',
@@ -544,6 +551,18 @@ const editorFieldV1Rule: ObjectRule = {
     { key: 'default', presence: 'present', value: { kind: 'document' } },
     { key: 'when', presence: 'present', value: { kind: 'document' } },
     { key: 'when_hidden', presence: 'present', value: { kind: 'enum', values: ['clear', 'keep'] } },
+    {
+      key: 'targets',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern: '^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$',
+          maxLength: 84,
+        },
+      },
+    },
   ],
 };
 

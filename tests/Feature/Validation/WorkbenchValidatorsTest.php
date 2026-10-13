@@ -49,7 +49,10 @@ function validMeasurement(): array
                 'children' => [['_type' => 'span', '_key' => 's1', 'text' => 'Checked', 'marks' => ['strong']]],
             ],
         ],
+        'fixture_corrects' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03',
+        'fixture_cited_in' => ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03'],
         'fixture_sensor' => [
+            'fixture_sensor_calibration' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04',
             'fixture_sensor_code' => 'S-7',
             'fixture_sensor_contact' => 'sensors@example.com',
             'fixture_sensor_manual' => 'https://example.com/manual',
@@ -164,6 +167,17 @@ it('gives one field error with the path and the rule\'s code for each broken rul
     'rich text: a mark it does not allow' => ['fixture_remark.0.children.0.marks', ['em'], 'fixture_remark[0].children[0].marks[0]', 'validation_rich_text_not_allowed'],
     'rich text: a list it does not allow' => ['fixture_remark.0.listItem', 'number', 'fixture_remark[0].listItem', 'validation_rich_text_not_allowed'],
     'rich text: a link it does not allow' => ['fixture_remark.0.markDefs', [['_type' => 'link', '_key' => 'l1', 'href' => 'https://example.com/']], 'fixture_remark[0].markDefs[0]._type', 'validation_rich_text_not_allowed'],
+    // relation to one entry: fixture_corrects, an entry's id
+    'relation: wrong type' => ['fixture_corrects', 7, 'fixture_corrects', 'validation_wrong_type'],
+    'relation: not an entry id' => ['fixture_corrects', 'DK-042', 'fixture_corrects', 'validation_wrong_type'],
+    'relation: a UUID of another version' => ['fixture_corrects', '0199a3c1-2b4d-4e5f-8a6b-1c2d3e4f5a03', 'fixture_corrects', 'validation_wrong_type'],
+    'relation: a list where one entry belongs' => ['fixture_corrects', ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03'], 'fixture_corrects', 'validation_wrong_type'],
+    // relation to several entries: fixture_cited_in, at most 200, each once
+    'multiple relation: wrong type' => ['fixture_cited_in', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'fixture_cited_in', 'validation_wrong_type'],
+    'multiple relation: an item that is no entry id' => ['fixture_cited_in.1', 'x', 'fixture_cited_in[1]', 'validation_wrong_type'],
+    'multiple relation: an entry twice, in another case' => ['fixture_cited_in.1', '0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A01', 'fixture_cited_in[1]', 'validation_duplicate_item'],
+    'multiple relation: too many items' => ['fixture_cited_in', array_map(static fn (int $item): string => sprintf('0199a3c1-2b4d-7e5f-8a6b-%012x', $item), range(1, 201)), 'fixture_cited_in', 'validation_too_many_items'],
+    'group: a nested relation that is no entry id' => ['fixture_sensor.fixture_sensor_calibration', 'S-7', 'fixture_sensor.fixture_sensor_calibration', 'validation_wrong_type'],
     // group once: fixture_sensor
     'group: wrong type' => ['fixture_sensor', ['S-7'], 'fixture_sensor', 'validation_wrong_type'],
     'group: a nested field it does not have' => ['fixture_sensor.fixture_sensor_colour', 'grey', 'fixture_sensor.fixture_sensor_colour', 'validation_unknown_field'],

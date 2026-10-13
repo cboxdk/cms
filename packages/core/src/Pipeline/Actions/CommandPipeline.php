@@ -70,6 +70,8 @@ use Cbox\Cms\Core\Pipeline\Domain\FieldValidation;
 use Cbox\Cms\Core\Pipeline\Domain\InvalidCommandCall;
 use Cbox\Cms\Core\Pipeline\Domain\MissingReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\PublicPlacements;
+use Cbox\Cms\Core\Pipeline\Domain\RelationCheck;
+use Cbox\Cms\Core\Pipeline\Domain\RelationTargets;
 use Cbox\Cms\Core\Pipeline\Domain\ReplayReceipt;
 use Cbox\Cms\Core\Pipeline\Domain\RevisionContents;
 use Cbox\Cms\Core\Pipeline\Domain\WritableFields;
@@ -141,7 +143,10 @@ use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
  *    creates it (a composed plan that creates and releases an entry in one changeset), and
  *    validated against its own schema version at the release stage, where the fields required on release are required (invariant
  *    5, 36); a revision the variant does not have, or one written under another schema version
- *    than the one whose rules this installation has, fails the validation. The
+ *    than the one whose rules this installation has, fails the validation. Every target of a
+ *    relation field in a revision the plan creates is an existing entry the actor can read, of a
+ *    type the field allows, or an entry the plan creates (RelationCheck, PRD 5.11): the targets
+ *    are read through RelationTargets in one statement, whatever their number. The
  *    validate hooks add their errors after the kernel's. A value for a field stored encrypted is
  *    refused with field_encryption_unavailable, because the key management that encrypts it comes
  *    with block B6 (PRD 12.2, 12.3). Any error rejects the call with validation_failed, followed by
@@ -196,6 +201,7 @@ final readonly class CommandPipeline
         private FieldValidation $fields,
         private RevisionContents $revisions,
         private PublicPlacements $placements,
+        private RelationTargets $relations,
         private ChangesetCommitter $committer,
         private IdempotencyStore $keys,
         private ReceiptStore $receipts,
@@ -426,6 +432,7 @@ final readonly class CommandPipeline
         $run = $run->withPlan($kept);
         $plan = $kept;
         $errors = $this->fieldErrors($plan, $releases);
+        $errors = [...$errors, ...new RelationCheck($this->fields, $this->relations, $this->types)->errors($plan, new FieldPath(self::FIELDS), $errors)];
         $run = $this->hooks->run(Phase::Validate, $hooks, $call, $binding, $run);
 
         if ($run->rejection instanceof CatalogError) {

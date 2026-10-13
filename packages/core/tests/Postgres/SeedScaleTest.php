@@ -60,6 +60,30 @@ it('seeds 2,000 entries with the small profile deterministically', function (): 
         ->and(SeedWorld::entries())->toBe($entries);
 });
 
+it('seeds relations whose targets are entries of the run, and a to-one target of the type it allows (PRD 5.11)', function (): void {
+    new SeedWorld()->seed(SeedProfiles::small(), 7, 500);
+    $database = StorageTables::superuser();
+    $corrects = $database->table('app__fixture_measurement')->whereNotNull('fixture_corrects')->count();
+    $cited = $database->scalar('select count(*) from app__fixture_measurement m, jsonb_array_elements_text(m.fixture_cited_in) t (id)');
+    $strays = $database->scalar(<<<'SQL'
+        select count(*)
+        from app__fixture_measurement m
+        cross join lateral (select m.fixture_corrects as id union all select t.id::uuid from jsonb_array_elements_text(coalesce(m.fixture_cited_in, '[]')) t (id)) target
+        left join entries e on e.id = target.id
+        where target.id is not null and e.id is null
+        SQL);
+    $wrongType = $database->scalar(<<<'SQL'
+        select count(*)
+        from app__fixture_measurement m join entries e on e.id = m.fixture_corrects
+        where e.type_id <> (select type_id from entries where id = m.cms_entry_id)
+        SQL);
+
+    expect($corrects)->toBeGreaterThan(0)
+        ->and($cited)->toBeGreaterThan(0)
+        ->and($strays)->toBe(0)
+        ->and($wrongType)->toBe(0);
+});
+
 it('stores each seeded entry as entry.create and variant.release store it', function (): void {
     $report = new SeedWorld()->seed(SeedProfiles::small(), 11, 300);
     $scope = $report->scope;

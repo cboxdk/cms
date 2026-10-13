@@ -21,6 +21,8 @@ it('serves a record without the fields above the caller\'s classification access
         fixtureAlerts: Omitted::Field,
         fixtureCalibrated: Omitted::Field,
         fixtureCalibratedOn: Omitted::Field,
+        fixtureCitedIn: Omitted::Field,
+        fixtureCorrects: Omitted::Field,
         fixtureMeasuredAt: new DateTimeImmutable('2026-03-10T13:00:00+01:00'),
         fixtureNote: null,
         fixtureReading: '21.5',

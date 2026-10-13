@@ -12,7 +12,10 @@
 # fixture_series_device is shown on any of two conditions, one on the measurement's
 # fixture_calibrated, and keeps its value when hidden, and fixture_series_check is required while
 # all of a method and the kelvin scale of the measurement hold. They are inside a group, so the
-# type table is unchanged.
+# type table is unchanged. The relations (PRD 5.11, B2-T74) name other entries: fixture_corrects one
+# measurement, a uuid column with a foreign key to entries, fixture_cited_in up to 200 articles or
+# measurements, a jsonb list, and fixture_sensor_calibration one measurement inside the group. The
+# two top-level ones are step 2 of the type table's migrations.
 blueprint: 1
 kind: type
 type_id: 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b
@@ -111,6 +114,20 @@ fields:
     marks: [strong]
     lists: [bullet]
     links: []
+  - handle: fixture_corrects
+    label: Corrects
+    description: The earlier reading this one corrects.
+    type: relation
+    classification: public
+    types: [app:fixture_measurement]
+  - handle: fixture_cited_in
+    label: Cited in
+    description: The articles and readings that cite this reading.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 200
+    types: [app:fixture_article, app:fixture_measurement]
   - handle: fixture_sensor
     label: Sensor
     description: The sensor that took the reading.
@@ -132,6 +149,11 @@ fields:
         description: Where the sensor's manual can be read.
         type: text
         format: url
+      - handle: fixture_sensor_calibration
+        label: Sensor calibration
+        description: The reading the sensor was last calibrated against.
+        type: relation
+        types: [app:fixture_measurement]
   - handle: fixture_series
     label: Series
     description: The single readings the reading is the mean of.

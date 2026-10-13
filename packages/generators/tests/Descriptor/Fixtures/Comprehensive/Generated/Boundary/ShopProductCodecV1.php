@@ -73,6 +73,10 @@ final readonly class ShopProductCodecV1 implements JsonCodec
     {
         $json = new stdClass;
 
+        if (! $object->accessories instanceof Omitted) {
+            $json->accessories = $object->accessories === null ? null : array_map(static fn (EntryId $item): mixed => $item->toString(), $object->accessories);
+        }
+
         if (! $object->body instanceof Omitted) {
             $json->body = $object->body instanceof ListValue ? JsonValues::encodeFieldValue($object->body) : null;
         }
@@ -113,6 +117,10 @@ final readonly class ShopProductCodecV1 implements JsonCodec
             $json->stock = $object->stock;
         }
 
+        if (! $object->successor instanceof Omitted) {
+            $json->successor = $object->successor instanceof EntryId ? $object->successor->toString() : null;
+        }
+
         if (! $object->summary instanceof Omitted) {
             $json->summary = $object->summary;
         }
@@ -138,9 +146,10 @@ final readonly class ShopProductCodecV1 implements JsonCodec
 
     private function decodeShopProductV1(stdClass $value, ClassificationAccess $access): ShopProductV1
     {
-        $object = JsonValues::object($value, null, ['body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'name', 'price', 'purchase_price', 'stock', 'summary', 'supplier', 'support_email', 'tags', 'weight']);
+        $object = JsonValues::object($value, null, ['accessories', 'body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'name', 'price', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight']);
 
         return new ShopProductV1(
+            accessories: JsonValues::nullable($object, 'accessories', null, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): EntryId => JsonValues::id($item, $itemAt, EntryId::fromString(...)), maxItems: 20, distinct: true)),
             body: JsonValues::nullable($object, 'body', null, static fn (mixed $value, FieldPath $at): ListValue => JsonValues::portableText($value, $at, ['normal', 'h2', 'h3'], ['strong', 'em'], ['bullet'], ['url'])),
             care: JsonValues::nullable($object, 'care', null, static fn (mixed $value, FieldPath $at): ListValue => JsonValues::portableText($value, $at, ['normal', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'], ['strong', 'em', 'underline', 'strike', 'code', 'sub', 'sup'], ['bullet', 'number'], ['url'])),
             checkedAt: JsonValues::nullableClassified($object, 'checked_at', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at, min: '2000-01-01T00:00:00Z')),
@@ -154,6 +163,7 @@ final readonly class ShopProductCodecV1 implements JsonCodec
             price: JsonValues::required($object, 'price', null, static fn (mixed $value, FieldPath $at): string => JsonValues::decimal($value, $at, 10, 2, min: '0.00', max: '99999999.99')),
             purchasePrice: JsonValues::nullableClassified($object, 'purchase_price', null, ClassificationAccess::Confidential, $access, static fn (mixed $value, FieldPath $at): string => JsonValues::decimal($value, $at, 10, 2)),
             stock: JsonValues::nullableClassified($object, 'stock', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 0, max: 1000000)),
+            successor: JsonValues::nullableClassified($object, 'successor', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): EntryId => JsonValues::id($value, $at, EntryId::fromString(...))),
             summary: JsonValues::nullableClassified($object, 'summary', null, ClassificationAccess::Internal, $access, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 2000)),
             supplier: JsonValues::nullableClassified($object, 'supplier', null, ClassificationAccess::Confidential, $access, $this->decodeShopProductV1Supplier(...)),
             supportEmail: JsonValues::nullable($object, 'support_email', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 255, format: 'email')),

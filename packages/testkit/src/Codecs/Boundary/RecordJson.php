@@ -26,8 +26,8 @@ use stdClass;
 /**
  * The JSON form of the records for FakeRecordCodecs, from the contracts alone: a text, a select's
  * option or a list of them, an integer, a decimal's string, a boolean, a date `YYYY-MM-DD`, a
- * date-time in UTC with microseconds, rich text's blocks and a group's object or a list of them,
- * every object's keys sorted. A value that does not fit its field is InvalidRecordDocument.
+ * date-time in UTC with microseconds, rich text's blocks, a relation's id or a list of them and a
+ * group's object or a list of them, every object's keys sorted. A value that does not fit its field is InvalidRecordDocument.
  */
 #[Internal]
 final readonly class RecordJson
@@ -43,8 +43,8 @@ final readonly class RecordJson
 
         return match (true) {
             $value instanceof NullValue => null,
-            in_array($kind, ['text', 'long_text', 'select'], true) && $value instanceof TextValue => $value->value,
-            $kind === 'select' && $value instanceof ListValue => array_map(static fn (FieldValue $item): mixed => self::value($type, $field, $item), $value->items),
+            in_array($kind, ['text', 'long_text', 'select', 'relation'], true) && $value instanceof TextValue => $value->value,
+            in_array($kind, ['select', 'relation'], true) && $value instanceof ListValue => array_map(static fn (FieldValue $item): mixed => self::value($type, $field, $item), $value->items),
             $kind === 'integer' && $value instanceof IntegerValue => $value->value,
             $kind === 'decimal' && $value instanceof DecimalValue => $value->value,
             $kind === 'boolean' && $value instanceof BooleanValue => $value->value,

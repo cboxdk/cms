@@ -15,6 +15,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LayoutSection;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
@@ -150,6 +151,8 @@ it('fills in exactly the defaults of the blueprint schema', function (): void {
         '/$defs/longTextOptions/properties/max_length' => LongTextOptions::DEFAULT_MAX_LENGTH,
         '/$defs/selectOptions/properties/multiple' => SelectOptions::DEFAULT_MULTIPLE,
         '/$defs/groupOptions/properties/repeat/properties/max_items' => GroupRepeat::DEFAULT_MAX_ITEMS,
+        '/$defs/relationOptions/properties/multiple' => RelationOptions::DEFAULT_MULTIPLE,
+        '/$defs/relationOptions/properties/max_items' => RelationOptions::MAX_ITEMS,
         '/$defs/layoutSection/properties/collapsible' => LayoutSection::DEFAULT_COLLAPSIBLE,
         '/$defs/layoutField/properties/width' => LayoutWidth::DEFAULT->value,
         '/$defs/ui/properties/read_only' => FieldUi::DEFAULT_READ_ONLY,

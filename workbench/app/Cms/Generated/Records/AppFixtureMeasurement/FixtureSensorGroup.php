@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 
 /**
  * The group fixture_sensor of app:fixture_measurement. Sensor: The sensor that took the reading.
@@ -19,6 +20,7 @@ use Cbox\Cms\Contracts\Fields\NamedValue;
 final readonly class FixtureSensorGroup
 {
     public function __construct(
+        public ?EntryId $fixtureSensorCalibration,
         public string $fixtureSensorCode,
         public ?string $fixtureSensorContact,
         public ?string $fixtureSensorManual,
@@ -27,6 +29,7 @@ final readonly class FixtureSensorGroup
     public static function fromFields(FieldReader $fields): self
     {
         return new self(
+            fixtureSensorCalibration: $fields->entryOrNull('fixture_sensor_calibration'),
             fixtureSensorCode: $fields->text('fixture_sensor_code'),
             fixtureSensorContact: $fields->textOrNull('fixture_sensor_contact'),
             fixtureSensorManual: $fields->textOrNull('fixture_sensor_manual'),
@@ -41,6 +44,7 @@ final readonly class FixtureSensorGroup
     public function toFieldMap(): FieldMap
     {
         return new FieldMap(
+            new NamedValue(new FieldHandle('fixture_sensor_calibration'), FieldWriter::entry($this->fixtureSensorCalibration)),
             new NamedValue(new FieldHandle('fixture_sensor_code'), FieldWriter::text($this->fixtureSensorCode)),
             new NamedValue(new FieldHandle('fixture_sensor_contact'), FieldWriter::text($this->fixtureSensorContact)),
             new NamedValue(new FieldHandle('fixture_sensor_manual'), FieldWriter::text($this->fixtureSensorManual)),
