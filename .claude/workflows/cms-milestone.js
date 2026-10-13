@@ -196,7 +196,8 @@ async function loadPlan() {
   }
   throw new Error(`could not load ${PLAN_FILE} with ${expected} tasks`)
 }
-let plan = PLAN_FILE ? await loadPlan() : await agent(
+// args.plan passes the plan itself (the PLAN shape), so no agent has to copy a long file.
+let plan = (args && args.plan) ? args.plan : PLAN_FILE ? await loadPlan() : await agent(
   `${CONTEXT}
 
 Plan block ${BLOCK}. Read PROGRESS.md, the block in MILESTONES.md, the PRD sections it depends on, GUARDRAILS.md and the current repo state (git log, files). Work that is already committed and green counts as done; plan only what remains. Never reuse a task id that a commit on main already names ("git log --oneline main" for "${BLOCK}-<id>:"); number new tasks after the highest id used.
