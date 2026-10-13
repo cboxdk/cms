@@ -23,6 +23,8 @@ The server decides, per request and viewer, which of the shell's contributions a
 - A page is shown only to a viewer who holds the permission its scope requires, and its nav entry only when the viewer gets the page, so no entry leads to a page the viewer may not open. An addon's page the viewer may open is among the pages a contribution may navigate to, by its id, with its address below `/x/<namespace>/`; `navigate('approvals.queue')` from the host goes there.
 - A page's data query runs only on the page itself. Every page lists the addons' pages, so the shell's navigation and the command palette know them, without running their queries.
 
+Below the entries of `shell.nav@1`, the navigation has a Content section of the panel's own, built from the prop `types` every page behind the login shares: an entry for all content and one per type the viewer may see, each opening the [content list](pages.md#the-content-list) of that type. No contribution adds to it; a type is in it because the installation has it.
+
 The nav entries are the pages of the [command palette](command-palette.md) too: `action.list`, the query the palette is built from, lists every nav entry the viewer may open, and the panel's host gives the palette each with the text and the address the navigation knows, in render order.
 
 ## Pages

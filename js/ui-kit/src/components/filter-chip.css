@@ -1,0 +1,91 @@
+@layer cms.kit {
+  .cms-filter-chip {
+    display: inline-flex;
+    align-items: stretch;
+    max-inline-size: 100%;
+    min-block-size: var(--cms-target-size);
+    border: 1px dashed var(--cms-color-border-strong);
+    border-radius: 999px;
+    background: transparent;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+    transition:
+      border-color var(--cms-duration-fast) ease,
+      background-color var(--cms-duration-fast) ease;
+  }
+
+  .cms-filter-chip[data-set='true'] {
+    border-style: solid;
+    border-color: var(--cms-color-border);
+    background: var(--cms-color-card);
+    box-shadow: var(--cms-shadow-card);
+    color: var(--cms-color-text);
+  }
+
+  .cms-filter-chip:hover {
+    border-color: var(--cms-color-border-strong);
+  }
+
+  .cms-filter-chip__trigger,
+  .cms-filter-chip__clear {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-1);
+    min-block-size: var(--cms-target-size);
+    padding: 0;
+    border: 0;
+    border-radius: 999px;
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    cursor: pointer;
+  }
+
+  .cms-filter-chip__trigger {
+    min-inline-size: 0;
+    padding-inline: var(--cms-space-3) var(--cms-space-2);
+  }
+
+  .cms-filter-chip[data-set='true'] .cms-filter-chip__trigger {
+    padding-inline-end: var(--cms-space-1);
+  }
+
+  .cms-filter-chip__label {
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-filter-chip__value {
+    overflow: hidden;
+    font-weight: var(--cms-font-weight-semibold);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+
+  .cms-filter-chip__clear {
+    justify-content: center;
+    min-inline-size: var(--cms-target-size);
+    color: var(--cms-color-text-muted);
+  }
+
+  .cms-filter-chip__clear:hover {
+    color: var(--cms-color-text);
+  }
+
+  .cms-filter-chip__trigger:focus-visible,
+  .cms-filter-chip__clear:focus-visible {
+    outline: 2px solid var(--cms-color-focus);
+    outline-offset: 2px;
+  }
+
+  .cms-filter-chip__trigger:disabled,
+  .cms-filter-chip__clear:disabled {
+    cursor: default;
+    opacity: 0.6;
+  }
+
+  @media (forced-colors: active) {
+    .cms-filter-chip {
+      border-color: CanvasText;
+    }
+  }
+}

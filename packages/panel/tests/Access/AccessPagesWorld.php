@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Tests\Access;
 
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -29,6 +30,8 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
+use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
@@ -39,11 +42,14 @@ use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Queries\ListActions;
+use Cbox\Cms\Core\Schema\Actions\ListTypesAction;
+use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessListings;
 use Cbox\Cms\Core\Tests\Access\ListingWorld;
+use Cbox\Cms\Core\Tests\Entries\EntryListingWorld;
 use Cbox\Cms\Core\Tests\Identity\Fakes\FakeActorListing;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryAuthorizer;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeQueryBinding;
@@ -54,7 +60,9 @@ use Cbox\Cms\Testkit\Identity\FakeIdentity;
 /**
  * The roles and grants pages' reads over fakes (GUARDRAILS 9, PRD 5.10, 13.4): the real
  * QueryPipeline of an ActionListWorld with the actions of role.list, grant.list, actor.list and
- * node.list over the ListingWorld's roles, grants, actors and nodes in memory, read as the person
+ * node.list over the ListingWorld's roles, grants, actors and nodes in memory, of entry.list over
+ * the EntryListingWorld's entries as its administrator reads them and of type.list over the
+ * workbench's editor descriptors, for the content list and the prop `types` every page shares, read as the person
  * who signed in, whose session credential the login world's verifier verifies, with regions over
  * the root at personal classification access and a role on it whose permissions a test gives,
  * the access commands and queries by default; and action.list over a registry that exposes the
@@ -231,6 +239,8 @@ final class AccessPagesWorld
             ListGrants::class => ProbeQueryBinding::of(new ListGrantsAction($listings), 'grant.list', 1),
             ListActors::class => ProbeQueryBinding::of(new ListActorsAction($actors), 'actor.list', 1),
             ListNodes::class => ProbeQueryBinding::of(new ListNodesAction(ListingWorld::nodeListing(ListingWorld::ADMIN)), 'node.list', 1),
+            ListEntries::class => ProbeQueryBinding::of(new ListEntriesAction(EntryListingWorld::listing(EntryListingWorld::ADMIN)), 'entry.list', 1),
+            ListTypes::class => ProbeQueryBinding::of(new ListTypesAction(app(TypeEditors::class)), 'type.list', 1),
         ];
     }
 }

@@ -3,6 +3,7 @@
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Content\ReleaseState;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -26,7 +27,7 @@ const EXAMPLE_DETAIL = '{"heads":[{"fields":{"title":"Harbour"},"latest":2,"rele
     .'"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}}],"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","version":1}],'
     .'"type":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a43","version":2}';
 
-const EXAMPLE_PAGE = '{"entries":[{"changed_at":"2026-03-10T13:00:00.000000Z","home":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41",'
+const EXAMPLE_PAGE = '{"entries":[{"changed_at":"2026-03-10T13:00:00.000000Z","fields":{"title":"Harbour"},"home":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41",'
     .'"lifecycle":"active","state":"released","type":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a43","version":2}],"next":null}';
 
 it('reads entry.get from JSON and writes its result with every head, its fields and its placements', function (): void {
@@ -42,7 +43,7 @@ it('reads entry.get from JSON and writes its result with every head, its fields 
         ->and(static fn (): GetEntry => new GetEntryCodecV1()->decode('{}', ClassificationAccess::Public))->toThrow(DecodingFailed::class);
 });
 
-it('reads entry.list with its filters and writes a page of system columns, newest first', function (): void {
+it('reads entry.list with its filters and writes a page of system columns and titles, newest first', function (): void {
     $codec = new ListEntriesCodecV1;
     $query = $codec->decode('{"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","state":"released","limit":20}', ClassificationAccess::Public);
     $page = new EntryListCodecV1()->decode(EXAMPLE_PAGE, ClassificationAccess::Public);
@@ -53,5 +54,6 @@ it('reads entry.list with its filters and writes a page of system columns, newes
         ->toBe('{"after":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","limit":50,"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","state":null,"type":null}')
         ->and($page)->toBeInstanceOf(EntryList::class)
         ->and($page->entries[0]->changedAt->format('H:i'))->toBe('13:00')
+        ->and(array_map(static fn (FieldHandle $handle): string => $handle->value, $page->entries[0]->fields->own->handles()))->toBe(['title'])
         ->and(new EntryListCodecV1()->encode($page, ClassificationAccess::Public))->toBe(EXAMPLE_PAGE);
 });

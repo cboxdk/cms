@@ -1,7 +1,7 @@
 ---
 title: Panel pages
 weight: 14
-description: "The panel's own pages behind the login, the navigation entries a module registers with the permission each needs, the who-am-I page and the query actor.me it reads as the person, the roles and grants pages with the commands they run and the pickers they read, and the sections points of the pages."
+description: "The panel's own pages behind the login, the navigation entries a module registers with the permission each needs, the who-am-I page and the query actor.me it reads as the person, the roles and grants pages with the commands they run and the pickers they read, the content list and the navigation's Content section, and the sections points of the pages."
 ---
 
 # Panel pages
@@ -9,7 +9,7 @@ description: "The panel's own pages behind the login, the navigation entries a m
 <!-- extension-point: packages/core/resources/schemas/queries/actor.me.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/queries/actor.me.result.v1.json -->
 
-The panel has pages of its own behind the login (PRD 13.4): the start page, the who-am-I page and the roles and grants pages, each at a fixed address below the panel's prefix, and each rendering the [shell's points](shell.md) around its content. A page that reads gets its props from a query of the kernel, run through the query pipeline as the person who signed in, from the session credential, and written by the query's result codec, so what the page shows is what REST answers the same person with. [The panel module](../../developers/panel.md#page-props) lists each page's props schema and generated codec.
+The panel has pages of its own behind the login (PRD 13.4): the start page, the who-am-I page, the roles and grants pages and the content list, each at a fixed address below the panel's prefix, and each rendering the [shell's points](shell.md) around its content. A page that reads gets its props from a query of the kernel, run through the query pipeline as the person who signed in, from the session credential, and written by the query's result codec, so what the page shows is what REST answers the same person with. [The panel module](../../developers/panel.md#page-props) lists each page's props schema and generated codec.
 
 | Page | Address | Reads | Points it declares |
 |---|---|---|---|
@@ -18,6 +18,7 @@ The panel has pages of its own behind the login (PRD 13.4): the start page, the 
 | `command.form`, the generic [command form](command-form.md) | `<prefix>/commands/<name>/v<version>` | nothing; its props are the command's JSON Schema | seven, listed on [the form's points](command-form.md#the-forms-points) |
 | `access.roles`, the roles page | `<prefix>/access/roles` | `role.list` version 1 | [`access.roles.sections@1`](points/access-roles-sections.md) |
 | `access.grants`, the grants page | `<prefix>/access/grants` | `grant.list` version 1, and `actor.list`, `role.list` and `node.list` version 1 for its pickers | [`access.grants.sections@1`](points/access-grants-sections.md) |
+| `content.list`, the content list | `<prefix>/content`, and `<prefix>/content/<owner>:<handle>` for one type | `entry.list` version 1 | none of its own |
 | `login`, the login page, a credential page that runs no addon code | `<prefix>/login` | nothing | [`login.notice@1`](points/login-notice.md) |
 
 ## The login page's notices
@@ -130,3 +131,9 @@ it('hands the sections of the who-am-I page the viewer s actor id as their props
     expect(new AccountMeSectionsCodecV1()->encode($props, ClassificationAccess::Public))->toBe('{"actor":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"}');
 });
 ```
+
+## The content list
+
+`GET <prefix>/content` lists the entries the person reaches across every type, newest first, and `GET <prefix>/content/<owner>:<handle>` those of one type, such as `<prefix>/content/app:blog_post`; an address that names a type the installation does not have is the page for an address the panel does not have. The page reads `entry.list` version 1 as the person, a keyset page of 25 entries at a time after the id the address names as `?after=<id>`, filtered by the release state of the shared variant the address names as `?state=<state>` (`unreleased`, `released` or `withdrawn`); a value that is no state or no id is left out, as a missing one is. Each row shows the entry by the title field its type's editor descriptor names (`title_field` of [type-editor.v1.json](../../../packages/contracts/resources/schemas/type-editor.v1.json)), whose value in the shared head's draft `entry.list` gives as the entry's fields, at the person's classification access, then the type's label, a pill of its state, the lifecycle when it is not active and else the release state, and its last change. The filter chips choose the type, which opens that type's list, and the state; the density, comfortable or compact, is the person's own and kept in the browser. With no entries the page offers the form of `entry.create` when the person may run it, as `action.list` says, and says what to do when they may not.
+
+The navigation's Content section comes from the prop `types` every page behind the login shares: the read of `type.list` as the person, with the address of the content list (`types.v1.json`, [the panel module](../../developers/panel.md#page-props)), from which the shell builds an entry for every content and one per type the person may see, named by the type's label. The kernel names no type: the entries are the installation's types, as its editor descriptors have them. [Working with content](../../users/content.md) shows the page.

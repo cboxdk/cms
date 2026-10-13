@@ -16,11 +16,13 @@ use Cbox\Cms\Panel\Boundary\Generated\AccessRolesPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\ContentListPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
+use Cbox\Cms\Panel\Content\Domain\Dto\ContentTarget;
 use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
 use Cbox\Cms\Panel\Domain\Dto\AccessGrantsPage;
@@ -28,6 +30,7 @@ use Cbox\Cms\Panel\Domain\Dto\AccessRolesPage;
 use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
+use Cbox\Cms\Panel\Domain\Dto\ContentListPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\HomePage;
@@ -92,7 +95,10 @@ use LogicException;
  *   read of role.list as the person, beside its contributions;
  * - the grants page (PRD 5.10), at `<prefix>/access/grants`, with the address of the logout, the
  *   read of grant.list as the person and the locales the form offers, beside its contributions
- *   and the optional prop of the form's pickers (AccessGrantsRequest::pickers()).
+ *   and the optional prop of the form's pickers (AccessGrantsRequest::pickers());
+ * - the content list (PRD 5.4), at `<prefix>/content` and `<prefix>/content/<owner>:<handle>`,
+ *   with the address of the logout, the type it lists and the release state it is filtered by, as
+ *   the address names them, and the read of entry.list as the person, beside its contributions.
  */
 #[Internal]
 final readonly class PanelPages
@@ -117,6 +123,9 @@ final readonly class PanelPages
 
     /** The grants page, in js/panel/src/pages, which lists the grants, assigns and revokes them (PRD 5.10). */
     public const string ACCESS_GRANTS = 'Access/Grants';
+
+    /** The content list, in js/panel/src/pages, which lists the entries across types or of one (PRD 5.4). */
+    public const string CONTENT_LIST = 'Content/List';
 
     /** An addon's page, in js/panel/src/pages, which renders the addon's component of the page. */
     public const string ADDON = 'Addon';
@@ -147,6 +156,7 @@ final readonly class PanelPages
         private CommandFormPageCodecV1 $commandFormPage,
         private AccessRolesPageCodecV1 $accessRolesPage,
         private AccessGrantsPageCodecV1 $accessGrantsPage,
+        private ContentListPageCodecV1 $contentListPage,
         private Application $app,
     ) {}
 
@@ -271,6 +281,18 @@ final readonly class PanelPages
             new AccessGrantsPage($this->urls->route(PanelRoute::Logout->value, [], false), $read->result, $read->rejection, $locales),
             ClassificationAccess::Public,
         ), new SharedProps([...$contributions->props, ...$pickers->props])));
+    }
+
+    /**
+     * The content list, with what the address asks for, the read of entry.list as the person, the
+     * result or the problem, and the contributions active on it (PRD 5.4, 13.4).
+     */
+    public function contentList(Request $request, ContentTarget $target, ReadAnswer $read, SharedProps $contributions): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::CONTENT_LIST, $this->contentListPage->encode(
+            new ContentListPage($this->urls->route(PanelRoute::Logout->value, [], false), $target->type?->name, $target->state, $read->result, $read->rejection),
+            ClassificationAccess::Public,
+        ), $contributions));
     }
 
     public function notFound(Request $request): Response|JsonResponse

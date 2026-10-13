@@ -60,6 +60,7 @@
   "kit.shell.navigation": "Navigation",
   "kit.shell.skip": "Skip to the content",
   "kit.table.actions": "Actions",
+  "kit.filter_chip.clear": "Clear {label}",
   "kit.tag.remove": "Remove {label}",
   "kit.wizard.back": "Back",
   "kit.wizard.next": "Next",

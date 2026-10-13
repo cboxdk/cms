@@ -105,6 +105,7 @@ use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Panel\Access\Domain\AccessGrants;
 use Cbox\Cms\Panel\Access\Domain\AccessRoles;
 use Cbox\Cms\Panel\Account\Domain\AccountMe;
+use Cbox\Cms\Panel\Content\Domain\ContentList;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 
 /**
@@ -131,6 +132,9 @@ enum OwnPage: string
     /** The grants page, `<prefix>/access/grants`, which reads grant.list and, for its pickers, actor.list, role.list and node.list (PRD 5.10). */
     case AccessGrants = AccessGrants::PAGE;
 
+    /** The content list, `<prefix>/content`, which reads entry.list (PRD 5.4); the list of one type is below it. */
+    case ContentList = ContentList::PAGE;
+
     public function name(): PageName
     {
         return new PageName($this->value);
@@ -143,6 +147,7 @@ enum OwnPage: string
             self::AccountMe => PanelRoute::AccountMe,
             self::AccessRoles => PanelRoute::AccessRoles,
             self::AccessGrants => PanelRoute::AccessGrants,
+            self::ContentList => PanelRoute::ContentList,
         };
     }
 
@@ -156,6 +161,7 @@ enum OwnPage: string
             self::AccountMe => AccountMe::query(),
             self::AccessRoles => AccessRoles::query(),
             self::AccessGrants => AccessGrants::query(),
+            self::ContentList => ContentList::query(),
         };
     }
 
@@ -586,6 +592,8 @@ use Cbox\Cms\Core\Access\Actions\ListGrantsAction;
 use Cbox\Cms\Core\Access\Actions\ListRolesAction;
 use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
 use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
+use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
 use Cbox\Cms\Core\Identity\Actions\WhoAmIAction;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
@@ -618,7 +626,7 @@ function actorMeEntry(array $surfaces): ActionEntry
 }
 
 /**
- * The query actions of the access pages, each on REST and Inertia.
+ * The query actions of the access pages and of the content list, each on REST and Inertia.
  *
  * @return list<ActionEntry>
  */
@@ -631,11 +639,12 @@ function accessEntries(): array
         new ActionEntry(ListGrantsAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('grant.list'), 1, ListGrants::class, $panel),
         new ActionEntry(ListActorsAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('actor.list'), 1, ListActors::class, $panel),
         new ActionEntry(ListNodesAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('node.list'), 1, ListNodes::class, $panel),
+        new ActionEntry(ListEntriesAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('entry.list'), 1, ListEntries::class, $panel),
     ];
 }
 
 /** Every query of every own page, as broken() names them for a registry without any. */
-const EVERY_PAGE_QUERY = ['account.me reads actor.me@1', 'access.roles reads role.list@1', 'access.grants reads grant.list@1', 'access.grants reads actor.list@1', 'access.grants reads role.list@1', 'access.grants reads node.list@1'];
+const EVERY_PAGE_QUERY = ['account.me reads actor.me@1', 'access.roles reads role.list@1', 'access.grants reads grant.list@1', 'access.grants reads actor.list@1', 'access.grants reads role.list@1', 'access.grants reads node.list@1', 'content.list reads entry.list@1'];
 
 it('names the who-am-I page when its query is planted on Inertia alone, and every page and query of a registry without them', function (): void {
     expect(QueryPageParity::broken(new CompiledRegistry([], [], [actorMeEntry([Surface::Inertia]), ...accessEntries()]), OwnPage::cases()))->toBe(['account.me reads actor.me@1'])
@@ -655,10 +664,13 @@ it('accepts a registry with every query on REST, and the start page reads nothin
         ->and(OwnPage::AccountMe->query()?->toString())->toBe('actor.me@1')
         ->and(OwnPage::AccessRoles->query()?->toString())->toBe('role.list@1')
         ->and(OwnPage::AccessGrants->query()?->toString())->toBe('grant.list@1')
+        ->and(OwnPage::ContentList->query()?->toString())->toBe('entry.list@1')
+        ->and(OwnPage::ContentList->queries())->toHaveCount(1)
         ->and(array_map(static fn (CommandRef $query): string => $query->toString(), OwnPage::AccessGrants->queries()))->toBe(['grant.list@1', 'actor.list@1', 'role.list@1', 'node.list@1'])
         ->and(OwnPage::named('account.me'))->toBe(OwnPage::AccountMe)
         ->and(OwnPage::named('access.roles'))->toBe(OwnPage::AccessRoles)
         ->and(OwnPage::named('access.grants'))->toBe(OwnPage::AccessGrants)
+        ->and(OwnPage::named('content.list'))->toBe(OwnPage::ContentList)
         ->and(OwnPage::named('tally.board'))->toBeNull();
 });
 ```

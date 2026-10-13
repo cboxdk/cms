@@ -105,13 +105,14 @@ const UI_KIT_FILES = [
     'js/ui-kit/src/generated/protocol/validation.ts',
 ];
 
-/** What generate:protocol writes for the panel's pages, below the root, sorted: their codecs and TypeScript, and the receipt and problem details the panel's host reads answers with. */
+/** What generate:protocol writes for the panel's pages, below the root, sorted: their codecs and TypeScript, the receipt and problem details the panel's host reads answers with, and the results the pages read. */
 const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/AccessGrantsPageV1.ts',
     'js/panel/src/generated/pages/AccessRolesPageV1.ts',
     'js/panel/src/generated/pages/AccountMePageV1.ts',
     'js/panel/src/generated/pages/AddonPageV1.ts',
     'js/panel/src/generated/pages/CommandFormPageV1.ts',
+    'js/panel/src/generated/pages/ContentListPageV1.ts',
     'js/panel/src/generated/pages/ContributionsV1.ts',
     'js/panel/src/generated/pages/ForgotPasswordPageV1.ts',
     'js/panel/src/generated/pages/GrantPickersV1.ts',
@@ -121,21 +122,26 @@ const PANEL_PAGE_FILES = [
     'js/panel/src/generated/pages/PalettePropV1.ts',
     'js/panel/src/generated/pages/PanelBrandV1.ts',
     'js/panel/src/generated/pages/ResetPasswordPageV1.ts',
+    'js/panel/src/generated/pages/TypesPropV1.ts',
     'js/panel/src/generated/protocol/ActionListV1.ts',
     'js/panel/src/generated/protocol/ActorListV1.ts',
     'js/panel/src/generated/protocol/ActorMeV1.ts',
     'js/panel/src/generated/protocol/DryRunSummaryV1.ts',
+    'js/panel/src/generated/protocol/EntryListV1.ts',
     'js/panel/src/generated/protocol/GrantListV1.ts',
     'js/panel/src/generated/protocol/NodeListV1.ts',
     'js/panel/src/generated/protocol/ProblemV1.ts',
     'js/panel/src/generated/protocol/ReceiptV1.ts',
     'js/panel/src/generated/protocol/RoleListV1.ts',
+    'js/panel/src/generated/protocol/TypeEditorV1.ts',
+    'js/panel/src/generated/protocol/TypeListV1.ts',
     'js/panel/src/generated/validation.ts',
     'packages/panel/src/Boundary/Generated/AccessGrantsPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/AccessRolesPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/AccountMePageCodecV1.php',
     'packages/panel/src/Boundary/Generated/AddonPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/CommandFormPageCodecV1.php',
+    'packages/panel/src/Boundary/Generated/ContentListPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/ContributionsCodecV1.php',
     'packages/panel/src/Boundary/Generated/ForgotPasswordPageCodecV1.php',
     'packages/panel/src/Boundary/Generated/GrantPickersCodecV1.php',
@@ -145,6 +151,7 @@ const PANEL_PAGE_FILES = [
     'packages/panel/src/Boundary/Generated/PalettePropCodecV1.php',
     'packages/panel/src/Boundary/Generated/PanelBrandCodecV1.php',
     'packages/panel/src/Boundary/Generated/ResetPasswordPageCodecV1.php',
+    'packages/panel/src/Boundary/Generated/TypesPropCodecV1.php',
 ];
 
 /** What generate:protocol writes for the panel's points, below the root, sorted: the SDK's barrels of the stable and experimental points' types, the modules and codecs of the shell's, the observer's, the login page's, the who-am-I page's and the command form's points, the receipt, the dry run summary and the problem details its host answers with, the validators' runtime, the compatibility lock and the list of the points' codecs. */

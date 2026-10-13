@@ -9,11 +9,20 @@ import { ProgressLabel } from './ProgressLabel';
 import './data-table.css';
 import './shared.css';
 
-/** The class of a heading or a cell, with the modifier of a column whose values line up at its end. */
-function columnClass(part: 'column' | 'cell', align: 'start' | 'end' | undefined): string {
-  return align === 'end'
-    ? `cms-data-table__${part} cms-data-table__${part}--end`
-    : `cms-data-table__${part}`;
+/**
+ * The class of a heading or a cell, with the modifiers of a column whose values line up at its end
+ * and of a secondary column, which a narrow screen leaves out.
+ */
+function columnClass(
+  part: 'column' | 'cell',
+  align: 'start' | 'end' | undefined,
+  secondary = false,
+): string {
+  return [
+    `cms-data-table__${part}`,
+    ...(align === 'end' ? [`cms-data-table__${part}--end`] : []),
+    ...(secondary ? ['cms-data-table__secondary'] : []),
+  ].join(' ');
 }
 
 /**
@@ -36,6 +45,14 @@ export interface DataTableSort {
 }
 
 /**
+ * How much room a DataTable's rows take: comfortable rows have room for a second line, such as the
+ * type below an entry's title; compact rows fit more on a screen.
+ *
+ * @experimental
+ */
+export type TableDensity = 'comfortable' | 'compact';
+
+/**
  * A column of a DataTable.
  *
  * @experimental
@@ -56,6 +73,12 @@ export interface DataTableColumn<RowData> {
   readonly sortable?: boolean | undefined;
   /** end for numbers, so their digits line up; start by default. */
   readonly align?: 'start' | 'end' | undefined;
+  /**
+   * Whether a narrow screen, such as a phone's, leaves the column out, so the table shows the
+   * columns that matter most as a list rather than scrolling sideways. A column that names the row
+   * is never secondary.
+   */
+  readonly secondary?: boolean | undefined;
 }
 
 /**
@@ -90,6 +113,8 @@ export interface DataTableProps<RowData> {
   readonly empty: ReactNode;
   /** The pages of the rows, a Pagination, below the table. */
   readonly pagination?: ReactNode;
+  /** How much room the rows take; compact by default. */
+  readonly density?: TableDensity | undefined;
 }
 
 /**
@@ -99,7 +124,8 @@ export interface DataTableProps<RowData> {
  * sortable column's heading, Enter sorts by it and Enter again turns the order around; the sort is
  * told to a screen reader by aria-sort and shown by an arrow. A row's actions are in a menu at its
  * end, which Enter opens. Without rows, it shows the empty state; while they load, what it waits
- * for; when they fail, the error in place of the table, with what to do.
+ * for; when they fail, the error in place of the table, with what to do. Its rows are compact by
+ * default, and comfortable rows are taller, for a second line in a cell.
  *
  * @experimental
  */
@@ -117,6 +143,7 @@ export function DataTable<RowData>({
   error,
   empty,
   pagination,
+  density = 'compact',
 }: DataTableProps<RowData>) {
   const t = useKitTranslation();
 
@@ -127,7 +154,7 @@ export function DataTable<RowData>({
   const actionColumn = rowActions !== undefined;
 
   return (
-    <div className="cms-data-table">
+    <div className="cms-data-table" data-density={density}>
       <div className="cms-data-table__scroller">
         <Table
           aria-label={label}
@@ -145,7 +172,7 @@ export function DataTable<RowData>({
                 id={column.id}
                 isRowHeader={column.rowHeader === true}
                 allowsSorting={column.sortable === true}
-                className={columnClass('column', column.align)}
+                className={columnClass('column', column.align, column.secondary === true)}
               >
                 {({ allowsSorting, sortDirection }) => (
                   <span className="cms-data-table__heading">
@@ -189,7 +216,10 @@ export function DataTable<RowData>({
             {(row) => (
               <Row id={rowKey(row)} className="cms-data-table__row">
                 {columns.map((column) => (
-                  <Cell key={column.id} className={columnClass('cell', column.align)}>
+                  <Cell
+                    key={column.id}
+                    className={columnClass('cell', column.align, column.secondary === true)}
+                  >
                     {column.render(row)}
                   </Cell>
                 ))}

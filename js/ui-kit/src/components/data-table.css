@@ -73,6 +73,11 @@
     outline: none;
   }
 
+  .cms-data-table[data-density='comfortable'] .cms-data-table__cell {
+    block-size: calc(var(--cms-table-row-height) + var(--cms-space-4));
+    padding-block: var(--cms-space-2);
+  }
+
   .cms-data-table__row:last-child > .cms-data-table__cell {
     border-block-end: 0;
   }
@@ -90,6 +95,12 @@
 
   .cms-data-table__state {
     padding: var(--cms-space-4);
+  }
+
+  @media (max-width: 40rem) {
+    .cms-data-table__secondary {
+      display: none;
+    }
   }
 
   @media (forced-colors: active) {

@@ -10,6 +10,8 @@ use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Editors\TypeEditor;
+use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -46,9 +48,13 @@ use UnexpectedValueException;
  * with the number of each draft, highest and released revision, the schema version and payload of the draft, from
  * `revisions` and `revision_payloads` for a type with full history and from `head_snapshots`
  * otherwise, and its placements with their locales, those the context reaches. page() is one:
- * the entries newest first by id, the keyset key, with the shared head's release state and the
+ * the entries newest first by id, the keyset key, with the shared head's release state, the
  * last change, the newest of the entry's creation, its revisions, its snapshots and its release
- * log, each read by the entry's own index. A subtree filter joins `nodes` and tests the home's
+ * log, each read by the entry's own index, and the title field of the entry's type (the editor
+ * descriptor's, TypeEditors) with its value in the shared head's draft: the types with a title
+ * field join the statement as a VALUES list of type id and handle, and the value is taken out of
+ * the draft's payload by that handle, so the statement is one whatever the number of types or
+ * entries, and never reads another field. A subtree filter joins `nodes` and tests the home's
  * path against the node's with `<@`; a node the context does not reach has no path for it, so
  * nothing is listed below it.
  */
@@ -100,7 +106,12 @@ final readonly class PostgresEntryListing implements EntryListing
         order by p.id, pl.locale
         SQL;
 
-    /** The columns of a page, with the last change over the entry's own rows. */
+    /**
+     * The columns of a page, with the last change over the entry's own rows, the schema version
+     * of the shared head's draft and, through the title join of PAGE_TITLES, a payload of the
+     * title field alone with its value in the draft, an object of one member as JSON text, null
+     * for an entry whose type names no title field or whose draft holds none.
+     */
     public const string PAGE_COLUMNS = <<<'SQL'
         select
             e.id::text as id, e.type_id::text as type_id, e.home_node_id::text as home_node_id, e.lifecycle, e.version, h.release_state,
@@ -109,10 +120,23 @@ final readonly class PostgresEntryListing implements EntryListing
                 coalesce((select max(r.created_at) from revisions as r where r.entry_id = e.id), e.created_at),
                 coalesce((select max(s.updated_at) from head_snapshots as s where s.entry_id = e.id), e.created_at),
                 coalesce((select max(l.effective_at) from release_log as l where l.entry_id = e.id), e.created_at)
-            ) as changed_at
+            ) as changed_at,
+            coalesce(r.schema_version, s.schema_version) as content_schema_version,
+            case when jsonb_typeof(coalesce(rp.content, s.content) -> t.handle) not in ('null')
+                then jsonb_build_object(t.handle, coalesce(rp.content, s.content) -> t.handle)::text
+            end as title
         from entries as e
         left join variant_heads as h on h.entry_id = e.id and h.variant = 'shared'
+        left join revisions as r on r.revision_id = h.draft_revision_id
+        left join revision_payloads as rp on rp.revision_id = r.revision_id and rp.kind = r.kind
+        left join head_snapshots as s on s.entry_id = e.id and s.variant = 'shared'
         SQL;
+
+    /** The title join: the types with a title field as rows of type id and handle, one `(?::uuid, ?::text)` per type. */
+    public const string PAGE_TITLES = 'left join (values %s) as t(type_id, handle) on t.type_id = e.type_id';
+
+    /** The title join of an installation without a title field: no type has a handle. */
+    public const string PAGE_NO_TITLES = 'left join (select null::uuid as type_id, null::text as handle) as t on false';
 
     /** The explicit access predicate (PRD 5.10): the context's actor owns the entry, or a region reaches its home. */
     public const string REACHED = 'cms_access_home(e.home_node_id, e.owner_actor_id)';
@@ -123,6 +147,7 @@ final readonly class PostgresEntryListing implements EntryListing
     public function __construct(
         private ConnectionResolverInterface $connections,
         private TypeCatalog $types,
+        private TypeEditors $editors,
         private ?string $connection = null,
     ) {}
 
@@ -154,8 +179,17 @@ final readonly class PostgresEntryListing implements EntryListing
     #[Override]
     public function page(ListEntries $query, int $limit): array
     {
-        $sql = self::PAGE_COLUMNS;
+        $titles = $this->titleFields();
         $bindings = [];
+
+        foreach ($titles as $type => [, $handle]) {
+            $bindings[] = $type;
+            $bindings[] = $handle;
+        }
+
+        $sql = self::PAGE_COLUMNS."\n".($titles === []
+            ? self::PAGE_NO_TITLES
+            : sprintf(self::PAGE_TITLES, implode(', ', array_fill(0, count($titles), '(?::uuid, ?::text)'))));
         $where = [self::REACHED];
 
         if ($query->node instanceof NodeId) {
@@ -186,18 +220,59 @@ final readonly class PostgresEntryListing implements EntryListing
         foreach ($this->db()->select($sql, $bindings, false) as $row) {
             $row = PlacementRows::object($row);
             $state = PlacementRows::textOrNull($row, 'release_state');
+            $type = PlacementRows::text($row, 'type_id');
             $entries[] = new ListedEntry(
                 EntryId::fromString(PlacementRows::text($row, 'id')),
-                TypeId::fromString(PlacementRows::text($row, 'type_id')),
+                TypeId::fromString($type),
                 NodeId::fromString(PlacementRows::text($row, 'home_node_id')),
                 EntryLifecycle::from(PlacementRows::text($row, 'lifecycle')),
                 $state === null ? null : ReleaseState::from($state),
                 PlacementRows::instant(PlacementRows::text($row, 'changed_at')) ?? throw new UnexpectedValueException('An entry has a last change.'),
                 new AggregateVersion(PlacementRows::integer($row, 'version')),
+                $this->title($titles[$type] ?? null, $this->integerOrNull($row, 'content_schema_version'), PlacementRows::textOrNull($row, 'title')),
             );
         }
 
         return $entries;
+    }
+
+    /**
+     * The types with a title field, by type id: the type and the handle of its title field, the
+     * editor descriptor's, which is a top-level text field of the owner (TypeEditor).
+     *
+     * @return array<string, array{TypeDefinition, string}>
+     */
+    private function titleFields(): array
+    {
+        $titles = [];
+
+        foreach ($this->editors->all() as $editor) {
+            $type = $this->types->find($editor->id);
+
+            if ($editor->titleField !== null && $type instanceof TypeDefinition) {
+                $titles[$editor->id->toString()] = [$type, $editor->titleField];
+            }
+        }
+
+        return $titles;
+    }
+
+    /**
+     * The title field with its value in the draft, as the field values of the payload of that one
+     * field the page read; none when the type names no title field, the draft holds no value in it,
+     * or the draft was written under another schema version than the type's, whose fields the type
+     * cannot read.
+     *
+     * @param  array{TypeDefinition, string}|null  $title  the type and the handle of its title field
+     * @param  string|null  $payload  the payload of the title field alone, as PAGE_COLUMNS reads it
+     */
+    private function title(?array $title, ?int $schemaVersion, ?string $payload): FieldValues
+    {
+        if ($title === null || $payload === null || $schemaVersion !== $title[0]->version) {
+            return new FieldValues;
+        }
+
+        return StoredContent::fields($title[0], $payload);
     }
 
     /**

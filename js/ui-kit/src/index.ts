@@ -175,7 +175,14 @@ export type {
   DataTableProps,
   DataTableSort,
   SortDirection,
+  TableDensity,
 } from './components/DataTable';
+export { RowTitle } from './components/RowTitle';
+export type { RowTitleProps } from './components/RowTitle';
+export { FilterChip } from './components/FilterChip';
+export type { FilterChipOption, FilterChipProps } from './components/FilterChip';
+export { SegmentedControl } from './components/SegmentedControl';
+export type { SegmentedControlProps, SegmentedOption } from './components/SegmentedControl';
 export { DescriptionList } from './components/DescriptionList';
 export type { DescriptionListItem, DescriptionListProps } from './components/DescriptionList';
 export { Tree } from './components/Tree';

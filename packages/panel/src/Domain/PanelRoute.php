@@ -73,6 +73,12 @@ enum PanelRoute: string
     /** GET <prefix>/access/grants: the grants page, which reads grant.list as the person (PRD 5.10, 13.4). */
     case AccessGrants = 'cbox-cms.panel.access-grants';
 
+    /** GET <prefix>/content: the content list across every type, which reads entry.list as the person (PRD 5.4, 13.4). */
+    case ContentList = 'cbox-cms.panel.content-list';
+
+    /** GET <prefix>/content/{type}: the content list of one type, which reads entry.list as the person (PRD 5.4, 13.4). */
+    case ContentListOfType = 'cbox-cms.panel.content-list.type';
+
     /**
      * Whether a page of the route loads the addons' panel UI (PRD 13.4, decision D13 of the
      * panel extension architecture): a credential page, where a person types a password or
@@ -83,7 +89,7 @@ enum PanelRoute: string
     public function allowsAddons(): bool
     {
         return match ($this) {
-            self::Home, self::Command, self::CommandForm, self::AddonPage, self::AccountMe, self::AccessRoles, self::AccessGrants => true,
+            self::Home, self::Command, self::CommandForm, self::AddonPage, self::AccountMe, self::AccessRoles, self::AccessGrants, self::ContentList, self::ContentListOfType => true,
             self::Login, self::LoginSubmit, self::ForgotPassword, self::ForgotPasswordSubmit, self::ResetPassword, self::ResetPasswordSubmit, self::Logout, self::Theme, self::Brand, self::AddonAsset, self::CspReport => false,
         };
     }

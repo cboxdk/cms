@@ -16,13 +16,15 @@ The editor opens an entry and the content list reads a page with two queries of 
 | Query | What it gives | Who may run it |
 |---|---|---|
 | `entry.get` | one entry: its type, home node, lifecycle and version; every variant head, the shared variant first, each with its version, the numbers of its draft, highest and released revision, its release state, the schema version its draft was written under, the draft's fields, and the variant and revision it was translated from with whether that translation is stale (PRD 10.3); and every placement of the entry the reader reaches, each with its node, version and locales, a locale with its slug, stored visibility, window and whether it is canonical | every actor; the anonymous principal may not |
-| `entry.list` | a page of the entries the reader reaches, across types, newest first, each with its system columns: type, home node, lifecycle, the shared variant's release state, the last change and the version | every actor; the anonymous principal may not |
+| `entry.list` | a page of the entries the reader reaches, across types, newest first, each with its system columns: type, home node, lifecycle, the shared variant's release state, the last change and the version; and, as its fields, the title field its type's editor descriptor names with its value in the shared head's draft | every actor; the anonymous principal may not |
 
 Both implement `Cbox\Cms\Contracts\Pipeline\ActorQuery`: what they read is bounded by the actor's own context, so they need no permission. An entry is within reach when the actor owns it or one of its regions reaches its home node, the same test as the entries table's own policy, and the kernel's reader adds it as the explicit access predicate of every statement (PRD 5.10), so an entry the actor sees only because it is released somewhere live is neither listed nor given. `entry.get` rejects an entry that is absent or out of reach with `entry_not_found`, at `entry`, and tells the two apart for no one. The kernel reads each head through the same reader the [variant head reader](contracts/variant-head-reader.md) contract gives addons.
 
 ## Fields and classification
 
 The fields of each head are the draft revision's in the input form of [command JSON](command-json.md), read as the type is now: a text, a decimal, a date and a date-time are strings, an integer an integer, a boolean a boolean, a list a list and a group an object. The query pipeline leaves out every field classified above the reader's classification access, every field the type does not declare, and for an agent's credential every field its blueprint closes to agents (PRD 2.31, 12.2), before the codec writes the result; a sensitive field it gives an actor is read-audited. A head whose draft was written under another schema version than the type's has `schema_version` below the type's and empty fields, because the type cannot read them (upcasters come with B3). A language's variant made by [`variant.create_from`](entry-commands.md#translations) has `translated_from`, the source variant and revision, and `stale`, true once the source was released with other content since; every other head has `translated_from` null and `stale` false.
+
+`entry.list` gives each entry one field at most, so a list can show an entry by its title: the title field of its type, `title_field` of the [type editor descriptor](../../packages/contracts/resources/schemas/type-editor.v1.json) (the owner's first required text field, else its first text field), with its value in the shared head's draft, or its head snapshot for a type that keeps no full history. The fields are empty for a type without a title field, a draft that holds no value in it, or a draft written under another schema version than the type's, and the pipeline strips the field like any other: above the reader's classification access, for an agent where the blueprint closes it, and read-audited when it is sensitive. The page reads the titles in its one statement, whatever the number of types.
 
 ## Pages and filters
 
@@ -37,6 +39,7 @@ The last change of an entry is the newest of its creation, its revisions, its he
 declare(strict_types=1);
 
 use Cbox\Cms\Contracts\Content\ReleaseState;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -60,7 +63,7 @@ const EXAMPLE_DETAIL = '{"heads":[{"fields":{"title":"Harbour"},"latest":2,"rele
     .'"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}}],"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","version":1}],'
     .'"type":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a43","version":2}';
 
-const EXAMPLE_PAGE = '{"entries":[{"changed_at":"2026-03-10T13:00:00.000000Z","home":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41",'
+const EXAMPLE_PAGE = '{"entries":[{"changed_at":"2026-03-10T13:00:00.000000Z","fields":{"title":"Harbour"},"home":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41",'
     .'"lifecycle":"active","state":"released","type":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a43","version":2}],"next":null}';
 
 it('reads entry.get from JSON and writes its result with every head, its fields and its placements', function (): void {
@@ -76,7 +79,7 @@ it('reads entry.get from JSON and writes its result with every head, its fields 
         ->and(static fn (): GetEntry => new GetEntryCodecV1()->decode('{}', ClassificationAccess::Public))->toThrow(DecodingFailed::class);
 });
 
-it('reads entry.list with its filters and writes a page of system columns, newest first', function (): void {
+it('reads entry.list with its filters and writes a page of system columns and titles, newest first', function (): void {
     $codec = new ListEntriesCodecV1;
     $query = $codec->decode('{"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","state":"released","limit":20}', ClassificationAccess::Public);
     $page = new EntryListCodecV1()->decode(EXAMPLE_PAGE, ClassificationAccess::Public);
@@ -87,6 +90,7 @@ it('reads entry.list with its filters and writes a page of system columns, newes
         ->toBe('{"after":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","limit":50,"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","state":null,"type":null}')
         ->and($page)->toBeInstanceOf(EntryList::class)
         ->and($page->entries[0]->changedAt->format('H:i'))->toBe('13:00')
+        ->and(array_map(static fn (FieldHandle $handle): string => $handle->value, $page->entries[0]->fields->own->handles()))->toBe(['title'])
         ->and(new EntryListCodecV1()->encode($page, ClassificationAccess::Public))->toBe(EXAMPLE_PAGE);
 });
 ```

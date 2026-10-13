@@ -48,6 +48,7 @@ The parts every component builds on, under Foundations in the Storybook.
 - [`Select`](../../js/ui-kit/stories/Select.stories.tsx), [`Combobox`](../../js/ui-kit/stories/Combobox.stories.tsx) and [`MultiSelect`](../../js/ui-kit/stories/MultiSelect.stories.tsx): a choice from a list, a choice found by typing, and a choice of several.
 - [`ErrorSummary`](../../js/ui-kit/stories/ErrorSummary.stories.tsx): the errors of a refused form, each a link to its field.
 - [`JsonEditor`](../../js/ui-kit/stories/JsonEditor.stories.tsx): a JSON value, checked as it is typed.
+- [`SegmentedControl`](../../js/ui-kit/stories/SegmentedControl.stories.tsx): a row of buttons of which one is pressed, for a setting of how something is shown, such as a list's density.
 - [`SchemaForm`](../../js/ui-kit/stories/SchemaForm.stories.tsx) with `readCommandSchema`: a form rendered from a command's JSON Schema, a field per member of the command's document, controlled by the caller, which validates the document and gives the errors back by path ([command form](../addons/panel/command-form.md)).
 
 ## Feedback
@@ -68,7 +69,9 @@ The parts every component builds on, under Foundations in the Storybook.
 
 ## Data display
 
-- [`DataTable`](../../js/ui-kit/stories/DataTable.stories.tsx): a table of rows with sorting, row actions and keyset pages. A table wider than the room it has scrolls in its own region, which never widens the page ([Width](foundations.md#width)).
+- [`DataTable`](../../js/ui-kit/stories/DataTable.stories.tsx): a table of rows with sorting, row actions and keyset pages, in comfortable or compact rows. A table wider than the room it has scrolls in its own region, which never widens the page ([Width](foundations.md#width)), and a column marked secondary is left out on a narrow screen.
+- [`RowTitle`](../../js/ui-kit/stories/RowTitle.stories.tsx): the title of a row, with a line below it that says what the row is.
+- [`FilterChip`](../../js/ui-kit/stories/FilterChip.stories.tsx): a filter of a list, which names its value once chosen and clears it with its own button.
 - [`DescriptionList`](../../js/ui-kit/stories/DescriptionList.stories.tsx): facts about one thing.
 - [`Tree`](../../js/ui-kit/stories/Tree.stories.tsx): a tree of nodes.
 - [`Tag`](../../js/ui-kit/stories/Tag.stories.tsx) and [`Timestamp`](../../js/ui-kit/stories/Timestamp.stories.tsx): a short value as a chip, and a point in time in the reader's locale.

@@ -8,8 +8,9 @@ description: For people who log in to the control panel of Cbox CMS to work with
 
 The panel is the control panel of an installation of Cbox CMS, at `/cms` on the installation's address, such as `http://127.0.0.1:8080/cms` for the workbench. This section is for the people who log in to it: editors, and whoever looks after the access of the others.
 
-What the panel offers today is the first part: signing in with an email and a password, your own account on the who-am-I page, and for whoever may change access, the roles and grants pages. Editing content comes with later versions.
+What the panel offers today is the first part: signing in with an email and a password, your own account on the who-am-I page, the content list of the entries you can reach, and for whoever may change access, the roles and grants pages. Editing content in its own editor comes with later versions.
 
 - [Signing in](signing-in.md): signing in and out, a forgotten password, how long you stay signed in, and the command palette.
+- [Working with content](content.md): the content list, across every type or one type, with its filters, densities and pages.
 
 Whoever sets up an installation gives the first person access; on the workbench, [Serve the workbench and log in](../getting-started/first-login.md) does it.

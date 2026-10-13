@@ -5,6 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Entries\Fakes;
 
 use Cbox\Cms\Contracts\Content\ReleaseState;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldMap;
+use Cbox\Cms\Contracts\Fields\FieldValue;
+use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
@@ -20,7 +25,8 @@ use Override;
  * each entry as entry.get gives it, with its last change, and the fake gives the entries whose
  * home one of the context's roots is above, as the explicit access predicate does, with every
  * head and placement; a page lists them newest first by id and applies the query's filters over
- * the tree the fake was given.
+ * the tree the fake was given, each entry with the title field the fake was given for its type,
+ * by type id, and its value in the shared head's draft as its fields (titleOf()).
  */
 final class FakeEntryListing implements EntryListing
 {
@@ -30,8 +36,20 @@ final class FakeEntryListing implements EntryListing
     /**
      * @param  array<string, list<string>>  $ancestry  the ancestors of each node, itself included, from the root down
      * @param  list<NodeId>  $roots  the roots of the context's regions
+     * @param  array<string, string>  $titles  the handle of the title field of each type, by type id
      */
-    public function __construct(private readonly array $ancestry, private readonly array $roots) {}
+    public function __construct(private readonly array $ancestry, private readonly array $roots, private readonly array $titles = []) {}
+
+    /**
+     * The fields entry.list gives an entry: the title field with its value in the shared head's
+     * draft, or none when the type has no title field or the draft holds no value in it.
+     */
+    public static function titleOf(EntryDetail $detail, ?string $title): FieldValues
+    {
+        $value = $title === null ? null : ($detail->heads[0] ?? null)?->fields->own->get(new FieldHandle($title));
+
+        return $title === null || ! $value instanceof FieldValue ? new FieldValues : new FieldValues(new FieldMap(new NamedValue(new FieldHandle($title), $value)));
+    }
 
     public function add(EntryDetail $detail, DateTimeImmutable $changedAt): self
     {
@@ -67,7 +85,7 @@ final class FakeEntryListing implements EntryListing
                 continue;
             }
 
-            $listed[] = new ListedEntry($detail->id, $detail->type, $detail->home, $detail->lifecycle, $state, $changedAt, $detail->version);
+            $listed[] = new ListedEntry($detail->id, $detail->type, $detail->home, $detail->lifecycle, $state, $changedAt, $detail->version, self::titleOf($detail, $this->titles[$detail->type->toString()] ?? null));
         }
 
         return array_slice($listed, 0, max($limit, 0));

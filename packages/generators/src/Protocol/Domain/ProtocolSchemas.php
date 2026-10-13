@@ -655,6 +655,7 @@ final readonly class ProtocolSchemas
                 ['#' => EntryList::class, '#/$defs/listed_entry' => ListedEntry::class],
                 [
                     '#/properties/next' => $id(EntryId::class),
+                    '#/$defs/listed_entry/properties/fields' => ValueBinding::fields(FieldValues::class),
                     '#/$defs/listed_entry/properties/home' => $id(NodeId::class),
                     '#/$defs/listed_entry/properties/id' => $id(EntryId::class),
                     '#/$defs/listed_entry/properties/lifecycle' => ValueBinding::enum(EntryLifecycle::class),

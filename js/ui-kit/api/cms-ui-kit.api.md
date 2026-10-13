@@ -283,6 +283,7 @@ export interface DataTableColumn<RowData> {
     readonly id: string;
     readonly render: (row: RowData) => ReactNode;
     readonly rowHeader?: boolean | undefined;
+    readonly secondary?: boolean | undefined;
     readonly sortable?: boolean | undefined;
     readonly title: string;
 }
@@ -290,6 +291,7 @@ export interface DataTableColumn<RowData> {
 // @experimental
 export interface DataTableProps<RowData> {
     readonly columns: readonly DataTableColumn<RowData>[];
+    readonly density?: TableDensity | undefined;
     readonly empty: ReactNode;
     readonly error?: ReactNode;
     readonly label: string;
@@ -488,6 +490,24 @@ export type FieldShape = StringShape | IntegerShape | BooleanShape | EnumShape |
 export interface FieldsShape {
     // (undocumented)
     readonly kind: 'fields';
+}
+
+// @experimental
+export function FilterChip(input: FilterChipProps): JSX.Element;
+
+// @experimental
+export interface FilterChipOption {
+    readonly id: string;
+    readonly label: string;
+}
+
+// @experimental
+export interface FilterChipProps {
+    readonly disabled?: boolean | undefined;
+    readonly label: string;
+    readonly onChange: (value: string | null) => void;
+    readonly options: readonly FilterChipOption[];
+    readonly value: string | null;
 }
 
 // @experimental
@@ -959,6 +979,16 @@ export interface RolePickerProps {
 }
 
 // @experimental
+export function RowTitle(input: RowTitleProps): JSX.Element;
+
+// @experimental
+export interface RowTitleProps {
+    readonly detail?: string | undefined;
+    readonly fallback?: boolean | undefined;
+    readonly title: string;
+}
+
+// @experimental
 export function SchemaForm(input: SchemaFormProps): JSX.Element;
 
 // @experimental
@@ -1015,6 +1045,23 @@ export interface SectionProps {
     readonly description?: string | undefined;
     readonly headingLevel?: 2 | 3 | 4;
     readonly title: string;
+}
+
+// @experimental
+export function SegmentedControl(input: SegmentedControlProps): JSX.Element;
+
+// @experimental
+export interface SegmentedControlProps {
+    readonly label: string;
+    readonly onChange: (value: string) => void;
+    readonly options: readonly SegmentedOption[];
+    readonly value: string;
+}
+
+// @experimental
+export interface SegmentedOption {
+    readonly id: string;
+    readonly label: string;
 }
 
 // @experimental
@@ -1146,6 +1193,9 @@ export interface SwitchProps {
     readonly onChange?: ((on: boolean) => void) | undefined;
     readonly value?: string | undefined;
 }
+
+// @experimental
+export type TableDensity = 'comfortable' | 'compact';
 
 // @experimental
 export function Tabs(input: TabsProps): JSX.Element;

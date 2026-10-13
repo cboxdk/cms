@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryListing;
@@ -56,7 +57,7 @@ final class PostgresEntryListingBehaviourTest extends TestCase
 
         try {
             app(ActorContext::class)->set(EntryListingWorld::context($reader));
-            $read(new PostgresEntryListing(app(ConnectionResolverInterface::class), app(TypeCatalog::class)));
+            $read(new PostgresEntryListing(app(ConnectionResolverInterface::class), app(TypeCatalog::class), app(TypeEditors::class)));
         } finally {
             $connection->rollBack();
         }

@@ -71,6 +71,9 @@ final class EntryListingWorld
 
     public const string NOBODY = '0192a0c0-0000-7000-8000-0000000004c3';
 
+    /** The title field of the world's type, the article's, as its editor descriptor names it. */
+    public const string TITLE = 'fixture_title';
+
     public const string CREATED_AT = '2026-03-10 12:00:00+00';
 
     public const string RELEASED_AT = '2026-03-10 13:00:00+00';
@@ -190,6 +193,7 @@ final class EntryListingWorld
             $detail->heads[0]->state,
             self::at($detail->id->toString() === self::SECOND ? self::RELEASED_AT : self::CREATED_AT),
             $detail->version,
+            FakeEntryListing::titleOf($detail, self::TITLE),
         );
     }
 
@@ -212,7 +216,7 @@ final class EntryListingWorld
      */
     public static function listing(string $reader): FakeEntryListing
     {
-        $listing = new FakeEntryListing(self::ANCESTRY, array_map(NodeId::fromString(...), self::READERS[$reader] ?? []));
+        $listing = new FakeEntryListing(self::ANCESTRY, array_map(NodeId::fromString(...), self::READERS[$reader] ?? []), [self::type()->id->toString() => self::TITLE]);
 
         foreach (self::details() as $detail) {
             $listing->add($detail, self::listedOf($detail)->changedAt);

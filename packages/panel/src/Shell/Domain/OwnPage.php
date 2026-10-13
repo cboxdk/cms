@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Panel\Access\Domain\AccessGrants;
 use Cbox\Cms\Panel\Access\Domain\AccessRoles;
 use Cbox\Cms\Panel\Account\Domain\AccountMe;
+use Cbox\Cms\Panel\Content\Domain\ContentList;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 
 /**
@@ -36,6 +37,9 @@ enum OwnPage: string
     /** The grants page, `<prefix>/access/grants`, which reads grant.list and, for its pickers, actor.list, role.list and node.list (PRD 5.10). */
     case AccessGrants = AccessGrants::PAGE;
 
+    /** The content list, `<prefix>/content`, which reads entry.list (PRD 5.4); the list of one type is below it. */
+    case ContentList = ContentList::PAGE;
+
     public function name(): PageName
     {
         return new PageName($this->value);
@@ -48,6 +52,7 @@ enum OwnPage: string
             self::AccountMe => PanelRoute::AccountMe,
             self::AccessRoles => PanelRoute::AccessRoles,
             self::AccessGrants => PanelRoute::AccessGrants,
+            self::ContentList => PanelRoute::ContentList,
         };
     }
 
@@ -61,6 +66,7 @@ enum OwnPage: string
             self::AccountMe => AccountMe::query(),
             self::AccessRoles => AccessRoles::query(),
             self::AccessGrants => AccessGrants::query(),
+            self::ContentList => ContentList::query(),
         };
     }
 

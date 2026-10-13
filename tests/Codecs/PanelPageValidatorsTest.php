@@ -25,6 +25,7 @@ use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessContexts;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeHeldPermissions;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Core\Tests\Access\ListingWorld;
+use Cbox\Cms\Core\Tests\Entries\EntryListingWorld;
 use Cbox\Cms\Core\Tests\Pipeline\Tally\AddTallyCodec;
 use Cbox\Cms\Identity\Tests\Login\LocalLoginWorld;
 use Cbox\Cms\Identity\Tests\PasswordReset\PasswordResetWorld;
@@ -34,6 +35,7 @@ use Cbox\Cms\Panel\Boundary\Generated\AccessRolesPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\ContentListPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\GrantPickersCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
@@ -41,11 +43,13 @@ use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\PanelBrandCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\TypesPropCodecV1;
 use Cbox\Cms\Panel\Boundary\PanelBrandProps;
 use Cbox\Cms\Panel\Boundary\PanelPages;
 use Cbox\Cms\Panel\Boundary\PasswordResetForms;
 use Cbox\Cms\Panel\Branding\Boundary\BrandingConfig;
 use Cbox\Cms\Panel\Branding\Domain\Dto\Branding;
+use Cbox\Cms\Panel\Content\Domain\ContentTypes;
 use Cbox\Cms\Panel\Contributions\Boundary\ContributionProps;
 use Cbox\Cms\Panel\Contributions\Domain\PointCodecs;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
@@ -106,6 +110,7 @@ final class PanelPageValidatorsTest extends TestCase
         PanelPages::COMMAND_FORM => ['module' => 'pages/CommandFormPageV1', 'validator' => 'validateCommandFormPageV1'],
         PanelPages::ACCESS_ROLES => ['module' => 'pages/AccessRolesPageV1', 'validator' => 'validateAccessRolesPageV1'],
         PanelPages::ACCESS_GRANTS => ['module' => 'pages/AccessGrantsPageV1', 'validator' => 'validateAccessGrantsPageV1'],
+        PanelPages::CONTENT_LIST => ['module' => 'pages/ContentListPageV1', 'validator' => 'validateContentListPageV1'],
     ];
 
     /** The generated module and validator of the grants page's optional prop, the pickers. */
@@ -202,6 +207,8 @@ final class PanelPageValidatorsTest extends TestCase
         self::assertContains('who am I with the read refused', $states);
         self::assertContains('roles after a role', $states);
         self::assertContains('grants with the read refused', $states);
+        self::assertContains('content of a type in a state after an entry', $states);
+        self::assertContains('content with the read refused', $states);
         self::assertStringContainsString('"code":"unauthorized"', $rendered[array_search('grants with the read refused', $states, true)]['props'] ?? '');
     }
 
@@ -246,6 +253,41 @@ final class PanelPageValidatorsTest extends TestCase
 
         self::assertStringContainsString('"nodes":{"rejection":null,"result":null}', $documents['the nodes not made']);
         self::assertStringContainsString('"code":"unauthorized"', $documents['the actors and roles refused']);
+    }
+
+    /**
+     * The types every page behind the login shares (types.v1.json), as the read of type.list
+     * answered and refused: the generated validator accepts what each page renders, and it reads
+     * back through TypesPropCodecV1.
+     *
+     * @throws JsonException
+     */
+    #[Test]
+    public function the_typescript_validator_accepts_the_types_every_page_behind_the_login_shares(): void
+    {
+        $this->visitLogin();
+        $session = $this->sessionCookie($this->logIn(self::SECOND_EMAIL, LocalLoginWorld::PASSWORD))?->getValue() ?? self::fail('No session.');
+        $access = $this->access ?? self::fail('No access world.');
+        $this->readWith($access->pipeline());
+        $answered = $this->shared($this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content'), ContentTypes::PROP);
+        $this->readWith($access->refusing());
+        $refused = $this->shared($this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms'), ContentTypes::PROP);
+
+        $verdicts = TypeScriptValidators::run(PanelPageSchemas::TYPESCRIPT_DIRECTORY, array_map(
+            static fn (string $document): array => ['module' => 'pages/TypesPropV1', 'validator' => 'validateTypesPropV1', 'document' => $document],
+            [$answered, $refused],
+        ));
+
+        self::assertStringContainsString('"name":"app:fixture_article"', $answered);
+        self::assertStringContainsString('"code":"unauthorized"', $refused);
+        self::assertSame([['valid' => true], ['valid' => true]], $verdicts);
+
+        foreach ([$answered, $refused] as $document) {
+            self::assertSame(
+                json_decode($document, true, 64, JSON_THROW_ON_ERROR),
+                json_decode($this->through(new TypesPropCodecV1, $document), true, 64, JSON_THROW_ON_ERROR),
+            );
+        }
     }
 
     /**
@@ -385,9 +427,12 @@ final class PanelPageValidatorsTest extends TestCase
         $page('roles', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles'));
         $page('roles after a role', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles?after='.ListingWorld::ADMIN_ROLE));
         $page('grants', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/grants'));
+        $page('content', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content'));
+        $page('content of a type in a state after an entry', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content/app:fixture_article?state=released&after='.EntryListingWorld::THIRD));
         $this->readWith($access->refusing());
         $page('roles with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles'));
         $page('grants with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/grants'));
+        $page('content with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content'));
         $page('not found', $this->get('/cms/no-such-page'));
 
         return $pages;
@@ -406,7 +451,8 @@ final class PanelPageValidatorsTest extends TestCase
 
     /**
      * The JSON of the page's own props, as the browser receives them, without the props every page
-     * shares, Inertia's errors, the problem, the brand, which brand() reads, the palette, the
+     * shares, Inertia's errors, the problem, the brand, which brand() reads, the palette, the types,
+     * which shared() reads, the
      * contributions every page behind the login sends (ContributionProps::CMS, held to its own
      * validator by ContributionsCodecTest) and the deferred data of the addons (ContributionProps::DATA).
      *
@@ -423,7 +469,7 @@ final class PanelPageValidatorsTest extends TestCase
             self::fail('The response rendered no Inertia page.');
         }
 
-        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[PaletteProps::PROP], $props[ContributionProps::CMS], $props[ContributionProps::DATA]);
+        unset($props['errors'], $props['problem'], $props[PanelBrandProps::PROP], $props[PaletteProps::PROP], $props[ContentTypes::PROP], $props[ContributionProps::CMS], $props[ContributionProps::DATA]);
 
         return json_encode((object) $props, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
@@ -445,6 +491,25 @@ final class PanelPageValidatorsTest extends TestCase
         }
 
         return json_encode((object) $brand, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
+    }
+
+    /**
+     * The JSON of a prop the page shares, as the browser receives it.
+     *
+     * @param  TestResponse<Response>  $response
+     *
+     * @throws JsonException
+     */
+    private function shared(TestResponse $response, string $prop): string
+    {
+        $page = $response->viewData('page');
+        $value = is_array($page) && is_array($page['props'] ?? null) ? $page['props'][$prop] ?? null : null;
+
+        if (! is_array($value)) {
+            self::fail('The page shares no '.$prop.'.');
+        }
+
+        return json_encode($value, JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES);
     }
 
     /**
@@ -479,6 +544,7 @@ final class PanelPageValidatorsTest extends TestCase
             PanelPages::COMMAND_FORM => $this->through(new CommandFormPageCodecV1, $props),
             PanelPages::ACCESS_ROLES => $this->through(new AccessRolesPageCodecV1, $props),
             PanelPages::ACCESS_GRANTS => $this->through(new AccessGrantsPageCodecV1, $props),
+            PanelPages::CONTENT_LIST => $this->through(new ContentListPageCodecV1, $props),
             default => self::fail('No codec for the page '.$component.'.'),
         };
     }

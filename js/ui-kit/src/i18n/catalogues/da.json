@@ -60,6 +60,7 @@
   "kit.shell.navigation": "Navigation",
   "kit.shell.skip": "Spring til indholdet",
   "kit.table.actions": "Handlinger",
+  "kit.filter_chip.clear": "Ryd {label}",
   "kit.tag.remove": "Fjern {label}",
   "kit.wizard.back": "Tilbage",
   "kit.wizard.next": "Næste",

@@ -15,12 +15,14 @@ use Cbox\Cms\Panel\Assets\BrandController;
 use Cbox\Cms\Panel\Assets\ThemeController;
 use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Branding\Domain\Dto\BrandFile;
+use Cbox\Cms\Panel\Content\Domain\ContentList;
 use Cbox\Cms\Panel\Domain\BundleHash;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
 use Cbox\Cms\Panel\Domain\Dto\PanelTheme;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 use Cbox\Cms\Panel\Middleware\AuthenticatePanelSession;
 use Cbox\Cms\Panel\Middleware\SendContentSecurityPolicy;
+use Cbox\Cms\Panel\Middleware\ShareContentTypes;
 use Cbox\Cms\Panel\Middleware\SharePalette;
 use Cbox\Cms\Panel\Middleware\VerifyPanelCsrfToken;
 use Cbox\Cms\Panel\Pages\AccessGrantsController;
@@ -28,6 +30,7 @@ use Cbox\Cms\Panel\Pages\AccessRolesController;
 use Cbox\Cms\Panel\Pages\AccountMeController;
 use Cbox\Cms\Panel\Pages\AddonPageController;
 use Cbox\Cms\Panel\Pages\CommandFormController;
+use Cbox\Cms\Panel\Pages\ContentListController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordPageController;
 use Cbox\Cms\Panel\Pages\HomeController;
@@ -70,15 +73,18 @@ use Illuminate\Routing\Route;
  *     an application that mounts the panel at another prefix sets it;
  *   - the pages and actions of a person who logged in, behind AuthenticatePanelSession, which
  *     takes only a request whose session cookie verifies and sends any other to the login page,
- *     VerifyPanelCsrfToken, and SharePalette, which gives every page the prop `palette`, the read
- *     of action.list the command palette is built from: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
+ *     VerifyPanelCsrfToken, SharePalette, which gives every page the prop `palette`, the read
+ *     of action.list the command palette is built from, and ShareContentTypes, which gives every
+ *     page the prop `types`, the read of type.list the navigation's Content section is built from: `GET <prefix>`, the start page, `POST <prefix>/logout`, and the
  *     Inertia profile's `POST <prefix>/commands/{command}/v{version}`, which runs a command as the
  *     person (PanelRoute::Home, Logout, Command), `GET <prefix>/commands/{command}/v{version}`,
  *     the generic command form of a command the profile exposes, rendered from the command's JSON
  *     Schema, which posts to the same address (PanelRoute::CommandForm), `GET <prefix>/account/me`,
  *     the who-am-I page, which reads actor.me as the person (PanelRoute::AccountMe), `GET <prefix>/access/roles` and
  *     `GET <prefix>/access/grants`, the roles and grants pages, which read role.list and
- *     grant.list as the person (PanelRoute::AccessRoles, AccessGrants), and
+ *     grant.list as the person (PanelRoute::AccessRoles, AccessGrants), `GET <prefix>/content` and
+ *     `GET <prefix>/content/{type}`, the content list across every type and of one, which reads
+ *     entry.list as the person (PanelRoute::ContentList, ContentListOfType), and
  *     `GET <prefix>/x/{namespace}/{path}`, a page of an addon, its PageContribution at the path,
  *     with its data query's result as its props (PanelRoute::AddonPage), or the page for a path the
  *     panel does not have when no addon has such a page or the person may not open it;
@@ -149,7 +155,7 @@ final readonly class PanelRoutes
                     self::page($router->post('reset-password', ResetPasswordController::class), PanelRoute::ResetPasswordSubmit);
                 });
 
-                $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class, SharePalette::class]], static function (Registrar $router): void {
+                $router->group(['middleware' => [AuthenticatePanelSession::class, VerifyPanelCsrfToken::class, SharePalette::class, ShareContentTypes::class]], static function (Registrar $router): void {
                     self::page($router->get('', HomeController::class), PanelRoute::Home);
                     self::page($router->post('logout', LogoutController::class), PanelRoute::Logout);
                     self::withAddons(InertiaRoutes::register($router, PanelRoute::COMMANDS_PATH, PanelRoute::Command->value), PanelRoute::Command->allowsAddons());
@@ -158,6 +164,9 @@ final readonly class PanelRoutes
                     self::page($router->get(AccountMe::PATH, AccountMeController::class), PanelRoute::AccountMe);
                     self::page($router->get(AccessRoles::PATH, AccessRolesController::class), PanelRoute::AccessRoles);
                     self::page($router->get(AccessGrants::PATH, AccessGrantsController::class), PanelRoute::AccessGrants);
+                    self::page($router->get(ContentList::PATH, ContentListController::class), PanelRoute::ContentList);
+                    self::page($router->get(ContentList::TYPE_PATH, ContentListController::class)
+                        ->where('type', ContentList::TYPE_SEGMENT), PanelRoute::ContentListOfType);
                     self::page($router->get(PanelRoute::ADDON_PAGES_PATH.'/{namespace}/{path}', AddonPageController::class)
                         ->where(['namespace' => self::NAMESPACE_SEGMENT, 'path' => self::PAGE_PATH]), PanelRoute::AddonPage);
                 });

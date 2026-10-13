@@ -1,0 +1,27 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as FilterChipStories from './FilterChip.stories';
+
+<Meta of={FilterChipStories} />
+
+# FilterChip
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={FilterChipStories} />
+
+<Canvas of={FilterChipStories.Default} />
+
+## Do and don't
+
+- Do name what the chip filters by in one word, such as Type or State; the value shows beside it once chosen.
+- Do keep the list's address in step with the chips, so a filtered list can be opened again.
+- Don't use a chip for an action; use a Button.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={FilterChipStories} />

@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Addons\AddonNamespace;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
@@ -19,6 +20,7 @@ use Cbox\Cms\Contracts\PanelPoints\Severity;
 use Cbox\Cms\Contracts\PanelPoints\StepPosition;
 use Cbox\Cms\Contracts\PanelPoints\Tighten;
 use Cbox\Cms\Contracts\PanelPoints\Tone;
+use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\PhpLocation;
 use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
@@ -38,6 +40,7 @@ use Cbox\Cms\Panel\Domain\Dto\AddonProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonTextsProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
+use Cbox\Cms\Panel\Domain\Dto\ContentListPage;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
 use Cbox\Cms\Panel\Domain\Dto\FieldBinding;
@@ -63,6 +66,7 @@ use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
 use Cbox\Cms\Panel\Domain\Dto\StepProp;
 use Cbox\Cms\Panel\Domain\Dto\TextProp;
+use Cbox\Cms\Panel\Domain\Dto\TypesProp;
 use Cbox\Cms\Panel\Domain\ForgotPasswordRefusal;
 use Cbox\Cms\Panel\Domain\LoginRefusal;
 use Cbox\Cms\Panel\Domain\ResetFormRefusal;
@@ -82,8 +86,10 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * command's own JSON Schema as a document, access-roles.v1.json and access-grants.v1.json the props of the roles and grants
  * pages, which read role.list and grant.list the same way, access-grant-pickers.v1.json the
  * optional prop of the grants page's pickers, the reads of actor.list, role.list and node.list,
- * and palette.v1.json the prop `palette` every page behind the login shares, the read
- * of action.list the command palette is built from. Types go one way, from PHP and the schema to
+ * palette.v1.json the prop `palette` every page behind the login shares, the read
+ * of action.list the command palette is built from, content-list.v1.json the props of the content
+ * list, which reads entry.list, and types.v1.json the prop `types` every page behind the login
+ * shares, the read of type.list the navigation's Content section is built from. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -117,12 +123,14 @@ final readonly class PanelPageSchemas
      * The kernel contracts the panel reads, by codec class: a command a contribution issues through
      * the host answers with its receipt and, for a rejection, the problem details; the result of
      * actor.me, which the who-am-I page reads from its props; the result of action.list, which the
-     * command palette reads; and the results of role.list, grant.list, actor.list and node.list,
-     * which the roles and grants pages and the pickers of the grants page read.
+     * command palette reads; the results of role.list, grant.list, actor.list and node.list,
+     * which the roles and grants pages and the pickers of the grants page read; and the results of
+     * entry.list and type.list, with the type editor descriptor type.list embeds, which the content
+     * list and the navigation read.
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'DryRunSummaryCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1', 'RoleListCodecV1'];
+    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'DryRunSummaryCodecV1', 'EntryListCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1', 'RoleListCodecV1', 'TypeEditorCodecV1', 'TypeListCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
@@ -170,6 +178,12 @@ final readonly class PanelPageSchemas
             self::page('brand.v1.json', 'PanelBrandCodecV1', [
                 '#' => PanelBrand::class,
                 '#/$defs/logo' => PanelBrandLogo::class,
+            ]),
+            self::page('content-list.v1.json', 'ContentListPageCodecV1', ['#' => ContentListPage::class], [
+                '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/properties/result' => ValueBinding::document(JsonDocument::class),
+                '#/properties/state' => ValueBinding::enum(ReleaseState::class),
+                '#/properties/type' => ValueBinding::value(TypeName::class),
             ]),
             self::page('contributions.v1.json', 'ContributionsCodecV1', [
                 '#' => ContributionsProp::class,
@@ -231,6 +245,10 @@ final readonly class PanelPageSchemas
             ], [
                 '#/$defs/refusals/properties/form' => ValueBinding::enum(ResetFormRefusal::class),
                 '#/$defs/refusals/properties/password' => ValueBinding::enum(ResetPasswordRefusal::class),
+            ]),
+            self::page('types.v1.json', 'TypesPropCodecV1', ['#' => TypesProp::class], [
+                '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/properties/result' => ValueBinding::document(JsonDocument::class),
             ]),
         ];
     }

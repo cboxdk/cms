@@ -1,0 +1,50 @@
+@layer cms.kit {
+  .cms-segmented-control {
+    display: inline-flex;
+    gap: 2px;
+    padding: 2px;
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-muted);
+  }
+
+  .cms-segmented-control__option {
+    min-block-size: calc(var(--cms-target-size) - 6px);
+    padding-inline: var(--cms-space-3);
+    border: 1px solid transparent;
+    border-radius: var(--cms-radius-sm);
+    background: transparent;
+    color: var(--cms-color-text-muted);
+    font: inherit;
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-medium);
+    cursor: pointer;
+    outline: none;
+    transition:
+      background-color var(--cms-duration-fast) ease,
+      color var(--cms-duration-fast) ease;
+  }
+
+  .cms-segmented-control__option[data-hovered] {
+    color: var(--cms-color-text);
+  }
+
+  .cms-segmented-control__option[data-selected] {
+    border-color: var(--cms-color-border);
+    background: var(--cms-color-card);
+    box-shadow: var(--cms-shadow-card);
+    color: var(--cms-color-text);
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-segmented-control__option[data-focus-visible] {
+    outline: 2px solid var(--cms-color-focus);
+    outline-offset: 1px;
+  }
+
+  @media (forced-colors: active) {
+    .cms-segmented-control__option[data-selected] {
+      border-color: Highlight;
+    }
+  }
+}

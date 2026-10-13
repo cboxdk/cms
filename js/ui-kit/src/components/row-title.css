@@ -1,0 +1,35 @@
+@layer cms.kit {
+  .cms-row-title {
+    display: grid;
+    gap: 2px;
+    min-inline-size: 0;
+    max-inline-size: 40rem;
+    min-inline-size: 8rem;
+  }
+
+  .cms-row-title__title {
+    display: -webkit-box;
+    overflow: hidden;
+    -webkit-box-orient: vertical;
+    -webkit-line-clamp: 2;
+    line-clamp: 2;
+    color: var(--cms-color-text);
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-semibold);
+    overflow-wrap: anywhere;
+  }
+
+  .cms-row-title__title[data-fallback='true'] {
+    color: var(--cms-color-text-muted);
+    font-style: italic;
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-row-title__detail {
+    overflow: hidden;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+}

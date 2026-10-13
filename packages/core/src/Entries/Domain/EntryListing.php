@@ -28,8 +28,9 @@ interface EntryListing
 
     /**
      * At most $limit entries the context reaches, newest first, after the query's entry when it
-     * is not null, that match the query's filters; the action reads one more than the query's
-     * limit, to know whether a next page follows.
+     * is not null, that match the query's filters, each with the title field of its type from the
+     * shared head's draft as its fields, which the query pipeline strips to the reader's access;
+     * the action reads one more than the query's limit, to know whether a next page follows.
      *
      * @return list<ListedEntry>
      */

@@ -166,11 +166,13 @@ function Grants({
   rows,
   loading,
   failed,
+  density,
 }: {
   readonly globals: Readonly<Record<string, unknown>>;
   readonly rows: readonly Grant[];
   readonly loading?: boolean;
   readonly failed?: boolean;
+  readonly density?: 'comfortable' | 'compact';
 }) {
   const texts = textsOf(TEXTS, globals);
   const [sort, setSort] = useState<DataTableSort>({ column: 'actor', direction: 'ascending' });
@@ -187,6 +189,7 @@ function Grants({
       columns={columns(globals)}
       rows={sorted}
       rowKey={(grant) => grant.id}
+      density={density}
       sort={sort}
       onSortChange={setSort}
       rowActions={() => [
@@ -260,6 +263,21 @@ export const Keyboard: Story = {
     await userEvent.keyboard('{ArrowDown}{Enter}');
     check(document.body.dataset['action']?.startsWith('revoke:') === true, 'the menu takes it');
     delete document.body.dataset['action'];
+  },
+};
+
+/** Comfortable rows: taller, with room for a second line in a cell. */
+export const Comfortable: Story = {
+  render: (_args, { globals }) => <Grants globals={globals} rows={GRANTS} density="comfortable" />,
+  play: ({ canvasElement }) => {
+    const table = single(canvasElement, '.cms-data-table', HTMLDivElement);
+    const cell = table.querySelector('tbody td');
+
+    check(table.dataset['density'] === 'comfortable', 'the table says its density');
+    check(
+      cell !== null && cell.getBoundingClientRect().height >= 56,
+      'a comfortable row is taller',
+    );
   },
 };
 

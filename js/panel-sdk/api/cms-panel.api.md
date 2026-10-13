@@ -531,6 +531,9 @@ import { Fieldset } from '@cboxdk/cms-ui-kit';
 import { FieldsetProps } from '@cboxdk/cms-ui-kit';
 import { FieldShape } from '@cboxdk/cms-ui-kit';
 import { FieldsShape } from '@cboxdk/cms-ui-kit';
+import { FilterChip } from '@cboxdk/cms-ui-kit';
+import { FilterChipOption } from '@cboxdk/cms-ui-kit';
+import { FilterChipProps } from '@cboxdk/cms-ui-kit';
 import { Form } from '@cboxdk/cms-ui-kit';
 import { FormActions } from '@cboxdk/cms-ui-kit';
 import { FormActionsProps } from '@cboxdk/cms-ui-kit';
@@ -603,12 +606,17 @@ import { ReceiptSummary } from '@cboxdk/cms-ui-kit';
 import { ReceiptWaitLevel } from '@cboxdk/cms-ui-kit';
 import { RolePicker } from '@cboxdk/cms-ui-kit';
 import { RolePickerProps } from '@cboxdk/cms-ui-kit';
+import { RowTitle } from '@cboxdk/cms-ui-kit';
+import { RowTitleProps } from '@cboxdk/cms-ui-kit';
 import { SchemaForm } from '@cboxdk/cms-ui-kit';
 import { SchemaFormField } from '@cboxdk/cms-ui-kit';
 import { SchemaFormProps } from '@cboxdk/cms-ui-kit';
 import { SchemaFormTexts } from '@cboxdk/cms-ui-kit';
 import { Section } from '@cboxdk/cms-ui-kit';
 import { SectionProps } from '@cboxdk/cms-ui-kit';
+import { SegmentedControl } from '@cboxdk/cms-ui-kit';
+import { SegmentedControlProps } from '@cboxdk/cms-ui-kit';
+import { SegmentedOption } from '@cboxdk/cms-ui-kit';
 import { Select } from '@cboxdk/cms-ui-kit';
 import { SelectOption } from '@cboxdk/cms-ui-kit';
 import { SelectProps } from '@cboxdk/cms-ui-kit';
@@ -631,6 +639,7 @@ import { StatusScreenProps } from '@cboxdk/cms-ui-kit';
 import { StringShape } from '@cboxdk/cms-ui-kit';
 import { Switch } from '@cboxdk/cms-ui-kit';
 import { SwitchProps } from '@cboxdk/cms-ui-kit';
+import { TableDensity } from '@cboxdk/cms-ui-kit';
 import { Tabs } from '@cboxdk/cms-ui-kit';
 import { TabSpec } from '@cboxdk/cms-ui-kit';
 import { TabsProps } from '@cboxdk/cms-ui-kit';
@@ -918,6 +927,12 @@ export { FieldShape }
 
 export { FieldsShape }
 
+export { FilterChip }
+
+export { FilterChipOption }
+
+export { FilterChipProps }
+
 export { Form }
 
 export { FormActions }
@@ -1076,6 +1091,10 @@ export { RolePicker }
 
 export { RolePickerProps }
 
+export { RowTitle }
+
+export { RowTitleProps }
+
 export { SchemaForm }
 
 export { SchemaFormField }
@@ -1087,6 +1106,12 @@ export { SchemaFormTexts }
 export { Section }
 
 export { SectionProps }
+
+export { SegmentedControl }
+
+export { SegmentedControlProps }
+
+export { SegmentedOption }
 
 export { Select }
 
@@ -1137,6 +1162,8 @@ export { StringShape }
 export { Switch }
 
 export { SwitchProps }
+
+export { TableDensity }
 
 export { Tabs }
 

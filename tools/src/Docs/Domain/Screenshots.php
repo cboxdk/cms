@@ -97,6 +97,16 @@ final readonly class Screenshots
                 'tests/Browser/Panel/PaletteTest.php',
             ),
             new BrowserScreenshot(
+                'content-list',
+                'The content list on a desktop: the Content section of the navigation with an entry per type, the filter chips, the density switch, and the entries by their titles with their types, states and last changes.',
+                'tests/Browser/Panel/ContentListTest.php',
+            ),
+            new BrowserScreenshot(
+                'content-list-mobile',
+                'The content list on a phone: the filters and the density switch above the entries, each with its title, type and state, and the navigation folded away.',
+                'tests/Browser/Panel/ContentListTest.php',
+            ),
+            new BrowserScreenshot(
                 'access-roles',
                 'The roles page on a desktop: every role with its handle, classification ceiling and permissions, read with role.list, and the button that creates one.',
                 'tests/Browser/Panel/RolesAndGrantsTest.php',

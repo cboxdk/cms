@@ -7,6 +7,7 @@ namespace Cbox\Cms\Core\Codecs\Boundary\Generated;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Content\ReleaseState;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
@@ -46,7 +47,7 @@ final readonly class EntryListCodecV1 implements JsonCodec
         {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "entry.list result, contract version 1",
-            "description": "The result of entry.list (PRD 5.4, 8.8): a page of the entries the reader reaches, newest first, each with its system columns. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+            "description": "The result of entry.list (PRD 5.4, 8.8, 13.4): a page of the entries the reader reaches, newest first, each with its system columns and, as its fields, the title field of its type from the shared head's draft, at the reader's classification access. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryList, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
             "type": "object",
             "additionalProperties": false,
             "required": [
@@ -79,12 +80,82 @@ final readonly class EntryListCodecV1 implements JsonCodec
                     "type": "string",
                     "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
                 },
+                "fields": {
+                    "description": "The fields by handle, in the input form the type's validator reads: the owner's fields, and each extender's fields under ext by its namespace. A text, a decimal (its canonical string), a date (YYYY-MM-DD) and a date-time (RFC 3339) are strings, an integer is an integer, a boolean a boolean, a list a list and a group an object of its fields. The kernel checks the values against the type's schema when it writes them.",
+                    "type": "object",
+                    "properties": {
+                        "ext": {
+                            "$ref": "#/$defs/extension_fields"
+                        }
+                    },
+                    "propertyNames": {
+                        "anyOf": [
+                            {
+                                "const": "ext"
+                            },
+                            {
+                                "$ref": "#/$defs/field_handle"
+                            }
+                        ]
+                    },
+                    "additionalProperties": {
+                        "$ref": "#/$defs/field_value"
+                    }
+                },
+                "extension_fields": {
+                    "description": "The extension fields, an object of fields by handle for each extender's namespace.",
+                    "type": "object",
+                    "propertyNames": {
+                        "$ref": "#/$defs/field_namespace"
+                    },
+                    "additionalProperties": {
+                        "type": "object",
+                        "propertyNames": {
+                            "$ref": "#/$defs/field_handle"
+                        },
+                        "additionalProperties": {
+                            "$ref": "#/$defs/field_value"
+                        }
+                    }
+                },
+                "field_handle": {
+                    "description": "A field's handle: lowercase snake_case of at most 63 characters without a double underscore, never ext and never starting with cms_.",
+                    "type": "string",
+                    "maxLength": 63,
+                    "pattern": "^(?!cms_)(?!ext$)[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+                },
+                "field_namespace": {
+                    "description": "An extender's namespace: 1 to 20 lowercase letters and digits, starting with a letter, never ext.",
+                    "type": "string",
+                    "pattern": "^(?!ext$)[a-z][a-z0-9]{0,19}$"
+                },
+                "field_value": {
+                    "description": "A field's value: a string, an integer, a boolean, null, a list of values or an object of values by a key of 1 to 255 bytes.",
+                    "type": [
+                        "string",
+                        "integer",
+                        "boolean",
+                        "null",
+                        "array",
+                        "object"
+                    ],
+                    "items": {
+                        "$ref": "#/$defs/field_value"
+                    },
+                    "propertyNames": {
+                        "minLength": 1
+                    },
+                    "additionalProperties": {
+                        "$ref": "#/$defs/field_value"
+                    }
+                },
                 "listed_entry": {
-                    "description": "An entry's system columns (PRD 5.4).",
+                    "description": "An entry's system columns (PRD 5.4) and the title its editor descriptor names.",
                     "type": "object",
                     "additionalProperties": false,
                     "required": [
                         "changed_at",
+                        "fields",
                         "home",
                         "id",
                         "lifecycle",
@@ -97,6 +168,10 @@ final readonly class EntryListCodecV1 implements JsonCodec
                             "description": "The entry's last change: the newest of its creation, its revisions, its head snapshots and its releases and withdrawals, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read.",
                             "type": "string",
                             "format": "date-time"
+                        },
+                        "fields": {
+                            "description": "The title field of the entry's type (type-editor.v1.json's title_field) with its value in the shared head's draft, in the input form, left out above the reader's classification access, for an agent when the blueprint does not open it to agents, when the type names no title field, when the draft holds no value in it, or when the draft was written under another schema version than the type's; never another field. A list of entries is shown by it.",
+                            "$ref": "#/$defs/fields"
                         },
                         "home": {
                             "description": "The entry's home node.",
@@ -196,6 +271,7 @@ final readonly class EntryListCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->changed_at = JsonValues::encodeDatetime($object->changedAt);
+        $json->fields = JsonValues::encodeFieldValues($object->fields);
         $json->home = $object->home->toString();
         $json->id = $object->id->toString();
         $json->lifecycle = $object->lifecycle->value;
@@ -208,7 +284,7 @@ final readonly class EntryListCodecV1 implements JsonCodec
 
     private function decodeListedEntry(mixed $value, FieldPath $path): ListedEntry
     {
-        $object = JsonValues::object($value, $path, ['changed_at', 'home', 'id', 'lifecycle', 'state', 'type', 'version']);
+        $object = JsonValues::object($value, $path, ['changed_at', 'fields', 'home', 'id', 'lifecycle', 'state', 'type', 'version']);
 
         return JsonValues::build($path, static fn (): ListedEntry => new ListedEntry(
             id: JsonValues::required($object, 'id', $path, static fn (mixed $value, FieldPath $at): EntryId => JsonValues::id($value, $at, EntryId::fromString(...))),
@@ -218,6 +294,7 @@ final readonly class EntryListCodecV1 implements JsonCodec
             state: JsonValues::present($object, 'state', $path, static fn (mixed $value, FieldPath $at): ReleaseState => JsonValues::enum($value, $at, ReleaseState::class)),
             changedAt: JsonValues::required($object, 'changed_at', $path, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at)),
             version: JsonValues::required($object, 'version', $path, static fn (mixed $value, FieldPath $at): AggregateVersion => JsonValues::integerValue($value, $at, static fn (int $number): AggregateVersion => new AggregateVersion($number), min: 1)),
+            fields: JsonValues::required($object, 'fields', $path, static fn (mixed $value, FieldPath $at): FieldValues => JsonValues::fieldValues($value, $at)),
         ));
     }
 }

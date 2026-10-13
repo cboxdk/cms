@@ -1,14 +1,8 @@
 import { useRef } from 'react';
-import { useButton, useMenu, useMenuItem, useMenuTrigger, type AriaMenuOptions } from 'react-aria';
-import {
-  Item,
-  useMenuTriggerState,
-  useTreeState,
-  type Key,
-  type Node,
-  type TreeState,
-} from 'react-stately';
+import { useButton, useMenuTrigger } from 'react-aria';
+import { useMenuTriggerState, type Key } from 'react-stately';
 
+import { MenuList } from './internal/MenuList';
 import { Popover } from './internal/Popover';
 import { Icon, type IconName } from './Icon';
 
@@ -113,52 +107,5 @@ export function Menu({ trigger, items, onAction, disabled = false }: MenuProps) 
         </Popover>
       ) : null}
     </>
-  );
-}
-
-function MenuList(
-  props: AriaMenuOptions<MenuItemSpec> & { readonly items: readonly MenuItemSpec[] },
-) {
-  const state = useTreeState({
-    ...props,
-    children: (item: MenuItemSpec) => (
-      <Item key={item.id} textValue={item.label}>
-        {item.label}
-      </Item>
-    ),
-  });
-  const ref = useRef<HTMLUListElement>(null);
-  const { menuProps } = useMenu(props, state, ref);
-
-  return (
-    <ul {...menuProps} ref={ref} className="cms-option-list">
-      {[...state.collection].map((node) => (
-        <MenuEntry key={node.key} node={node} state={state} />
-      ))}
-    </ul>
-  );
-}
-
-function MenuEntry({
-  node,
-  state,
-}: {
-  readonly node: Node<MenuItemSpec>;
-  readonly state: TreeState<MenuItemSpec>;
-}) {
-  const ref = useRef<HTMLLIElement>(null);
-  const { menuItemProps, isFocused, isDisabled } = useMenuItem({ key: node.key }, state, ref);
-
-  return (
-    <li
-      {...menuItemProps}
-      ref={ref}
-      className="cms-option"
-      data-focused={isFocused}
-      data-disabled={isDisabled}
-      data-tone={node.value?.tone ?? 'neutral'}
-    >
-      {node.rendered}
-    </li>
   );
 }

@@ -7,13 +7,17 @@
 // the entry of, or a page of an addon below /x/<namespace>/, and the page in the main landmark the
 // skip link leads to. The command palette opens from every page with Ctrl+K or Command+K and from
 // its button in the top bar, built from the prop `palette` every page behind the login shares; the
-// nav entries are its pages too. Each page keeps its sign-out in its own content.
+// nav entries are its pages too. Below the pages, the Content section opens the content list across
+// every type and of each type, one entry per type of the prop `types`, the read of type.list, so
+// the navigation offers the types the person may see and names no type itself. Each page keeps its
+// sign-out in its own content.
 
 import { AppShell, Brand, SideNav } from '@cboxdk/cms-ui-kit';
 import { router, usePage } from '@inertiajs/react';
-import type { ReactNode } from 'react';
+import { useMemo, type ReactNode } from 'react';
 
 import { useBrand } from '../brand';
+import { typeListUrl, typesOf } from '../content/types';
 import { PointHost, usePointHost, type HostAction } from '../host';
 import { useHostRuntime } from '../host/runtime';
 import { useTranslation } from '../i18n/translations';
@@ -35,16 +39,46 @@ export function commandFormUrl(commands: string, command: string): string {
 export interface PanelShellProps {
   /** The id of the page shown, which its nav entry is marked as; undefined for a page without an entry. */
   readonly page?: string | undefined;
+  /**
+   * On the content list, the name of the type it lists, or null for the list across every type,
+   * which its entry in the Content section is marked as; undefined on every other page.
+   */
+  readonly contentType?: string | null | undefined;
   readonly children: ReactNode;
 }
 
 /** The shell around a page behind the login: the brand, the viewer's menu, the navigation and the main landmark. */
-export function PanelShell({ page, children }: PanelShellProps) {
+export function PanelShell({ page, contentType, children }: PanelShellProps) {
   const { t } = useTranslation();
   const brand = useBrand();
   const { nav } = usePointHost('shell.nav@1');
   const { contributions } = useHostRuntime();
-  const palette = usePage().props.palette;
+  const shared = usePage().props;
+  const palette = shared.palette;
+  const types = useMemo(() => typesOf(shared['types']), [shared]);
+  const content =
+    types.status === 'ready'
+      ? [
+          {
+            id: 'content',
+            label: t('panel.shell.content'),
+            items: [
+              {
+                id: 'content.all',
+                label: t('panel.nav.content_all'),
+                href: types.content,
+                current: contentType === null,
+              },
+              ...types.types.map((type) => ({
+                id: `content.${type.name}`,
+                label: type.label,
+                href: typeListUrl(types.content, type.name),
+                current: contentType === type.name,
+              })),
+            ],
+          },
+        ]
+      : [];
 
   // An action of the viewer's menu whose manifest asks for the command's form opens that form.
   function openForm(action: HostAction): void {
@@ -65,19 +99,24 @@ export function PanelShell({ page, children }: PanelShellProps) {
         </>
       }
       navigation={
-        nav.length === 0 ? null : (
+        nav.length === 0 && content.length === 0 ? null : (
           <SideNav
             label={t('panel.shell.nav')}
             groups={[
-              {
-                id: 'pages',
-                items: nav.map((entry) => ({
-                  id: entry.id,
-                  label: entry.label,
-                  href: entry.url,
-                  current: entry.page === page,
-                })),
-              },
+              ...(nav.length === 0
+                ? []
+                : [
+                    {
+                      id: 'pages',
+                      items: nav.map((entry) => ({
+                        id: entry.id,
+                        label: entry.label,
+                        href: entry.url,
+                        current: entry.page === page,
+                      })),
+                    },
+                  ]),
+              ...content,
             ]}
           />
         )
