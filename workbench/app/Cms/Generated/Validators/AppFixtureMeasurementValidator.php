@@ -6,12 +6,15 @@ namespace Workbench\App\Cms\Generated\Validators;
 
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\FieldReference;
 use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Contracts\Validation\Rule;
 use Cbox\Cms\Contracts\Validation\RuleName;
 use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Override;
 
 /**
@@ -38,6 +41,10 @@ use Override;
  *   fixture_sensor.fixture_sensor_contact: text, optional
  *   fixture_sensor.fixture_sensor_manual: text, optional
  *   fixture_series: group, optional
+ *   fixture_series[].fixture_series_check: text, required, shown on a condition, clear when hidden
+ *   fixture_series[].fixture_series_device: text, optional, shown on a condition, keep when hidden
+ *   fixture_series[].fixture_series_method: select, optional
+ *   fixture_series[].fixture_series_operator: text, required, shown on a condition, clear when hidden
  *   fixture_series[].fixture_series_taken_at: datetime, optional
  *   fixture_series[].fixture_series_value: decimal, required
  *   fixture_station: text, optional
@@ -176,6 +183,50 @@ final readonly class AppFixtureMeasurementValidator implements TypeValidator
                         new Rule(RuleName::MaxItems, ['3']),
                     ],
                     [
+                        new FieldRules(
+                            new FieldHandle('fixture_series_check'),
+                            Presence::Required,
+                            [
+                                new Rule(RuleName::String),
+                                new Rule(RuleName::MaxLength, ['60']),
+                            ],
+                            when: Condition::all([
+                                Condition::notNull(new FieldReference(0, new FieldHandle('fixture_series_method'))),
+                                Condition::in(new FieldReference(1, new FieldHandle('fixture_scale')), ['fixture_kelvin']),
+                            ]),
+                            whenHidden: WhenHidden::Clear,
+                        ),
+                        new FieldRules(
+                            new FieldHandle('fixture_series_device'),
+                            Presence::Optional,
+                            [
+                                new Rule(RuleName::String),
+                                new Rule(RuleName::MaxLength, ['60']),
+                            ],
+                            when: Condition::any([
+                                Condition::eq(new FieldReference(0, new FieldHandle('fixture_series_method')), 'fixture_logged'),
+                                Condition::eq(new FieldReference(1, new FieldHandle('fixture_calibrated')), true),
+                            ]),
+                            whenHidden: WhenHidden::Keep,
+                        ),
+                        new FieldRules(
+                            new FieldHandle('fixture_series_method'),
+                            Presence::Optional,
+                            [
+                                new Rule(RuleName::String),
+                                new Rule(RuleName::In, ['fixture_manual', 'fixture_logged']),
+                            ],
+                        ),
+                        new FieldRules(
+                            new FieldHandle('fixture_series_operator'),
+                            Presence::Required,
+                            [
+                                new Rule(RuleName::String),
+                                new Rule(RuleName::MaxLength, ['60']),
+                            ],
+                            when: Condition::eq(new FieldReference(0, new FieldHandle('fixture_series_method')), 'fixture_manual'),
+                            whenHidden: WhenHidden::Clear,
+                        ),
                         new FieldRules(
                             new FieldHandle('fixture_series_taken_at'),
                             Presence::Optional,

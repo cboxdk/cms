@@ -12,6 +12,7 @@ use Cbox\Cms\Generators\Codec\Domain\PhpCodecEmitter;
 use Cbox\Cms\Generators\Codec\Domain\PhpDtoEmitter;
 use Cbox\Cms\Generators\Codec\Domain\RecordContracts;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
@@ -60,7 +61,8 @@ final readonly class PhpRecordDtos implements Generator
     public function generate(CompiledSchema $schema, GenerationTarget $target): array
     {
         $location = new PhpLocation($target->phpDirectory, $target->phpNamespace);
-        $contracts = array_map(RecordContracts::of(...), $schema->types);
+        $validators = $location->below(PhpTypeValidators::DIRECTORY);
+        $contracts = array_map(static fn (TypeDescriptor $type): CodecContract => RecordContracts::of($type, $validators->className(PhpTypeValidators::className($type))), $schema->types);
         $this->assertNames($contracts);
         $files = [];
 

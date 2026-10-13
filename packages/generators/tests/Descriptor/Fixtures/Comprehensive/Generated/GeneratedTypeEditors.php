@@ -31,6 +31,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Override;
 
 /**
@@ -106,6 +107,8 @@ final readonly class GeneratedTypeEditors implements TypeEditors
                         choices: [],
                         repeat: null,
                         rule: new JsonDocument('{"kind":"text","maxLength":255,"format":"email"}'),
+                        when: new JsonDocument('{"op":"neq","field":{"up":0,"key":"discontinued"},"value":true}'),
+                        whenHidden: WhenHidden::Clear,
                     ),
                     new EditorField(
                         path: 'summary',
@@ -440,13 +443,15 @@ final readonly class GeneratedTypeEditors implements TypeEditors
                         base: EditorBase::Integer,
                         label: 'Width',
                         description: 'The width in millimetres.',
-                        presence: Presence::Optional,
+                        presence: Presence::Required,
                         classification: ClassificationAccess::Public,
                         agents: true,
                         encrypted: false,
                         choices: [],
                         repeat: null,
                         rule: new JsonDocument('{"kind":"integer","min":1}'),
+                        when: new JsonDocument('{"op":"all","conditions":[{"op":"eq","field":{"up":0,"key":"size"},"value":"large"},{"op":"not_null","field":{"up":1,"key":"discontinued"}}]}'),
+                        whenHidden: WhenHidden::Keep,
                     ),
                     new EditorField(
                         path: 'purchase_price',

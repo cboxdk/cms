@@ -6,6 +6,8 @@ namespace Cbox\Cms\Generators\Codec\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 
 /**
  * A property of a generated DTO and the key of its JSON form (GUARDRAILS 2.2).
@@ -37,7 +39,26 @@ final readonly class CodecProperty
         public string $description,
         public bool $nullable = false,
         public ?string $default = null,
+        public ?Condition $when = null,
+        public ?WhenHidden $whenHidden = null,
     ) {}
+
+    /**
+     * Whether the property is shown on a condition (gap G3).
+     */
+    public function conditional(): bool
+    {
+        return $this->when instanceof Condition;
+    }
+
+    /**
+     * Whether the key must be present wherever the object is: a required property that is not
+     * conditional.
+     */
+    public function alwaysRequired(): bool
+    {
+        return $this->required && ! $this->conditional();
+    }
 
     /**
      * Whether a caller may be denied the property: it is classified above public.
@@ -52,7 +73,7 @@ final readonly class CodecProperty
      */
     public function omittable(): bool
     {
-        return (! $this->required && $this->default === null) || $this->withheld();
+        return (! $this->alwaysRequired() && $this->default === null) || $this->withheld();
     }
 
     /**
@@ -60,6 +81,6 @@ final readonly class CodecProperty
      */
     public function mayBeNull(): bool
     {
-        return (! $this->required && $this->default === null) || $this->nullable;
+        return (! $this->alwaysRequired() && $this->default === null) || $this->nullable;
     }
 }

@@ -14,6 +14,10 @@ export type AppFixtureMeasurementV1FixtureAlertsChoice =
 /** The values of AppFixtureMeasurementV1FixtureScaleChoice. */
 export type AppFixtureMeasurementV1FixtureScaleChoice = 'fixture_celsius' | 'fixture_kelvin';
 
+/** The values of AppFixtureMeasurementV1FixtureSeriesFixtureSeriesMethodChoice. */
+export type AppFixtureMeasurementV1FixtureSeriesFixtureSeriesMethodChoice =
+  'fixture_manual' | 'fixture_logged';
+
 /**
  * The record of app:fixture_measurement in contract version 1 (PRD 8.9): every field of the type.
  * Fixture measurement: One reading of a sensor at a station.
@@ -71,6 +75,14 @@ export interface AppFixtureMeasurementV1FixtureSensor {
  * this file: change the blueprints and run cms:generate.
  */
 export interface AppFixtureMeasurementV1FixtureSeries {
+  /** Series check: How the single reading was checked against the kelvin scale. */
+  fixture_series_check?: string | null;
+  /** Series device: The device that logged the single reading, or the calibrated sensor's. */
+  fixture_series_device?: string | null;
+  /** Series method: How the single reading was taken. */
+  fixture_series_method?: AppFixtureMeasurementV1FixtureSeriesFixtureSeriesMethodChoice | null;
+  /** Series operator: Who took the single reading by hand. */
+  fixture_series_operator?: string | null;
   /** Series taken at: When the single reading was taken. */
   fixture_series_taken_at?: string | null;
   /** Series value: One single reading. */
@@ -95,6 +107,46 @@ const appFixtureMeasurementV1FixtureSensorRule: ObjectRule = {
 
 const appFixtureMeasurementV1FixtureSeriesRule: ObjectRule = {
   properties: [
+    {
+      key: 'fixture_series_check',
+      presence: 'optional',
+      value: { kind: 'text', maxLength: 60 },
+      when: {
+        op: 'all',
+        conditions: [
+          { op: 'not_null', field: { up: 0, key: 'fixture_series_method' } },
+          { op: 'in', field: { up: 1, key: 'fixture_scale' }, values: ['fixture_kelvin'] },
+        ],
+      },
+      whenHidden: 'clear',
+      requiredWhenShown: true,
+    },
+    {
+      key: 'fixture_series_device',
+      presence: 'optional',
+      value: { kind: 'text', maxLength: 60 },
+      when: {
+        op: 'any',
+        conditions: [
+          { op: 'eq', field: { up: 0, key: 'fixture_series_method' }, value: 'fixture_logged' },
+          { op: 'eq', field: { up: 1, key: 'fixture_calibrated' }, value: true },
+        ],
+      },
+      whenHidden: 'keep',
+    },
+    {
+      key: 'fixture_series_method',
+      presence: 'optional',
+      value: { kind: 'choice', choices: ['fixture_manual', 'fixture_logged'] },
+    },
+    {
+      key: 'fixture_series_operator',
+      presence: 'optional',
+      value: { kind: 'text', maxLength: 60 },
+      when: { op: 'eq', field: { up: 0, key: 'fixture_series_method' }, value: 'fixture_manual' },
+      whenHidden: 'clear',
+      requiredWhenShown: true,
+    },
     {
       key: 'fixture_series_taken_at',
       presence: 'optional',

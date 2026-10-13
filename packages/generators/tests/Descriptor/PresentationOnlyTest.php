@@ -89,7 +89,7 @@ function presentationOutput(CompiledSchema $schema, string $base): array
         new PhpTypeHandleEnum,
         new PhpRecords,
         new PhpTypeCatalog(ServiceProvider::class),
-        new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))),
+        new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...), RuleJson::condition(...))),
         new PhpTypeQueries,
         new PhpTypeValidators,
         new TypeScriptTypeHandles,

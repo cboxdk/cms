@@ -6,12 +6,17 @@ namespace Cbox\Cms\Generators\Codec\Domain;
 
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\ConditionOperator;
+use Cbox\Cms\Contracts\Validation\FieldReference;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\ArrayLiteral;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\BooleanLiteral;
+use Cbox\Cms\Generators\Codec\Domain\TypeScript\Literal;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\LiteralPrinter;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\NumberLiteral;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\ObjectLiteral;
@@ -43,7 +48,11 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
  * - `key: T` when it is required,
  * - `key: T | null` when it is required and nullable,
  * - `key?: T` when it has a default or is withheld above a classification (PRD 12.2), and
- * - `key?: T | null` when it is optional.
+ * - `key?: T | null` when it is optional or shown on a condition (gap G3).
+ *
+ * A conditional key's rule carries its condition, `when`, its `whenHidden`, and `requiredWhenShown`
+ * when it needs a value while it is shown and is not withheld, so the runtime checks the conditions
+ * as the PHP codec does once every value passed its rules.
  *
  * The validator checks the keys of an object in the order the PHP codec reads them, after refusing
  * a key the contract does not have, so both name the same first value that breaks a rule. The one
@@ -366,8 +375,8 @@ final readonly class TypeScriptEmitter
     private static function presence(CodecProperty $property): string
     {
         return match (true) {
-            $property->withheld() => $property->required ? 'omittable' : 'optional',
-            $property->required => $property->nullable ? 'present' : 'required',
+            $property->withheld() => $property->alwaysRequired() ? 'omittable' : 'optional',
+            $property->alwaysRequired() => $property->nullable ? 'present' : 'required',
             $property->default !== null => $property->nullable ? 'optional' : 'omittable',
             default => 'optional',
         };
@@ -387,14 +396,61 @@ final readonly class TypeScriptEmitter
                 PhpSource::assertKey($property, $object);
                 PhpSource::assertRules($property->value, $object->className.'::$'.$property->name);
 
+                $when = $property->when;
+                $conditional = $when instanceof Condition && $property->whenHidden instanceof WhenHidden ? [
+                    new Property('when', self::conditionRule($when)),
+                    new Property('whenHidden', new StringLiteral($property->whenHidden->value)),
+                    ...($property->required && ! $property->withheld() ? [new Property('requiredWhenShown', new BooleanLiteral(true))] : []),
+                ] : [];
+
                 return new ObjectLiteral([
                     new Property('key', new StringLiteral($property->key)),
                     new Property('presence', new StringLiteral(self::presence($property))),
                     new Property('value', self::valueRule($property->value, $names)),
+                    ...$conditional,
                 ]);
             },
             $object->constructorOrder(),
         )))]);
+    }
+
+    /**
+     * A field's condition as the runtime's ConditionRule (gap G3): `op`, and the `field` it reads as
+     * `up` and `key` with the `value` or `values` it compares with, or the `conditions` all and any
+     * combine. The editor descriptor carries the same form per conditional field (RuleJson).
+     */
+    public static function conditionRule(Condition $condition): ObjectLiteral
+    {
+        $field = $condition->field;
+        $operator = new Property('op', new StringLiteral($condition->operator->value));
+
+        if (! $field instanceof FieldReference) {
+            return new ObjectLiteral([$operator, new Property('conditions', new ArrayLiteral(array_map(self::conditionRule(...), $condition->conditions)))]);
+        }
+
+        $values = array_map(self::conditionValue(...), $condition->values);
+
+        return new ObjectLiteral([
+            $operator,
+            new Property('field', new ObjectLiteral([
+                new Property('up', NumberLiteral::of($field->up)),
+                new Property('key', new StringLiteral($field->handle->value)),
+            ])),
+            ...match ($condition->operator) {
+                ConditionOperator::Eq, ConditionOperator::Neq => [new Property('value', $values[0])],
+                ConditionOperator::In => [new Property('values', new ArrayLiteral($values))],
+                default => [],
+            },
+        ]);
+    }
+
+    private static function conditionValue(string|int|bool $value): Literal
+    {
+        return match (true) {
+            is_bool($value) => new BooleanLiteral($value),
+            is_int($value) => NumberLiteral::of($value),
+            default => new StringLiteral($value),
+        };
     }
 
     /**

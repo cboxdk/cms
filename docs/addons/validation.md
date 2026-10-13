@@ -1,7 +1,7 @@
 ---
 title: Runtime validators
 weight: 45
-description: "The runtime validators cms:generate writes per type for input from outside the repository: the TypeValidator contract, the rules in their vocabulary, and the kernel's InputValidator that checks input against them and returns field errors with paths and codes."
+description: "The runtime validators cms:generate writes per type for input from outside the repository: the TypeValidator contract, the rules in their vocabulary, the conditions of conditional fields, and the kernel's InputValidator that checks input against them and returns field errors with paths and codes."
 ---
 
 # Runtime validators
@@ -9,6 +9,7 @@ description: "The runtime validators cms:generate writes per type for input from
 <!-- extension-point: Cbox\Cms\Contracts\Validation\TypeValidator -->
 <!-- extension-point: Cbox\Cms\Contracts\Validation\TypeValidators -->
 <!-- extension-point: Cbox\Cms\Testkit\Validation\TypeValidatorsContract -->
+<!-- extension-point: Cbox\Cms\Contracts\Validation\ConditionValues -->
 
 Inside the repository PHPStan and the TypeScript compiler catch every wrong field. At the boundaries they cannot: a command's fields from the REST API, MCP, the CLI or a sidecar arrive as JSON that no compiler has seen (PRD 11.12). There the kernel checks the input at run time, against rules generated from the same schema as the type table, the records and the TypeScript types.
 
@@ -18,7 +19,8 @@ Inside the repository PHPStan and the TypeScript compiler catch every wrong fiel
 
 - the owner's fields, each a `FieldRules` with its handle, its `Presence` and its rules;
 - each extender's fields in an `ExtensionRules` under its namespace, as the input holds them under `ext.<namespace>` (PRD 11.12 point 2);
-- a group's nested fields below its `FieldRules`.
+- a group's nested fields below its `FieldRules`;
+- for a conditional field, its condition and what happens to its value while it is hidden, see [Conditional fields](#conditional-fields).
 
 A field's rules start with its type rule, which says what the field holds: `string`, `integer`, `decimal` (a number written as a string, never a float, with its precision and scale), `boolean`, `date`, `datetime`, `object` for a group, `list` for a repeated group or a select with several choices, and `portable_text` for rich text. The rules that follow narrow it: `min_length` and `max_length`, `min` and `max`, `format` (`email` or `url`), `in` and `items_in` for the options of a select, `distinct`, `min_items` and `max_items`, and `styles`, `marks`, `lists` and `links` for rich text. The names are the enum `RuleName`; a rule that contradicts itself throws `InvalidRules`, because it can only come from wrong generated code.
 
@@ -147,6 +149,178 @@ it('requires the extension field only when the entry is released', function (): 
     expect($validator->validateWith(new NoteValidator, $input, ValidationStage::Write)->passed())->toBeTrue()
         ->and($validator->validateWith(new NoteValidator, $input, ValidationStage::Release)->errors[0]->path?->toString())->toBe('ext.app.review_by')
         ->and($validator->validateWith(new NoteValidator, [...$input, 'ext' => ['app' => ['review_by' => '2026-10-01']]], ValidationStage::Release)->passed())->toBeTrue();
+});
+```
+
+## Conditional fields
+
+A field with `when` in its blueprint (gap G3, see [Conditional fields](blueprint-v1.md#conditional-fields)) has its condition in its `FieldRules`, a `Cbox\Cms\Contracts\Validation\Condition`, and its `WhenHidden`, `Clear` or `Keep`; a field has both or neither. A condition compares one field with `Condition::eq()`, `neq()` or `in()`, asks it for a value with `isNull()` or `notNull()`, or combines conditions with `all()` and `any()`. Its `FieldReference` names a sibling with `up` 0, or a sibling of a group the field is in with `up` 1 and more, an item of a repeated group being one object; `TypeRules` and `ExtensionRules` refuse a reference to no field with `InvalidRules`.
+
+`InputValidator` reads each condition from the values as the input holds them. While it does not hold, the field is hidden: it is never required, at the write stage or the release stage, whatever its `Presence`, and with `WhenHidden::Clear` a value for it is the error `validation_hidden_field`. With `WhenHidden::Keep` the value stays and is checked by its rules. The record's JSON codec and its TypeScript validator check the same conditions once every value has passed its rules, so the three give the same verdict at the same path.
+
+`Condition::holds()` reads its values through `Cbox\Cms\Contracts\Validation\ConditionValues`: `isNull()` for a field left out or null, and `is()` for a field whose value is a text, a whole number or a boolean equal to the one given. The input validator, the codecs and the seeder each read their own form of the values through one; code that shows or hides a field over values of another form, such as a form's state, implements it the same way.
+
+This example is in the `Unit` suite. The validator has the form `cms:generate` writes for a type with conditional fields:
+
+<!-- example-file: examples/Unit/Validation/LinkValidator.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+namespace Examples\Unit\Validation;
+
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\FieldReference;
+use Cbox\Cms\Contracts\Validation\FieldRules;
+use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\Rule;
+use Cbox\Cms\Contracts\Validation\RuleName;
+use Cbox\Cms\Contracts\Validation\TypeRules;
+use Cbox\Cms\Contracts\Validation\TypeValidator;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
+use Override;
+
+/**
+ * The validator of a link type with conditional fields, in the form cms:generate writes one: a
+ * target, a URL required while the target is external and cleared when it is hidden, and a group
+ * whose medium is shown while its campaign has a value and the link's target, one group up, is
+ * external, and keeps its value when it is hidden.
+ */
+final readonly class LinkValidator implements TypeValidator
+{
+    #[Override]
+    public function type(): TypeId
+    {
+        return TypeId::fromString('0199b1c2-3d4e-7f50-8a61-7b8c9d0e1f3b');
+    }
+
+    #[Override]
+    public function rules(): TypeRules
+    {
+        return new TypeRules([
+            new FieldRules(
+                new FieldHandle('target'),
+                Presence::Required,
+                [
+                    new Rule(RuleName::String),
+                    new Rule(RuleName::In, ['page', 'external']),
+                ],
+            ),
+            new FieldRules(
+                new FieldHandle('tracking'),
+                Presence::Optional,
+                [
+                    new Rule(RuleName::Object),
+                ],
+                [
+                    new FieldRules(
+                        new FieldHandle('campaign'),
+                        Presence::Optional,
+                        [
+                            new Rule(RuleName::String),
+                        ],
+                    ),
+                    new FieldRules(
+                        new FieldHandle('medium'),
+                        Presence::Optional,
+                        [
+                            new Rule(RuleName::String),
+                            new Rule(RuleName::MaxLength, ['20']),
+                        ],
+                        when: Condition::all([
+                            Condition::notNull(new FieldReference(0, new FieldHandle('campaign'))),
+                            Condition::eq(new FieldReference(1, new FieldHandle('target')), 'external'),
+                        ]),
+                        whenHidden: WhenHidden::Keep,
+                    ),
+                ],
+            ),
+            new FieldRules(
+                new FieldHandle('url'),
+                Presence::Required,
+                [
+                    new Rule(RuleName::String),
+                    new Rule(RuleName::Format, ['url']),
+                ],
+                when: Condition::eq(new FieldReference(0, new FieldHandle('target')), 'external'),
+                whenHidden: WhenHidden::Clear,
+            ),
+        ]);
+    }
+}
+```
+
+<!-- example: examples/Unit/Validation/ConditionalInputTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\ConditionValues;
+use Cbox\Cms\Contracts\Validation\FieldReference;
+use Cbox\Cms\Contracts\Validation\ValidationReport;
+use Cbox\Cms\Contracts\Validation\ValidationStage;
+use Cbox\Cms\Core\Validation\Boundary\InputValidator;
+use Examples\Unit\Validation\LinkValidator;
+
+// A conditional field is required only while it is shown, at every stage, and a hidden field of
+// when_hidden: clear may hold no value. A hidden field of keep keeps its value, which its rules
+// still check.
+
+/**
+ * @return list<string>
+ */
+function linkErrors(ValidationReport $report): array
+{
+    return array_map(static fn (CatalogError $error): string => $error->path?->toString().': '.$error->code->value, $report->errors);
+}
+
+it('requires the URL only while the target is external, and refuses one for a page', function (): void {
+    $validator = new InputValidator;
+
+    expect(linkErrors($validator->validateWith(new LinkValidator, ['target' => 'page'], ValidationStage::Release)))->toBe([])
+        ->and(linkErrors($validator->validateWith(new LinkValidator, ['target' => 'external'])))->toBe(['url: validation_required'])
+        ->and(linkErrors($validator->validateWith(new LinkValidator, ['target' => 'external', 'url' => 'https://example.org'])))->toBe([])
+        ->and(linkErrors($validator->validateWith(new LinkValidator, ['target' => 'page', 'url' => 'https://example.org'])))->toBe(['url: validation_hidden_field']);
+});
+
+it('reads a sibling and, one group up, the link\'s target for a nested field that keeps its value', function (): void {
+    $validator = new InputValidator;
+    $tracking = static fn (string $target, array $fields): array => ['target' => $target, 'url' => $target === 'external' ? 'https://example.org' : null, 'tracking' => $fields];
+
+    expect(linkErrors($validator->validateWith(new LinkValidator, $tracking('external', ['campaign' => 'spring', 'medium' => 'mail']))))->toBe([])
+        ->and(linkErrors($validator->validateWith(new LinkValidator, $tracking('page', ['campaign' => 'spring', 'medium' => 'mail']))))->toBe([])
+        ->and(linkErrors($validator->validateWith(new LinkValidator, $tracking('page', ['medium' => str_repeat('m', 21)]))))->toBe(['tracking.medium: validation_too_long']);
+});
+
+it('evaluates a condition over values of another form through ConditionValues', function (): void {
+    // A form's state, by handle, read as the condition reads values: missing or null is no value.
+    $state = ['target' => 'external', 'url' => null];
+    $values = new readonly class($state) implements ConditionValues
+    {
+        /**
+         * @param  array<string, string|int|bool|null>  $state
+         */
+        public function __construct(private array $state) {}
+
+        public function isNull(FieldReference $field): bool
+        {
+            return ($this->state[$field->handle->value] ?? null) === null;
+        }
+
+        public function is(FieldReference $field, string|int|bool $value): bool
+        {
+            return ($this->state[$field->handle->value] ?? null) === $value;
+        }
+    };
+
+    expect(Condition::eq(FieldReference::sibling('target'), 'external')->holds($values))->toBeTrue()
+        ->and(Condition::all([Condition::notNull(FieldReference::sibling('target')), Condition::notNull(FieldReference::sibling('url'))])->holds($values))->toBeFalse();
 });
 ```
 

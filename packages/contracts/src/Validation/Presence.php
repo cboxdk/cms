@@ -12,6 +12,9 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * An extension field that its blueprint marks required is RequiredOnRelease: the owner's code
  * creates and revises entries without knowing the extension, so the value is required only when an
  * entry is released (PRD 11.12 point 1, invariant 36).
+ *
+ * The presence of a conditional field holds while its condition does (gap G3, FieldRules): a
+ * hidden field is never required.
  */
 #[Experimental]
 enum Presence: string

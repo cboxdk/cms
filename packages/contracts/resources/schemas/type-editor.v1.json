@@ -187,7 +187,9 @@
         "rule",
         "translatable",
         "type",
-        "ui"
+        "ui",
+        "when",
+        "when_hidden"
       ],
       "properties": {
         "agents": {
@@ -301,6 +303,21 @@
         "ui": {
           "description": "The hints the form takes for the input.",
           "$ref": "#/$defs/ui"
+        },
+        "when": {
+          "description": "The condition the field is shown on (gap G3), or null for a field that is always shown: a ConditionRule of the generated validation runtime, {\"op\":\"eq\",\"field\":{\"up\":0,\"key\":\"kind\"},\"value\":\"external\"} and the like, whose field is the key of a sibling in the field's object, up objects above it, an item of a repeated group being one object. While it does not hold, the field is hidden and never required.",
+          "type": ["object", "null"]
+        },
+        "when_hidden": {
+          "description": "What happens to the value of a conditional field while it is hidden: clear, the form clears it and the validators refuse one, or keep, it keeps its value; null for a field without a condition.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/when_hidden"
+            },
+            {
+              "type": "null"
+            }
+          ]
         }
       }
     },
@@ -547,6 +564,11 @@
           "maxLength": 200
         }
       }
+    },
+    "when_hidden": {
+      "description": "What happens to the value of a conditional field while it is hidden (gap G3): clear or keep.",
+      "type": "string",
+      "enum": ["clear", "keep"]
     }
   }
 }

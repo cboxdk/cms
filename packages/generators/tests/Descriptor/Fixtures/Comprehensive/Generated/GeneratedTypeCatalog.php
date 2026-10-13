@@ -127,7 +127,7 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                                 classification: ClassificationAccess::Public,
                                 agents: true,
                                 encrypted: false,
-                                required: false,
+                                required: true,
                                 filterable: false,
                                 sortable: false,
                                 column: null,

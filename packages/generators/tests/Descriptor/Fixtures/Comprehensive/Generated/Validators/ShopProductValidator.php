@@ -7,13 +7,16 @@ namespace Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Validation\Condition;
 use Cbox\Cms\Contracts\Validation\ExtensionRules;
+use Cbox\Cms\Contracts\Validation\FieldReference;
 use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Contracts\Validation\Rule;
 use Cbox\Cms\Contracts\Validation\RuleName;
 use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Override;
 
 /**
@@ -32,7 +35,7 @@ use Override;
  *   colour: select, required
  *   dimensions: group, optional
  *   dimensions[].size: select, required
- *   dimensions[].width: integer, optional
+ *   dimensions[].width: integer, required, shown on a condition, keep when hidden
  *   discontinued: boolean, optional
  *   launch_date: date, optional
  *   name: text, required
@@ -44,7 +47,7 @@ use Override;
  *   supplier.company: text, required
  *   supplier.notes: long_text, optional
  *   supplier.website: text, optional
- *   support_email: text, optional
+ *   support_email: text, optional, shown on a condition, clear when hidden
  *   tags: select, optional
  *   weight: integer, optional
  *   ext.app.name: text, optional
@@ -120,11 +123,16 @@ final readonly class ShopProductValidator implements TypeValidator
                         ),
                         new FieldRules(
                             new FieldHandle('width'),
-                            Presence::Optional,
+                            Presence::Required,
                             [
                                 new Rule(RuleName::Integer),
                                 new Rule(RuleName::Min, ['1']),
                             ],
+                            when: Condition::all([
+                                Condition::eq(new FieldReference(0, new FieldHandle('size')), 'large'),
+                                Condition::notNull(new FieldReference(1, new FieldHandle('discontinued'))),
+                            ]),
+                            whenHidden: WhenHidden::Keep,
                         ),
                     ],
                 ),
@@ -228,6 +236,8 @@ final readonly class ShopProductValidator implements TypeValidator
                         new Rule(RuleName::MaxLength, ['255']),
                         new Rule(RuleName::Format, ['email']),
                     ],
+                    when: Condition::neq(new FieldReference(0, new FieldHandle('discontinued')), true),
+                    whenHidden: WhenHidden::Clear,
                 ),
                 new FieldRules(
                     new FieldHandle('tags'),

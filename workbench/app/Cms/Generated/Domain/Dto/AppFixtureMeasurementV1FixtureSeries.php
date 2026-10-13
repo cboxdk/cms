@@ -17,10 +17,18 @@ use DateTimeImmutable;
 final readonly class AppFixtureMeasurementV1FixtureSeries
 {
     /**
+     * @param  string|Omitted|null  $fixtureSeriesCheck  Series check: How the single reading was checked against the kelvin scale.
+     * @param  string|Omitted|null  $fixtureSeriesDevice  Series device: The device that logged the single reading, or the calibrated sensor's.
+     * @param  'fixture_manual'|'fixture_logged'|Omitted|null  $fixtureSeriesMethod  Series method: How the single reading was taken.
+     * @param  string|Omitted|null  $fixtureSeriesOperator  Series operator: Who took the single reading by hand.
      * @param  DateTimeImmutable|Omitted|null  $fixtureSeriesTakenAt  Series taken at: When the single reading was taken.
      * @param  numeric-string  $fixtureSeriesValue  Series value: One single reading.
      */
     public function __construct(
+        public string|Omitted|null $fixtureSeriesCheck,
+        public string|Omitted|null $fixtureSeriesDevice,
+        public string|Omitted|null $fixtureSeriesMethod,
+        public string|Omitted|null $fixtureSeriesOperator,
         public DateTimeImmutable|Omitted|null $fixtureSeriesTakenAt,
         public string $fixtureSeriesValue,
     ) {}

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Descriptor\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Validation\Condition;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
@@ -94,6 +95,24 @@ final readonly class TypeDescriptorJson
                 static fn (ValidationRule $rule): array => ['arguments' => $rule->arguments, 'rule' => $rule->name->value],
                 $field->validation,
             ),
+            'when' => $field->when instanceof Condition ? self::condition($field->when) : null,
+            'when_hidden' => $field->whenHidden?->value,
+        ];
+    }
+
+    /**
+     * A field's condition (gap G3): its operator, the field it reads as `../` once per group up and
+     * a handle, the values it compares with and the conditions all and any combine.
+     *
+     * @return array<string, mixed>
+     */
+    private static function condition(Condition $condition): array
+    {
+        return [
+            'conditions' => array_map(self::condition(...), $condition->conditions),
+            'field' => $condition->field?->toString(),
+            'operator' => $condition->operator->value,
+            'values' => $condition->values,
         ];
     }
 }

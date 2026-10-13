@@ -56,6 +56,8 @@ final readonly class PhpCodecEmitter
 
     private const string JSON_VALUES = self::CODECS.'\Boundary\JsonValues';
 
+    private const string JSON_CONDITIONS = self::CODECS.'\Boundary\JsonConditions';
+
     private const string DECODING_FAILED = self::CODECS.'\Domain\DecodingFailed';
 
     private const string ENCODING_FAILED = self::CODECS.'\Domain\EncodingFailed';
@@ -117,6 +119,11 @@ final readonly class PhpCodecEmitter
 
         if ($contract->attribute !== null) {
             $classes[] = $contract->attribute;
+        }
+
+        if ($contract->conditions !== null) {
+            $classes[] = self::JSON_CONDITIONS;
+            $classes[] = $contract->conditions;
         }
 
         if ($contract->command instanceof CodecCommand) {
@@ -200,17 +207,60 @@ final readonly class PhpCodecEmitter
             '    #[Override]',
             sprintf('    public function decode(string $json, ClassificationAccess $access): %s', $root->className),
             '    {',
-            sprintf(
-                '        return $this->%s(JsonText::decode($json)%s);',
-                self::decoderName($root),
-                $root->classified() || $root->embeds() ? ', $access' : '',
-            ),
+            ...self::decodeBody($contract, $root),
             '    }',
             ...$methods,
             '}',
         ];
 
         return new GeneratedFile($codecs->directory.'/'.$contract->codecClass.'.php', implode("\n", $lines)."\n");
+    }
+
+    /**
+     * The body of decode(): the root read from the document, and for a record of a type with
+     * conditional fields (gap G3) the conditions checked once every value passed its rules, with
+     * the classification of each conditional top-level field above public, which a caller with a
+     * lower access is denied.
+     *
+     * @return list<string>
+     */
+    private static function decodeBody(CodecContract $contract, CodecObject $root): array
+    {
+        $access = $root->classified() || $root->embeds() ? ', $access' : '';
+
+        if ($contract->conditions === null) {
+            return [sprintf('        return $this->%s(JsonText::decode($json)%s);', self::decoderName($root), $access)];
+        }
+
+        $classified = [];
+
+        foreach ($root->properties as $property) {
+            if ($property->conditional() && $property->withheld() && $property->classification instanceof ClassificationAccess) {
+                $classified[] = sprintf('%s => ClassificationAccess::%s', PhpSource::string($property->key), $property->classification->name);
+            }
+
+            $namespaces = $property->key === 'ext' ? $property->value->object->properties ?? [] : [];
+
+            foreach ($namespaces as $namespace) {
+                foreach ($namespace->value->object->properties ?? [] as $field) {
+                    if ($field->conditional() && $field->withheld() && $field->classification instanceof ClassificationAccess) {
+                        $classified[] = sprintf('%s => ClassificationAccess::%s', PhpSource::string('ext.'.$namespace->key.'.'.$field->key), $field->classification->name);
+                    }
+                }
+            }
+        }
+
+        return [
+            '        $document = JsonText::decode($json);',
+            sprintf('        $record = $this->%s($document%s);', self::decoderName($root), $access),
+            sprintf(
+                '        JsonConditions::check($document, new %s()->rules(), $access%s);',
+                PhpSource::shortName($contract->conditions),
+                $classified === [] ? '' : ', ['.implode(', ', $classified).']',
+            ),
+            '',
+            '        return $record;',
+        ];
     }
 
     /**
@@ -450,7 +500,7 @@ final readonly class PhpCodecEmitter
 
         if (! $property->withheld() || ! $property->classification instanceof ClassificationAccess) {
             return match (true) {
-                $property->required => sprintf('JsonValues::%s($object, %s, %s, %s)', $property->nullable ? 'present' : 'required', $key, $path, $read),
+                $property->alwaysRequired() => sprintf('JsonValues::%s($object, %s, %s, %s)', $property->nullable ? 'present' : 'required', $key, $path, $read),
                 $property->default !== null => sprintf('JsonValues::%s($object, %s, %s, %s, %s)', $property->nullable ? 'defaultedNullable' : 'defaulted', $key, $path, $read, $property->default),
                 default => sprintf('JsonValues::nullable($object, %s, %s, %s)', $key, $path, $read),
             };
@@ -462,7 +512,7 @@ final readonly class PhpCodecEmitter
 
         return sprintf(
             'JsonValues::%s($object, %s, %s, ClassificationAccess::%s, $access, %s)',
-            $property->required ? 'requiredClassified' : 'nullableClassified',
+            $property->alwaysRequired() ? 'requiredClassified' : 'nullableClassified',
             $key,
             $path,
             $property->classification->name,

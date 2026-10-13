@@ -7,6 +7,8 @@ namespace Cbox\Cms\Generators\Codec\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecContract;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecObject;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecProperty;
@@ -68,9 +70,11 @@ final readonly class RecordContracts
     ];
 
     /**
+     * @param  ?string  $validator  the class of the type's generated validator, which the codec reads the conditions of conditional fields from (gap G3), or null when no PHP codec is written
+     *
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput for a field type without a mapping
      */
-    public static function of(TypeDescriptor $type): CodecContract
+    public static function of(TypeDescriptor $type, ?string $validator = null): CodecContract
     {
         $name = PhpTypeHandleEnum::caseName($type);
         $className = $name.'V'.self::VERSION;
@@ -105,7 +109,7 @@ final readonly class RecordContracts
             sprintf('The JSON codec of the record of %s, contract version %d (GUARDRAILS 2.2).', $type->name(), self::VERSION),
             '',
             ...$generated,
-        ]);
+        ], conditions: array_any($type->fields, self::conditional(...)) ? $validator : null);
     }
 
     /**
@@ -122,6 +126,14 @@ final readonly class RecordContracts
         array_shift($rules);
 
         return self::value($field, $rules, PhpTypeHandleEnum::caseName($type).'V'.self::VERSION, $type);
+    }
+
+    /**
+     * Whether the field or a field nested in it is shown on a condition (gap G3).
+     */
+    private static function conditional(FieldDescriptor $field): bool
+    {
+        return $field->when instanceof Condition || array_any($field->fields, self::conditional(...));
     }
 
     /**
@@ -180,15 +192,17 @@ final readonly class RecordContracts
     private static function property(FieldDescriptor $field, string $parentClass, TypeDescriptor $type, bool $topLevel): CodecProperty
     {
         $rules = $field->validation;
-        $presence = array_shift($rules);
+        array_shift($rules);
 
         return new CodecProperty(
             $field->handle->value,
             self::propertyName($field->handle->value),
             self::value($field, $rules, $parentClass, $type),
-            $presence instanceof ValidationRule && $presence->name === ValidationRuleName::Required,
+            $field->presence() === Presence::Required,
             $topLevel ? ClassificationAccess::from($field->classification->value) : null,
             implode(' ', self::about($field->label, $field->description)),
+            when: $field->when,
+            whenHidden: $field->whenHidden,
         );
     }
 

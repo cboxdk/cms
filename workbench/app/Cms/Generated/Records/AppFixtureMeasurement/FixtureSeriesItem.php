@@ -24,6 +24,10 @@ final readonly class FixtureSeriesItem
      * @param  numeric-string  $fixtureSeriesValue
      */
     public function __construct(
+        public ?string $fixtureSeriesCheck,
+        public ?string $fixtureSeriesDevice,
+        public ?FixtureSeriesFixtureSeriesMethodChoice $fixtureSeriesMethod,
+        public ?string $fixtureSeriesOperator,
         public ?DateTimeImmutable $fixtureSeriesTakenAt,
         public string $fixtureSeriesValue,
     ) {}
@@ -31,6 +35,10 @@ final readonly class FixtureSeriesItem
     public static function fromFields(FieldReader $fields): self
     {
         return new self(
+            fixtureSeriesCheck: $fields->textOrNull('fixture_series_check'),
+            fixtureSeriesDevice: $fields->textOrNull('fixture_series_device'),
+            fixtureSeriesMethod: $fields->choiceOrNull('fixture_series_method', FixtureSeriesFixtureSeriesMethodChoice::class),
+            fixtureSeriesOperator: $fields->textOrNull('fixture_series_operator'),
             fixtureSeriesTakenAt: $fields->dateTimeOrNull('fixture_series_taken_at'),
             fixtureSeriesValue: $fields->decimal('fixture_series_value'),
         );
@@ -66,6 +74,10 @@ final readonly class FixtureSeriesItem
     public function toFieldMap(): FieldMap
     {
         return new FieldMap(
+            new NamedValue(new FieldHandle('fixture_series_check'), FieldWriter::text($this->fixtureSeriesCheck)),
+            new NamedValue(new FieldHandle('fixture_series_device'), FieldWriter::text($this->fixtureSeriesDevice)),
+            new NamedValue(new FieldHandle('fixture_series_method'), FieldWriter::choice($this->fixtureSeriesMethod)),
+            new NamedValue(new FieldHandle('fixture_series_operator'), FieldWriter::text($this->fixtureSeriesOperator)),
             new NamedValue(new FieldHandle('fixture_series_taken_at'), FieldWriter::dateTime($this->fixtureSeriesTakenAt)),
             new NamedValue(new FieldHandle('fixture_series_value'), FieldWriter::decimal($this->fixtureSeriesValue)),
         );

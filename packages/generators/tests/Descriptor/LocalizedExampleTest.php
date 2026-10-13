@@ -54,7 +54,7 @@ it('compiles the localized example to the committed golden descriptor', function
 });
 
 it('compiles the localized example to the committed golden editor descriptor, as its codec writes it', function (): void {
-    $editor = new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))->compile(localizedDescriptor());
+    $editor = new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...), RuleJson::condition(...))->compile(localizedDescriptor());
     $json = new TypeEditorCodecV1()->encode($editor, ClassificationAccess::Sensitive);
     $pretty = json_encode(json_decode($json, false, 64, JSON_THROW_ON_ERROR), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
     $byPath = [];

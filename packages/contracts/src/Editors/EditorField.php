@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 
 /**
  * A field of a type editor descriptor (PRD 11.12, 12.2, 14.1): what a form needs to render one
@@ -48,6 +49,13 @@ use Cbox\Cms\Contracts\Validation\Presence;
  *   constant, or `{"kind":"token","token":"today"}` or `"now"` for a date or datetime the form
  *   takes from the clock. It is form only: a command never fills it in, and a group or rich
  *   text has none.
+ * - `when` is the condition a conditional field is shown on (gap G3), as one JSON document in the
+ *   form of the generated validation runtime's ConditionRule, such as
+ *   `{"op":"eq","field":{"up":0,"key":"kind"},"value":"external"}`: `field` names a sibling in the
+ *   field's object by `key`, or `up` objects above it, an item of a repeated group being one
+ *   object, so a form evaluates it with the runtime's conditionHolds(). `whenHidden` is what
+ *   happens to the value while the field is hidden. A field has both or neither; `presence` holds
+ *   while the field is shown.
  */
 #[Experimental]
 final readonly class EditorField
@@ -72,6 +80,8 @@ final readonly class EditorField
      * @param  list<EditorText>  $descriptions  the description per locale
      * @param  EditorUi  $ui  the hints the form takes for the input
      * @param  ?JsonDocument  $defaultValue  the form's starting value, or null
+     * @param  ?JsonDocument  $when  the condition the field is shown on, or null
+     * @param  ?WhenHidden  $whenHidden  what happens to the value of a hidden field, or null
      *
      * @throws InvalidTypeEditor when the field breaks its rules
      */
@@ -97,6 +107,8 @@ final readonly class EditorField
         array $descriptions = [],
         public EditorUi $ui = new EditorUi,
         public ?JsonDocument $defaultValue = null,
+        public ?JsonDocument $when = null,
+        public ?WhenHidden $whenHidden = null,
     ) {
         $expected = ($parent === null ? ($namespace instanceof FieldNamespace ? 'ext.'.$namespace->value.'.' : '') : $parent.'.').$handle->value;
 
@@ -156,6 +168,10 @@ final readonly class EditorField
 
         if ($defaultValue instanceof JsonDocument && ($base === EditorBase::Group || $base === EditorBase::RichText)) {
             throw InvalidTypeEditor::defaultValue($path);
+        }
+
+        if (($when instanceof JsonDocument) !== ($whenHidden instanceof WhenHidden)) {
+            throw InvalidTypeEditor::when($path);
         }
 
         $this->labels = EditorText::checked($labels, 'the label of the field '.$path);

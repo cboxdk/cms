@@ -149,7 +149,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
+        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...), RuleJson::condition(...))), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
             $files[$file->path] = $file->contents;
         }
 

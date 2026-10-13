@@ -151,6 +151,11 @@ final class InvalidTypeEditor extends InvalidArgumentException
         return new self(sprintf('The field %s has a default, which a group or rich text never has.', $path));
     }
 
+    public static function when(string $path): self
+    {
+        return new self(sprintf('The field %s has a condition without when_hidden, or when_hidden without a condition; a conditional field has both.', $path));
+    }
+
     public static function placement(): self
     {
         return new self('A placement names the path of a field.');

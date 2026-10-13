@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Descriptor\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldDefault;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
@@ -39,6 +42,11 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * The presentation keys (gap G2), $labels and $descriptions per locale, $ui and $default, reach
  * only the editor descriptor; the canonical JSON, the catalog, the codecs, the validators and the
  * tables leave them out.
+ *
+ * $when is the condition a conditional field is shown on, with its references counted in groups
+ * up (FieldReference), and $whenHidden what happens to its value while it is hidden (gap G3). A
+ * conditional field is never NOT NULL and its types are nullable, because a hidden field holds no
+ * value; its presence() holds while it is shown.
  */
 #[Internal]
 final readonly class FieldDescriptor
@@ -86,7 +94,23 @@ final readonly class FieldDescriptor
         public array $descriptions = [],
         public ?FieldUi $ui = null,
         public ?FieldDefault $default = null,
+        public ?Condition $when = null,
+        public ?WhenHidden $whenHidden = null,
     ) {
         $this->base = $base ?? $type;
+    }
+
+    /**
+     * What the field's generated validator requires while the field is shown: Required for a
+     * field the blueprint requires and the owner's code enforces, which a top-level extension field
+     * never is, so it is RequiredOnRelease (PRD 11.12, point 1), and Optional for every other field.
+     */
+    public function presence(): Presence
+    {
+        if (! $this->required) {
+            return Presence::Optional;
+        }
+
+        return $this->column instanceof ColumnDescriptor && $this->namespace instanceof Owner ? Presence::RequiredOnRelease : Presence::Required;
     }
 }

@@ -221,6 +221,9 @@ function invalidContractFixtures(): array
         'a display on a text field' => ['ui-display-on-text.yaml', '/fields/0/ui'],
         'a summary on a group without repeat' => ['ui-summary-without-repeat.yaml', '/fields/0/ui'],
         'a label map without a locale' => ['label-map-empty.yaml', '/label'],
+        'a when without when_hidden' => ['when-without-when-hidden.yaml', '/fields/1'],
+        'a when written as an expression' => ['when-expression.yaml', '/fields/1/when'],
+        'a when with two operators' => ['when-two-operators.yaml', '/fields/1/when'],
     ];
 }
 

@@ -1,0 +1,77 @@
+# A type with conditional fields (gap G3): url and page_path are each shown for one target and
+# cleared when hidden, caption reads whether url has a value, and the nested field medium reads its
+# sibling and, one group up, the target. Each conditional field declares its when_hidden.
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a7e
+handle: link_card
+label: Link card
+description: A card that links to a page of the site or to another site.
+version: 1
+capabilities:
+  history: full
+  stages: none
+  localization: none
+fields:
+  - handle: target
+    label: Target
+    description: Whether the card links inside the site or to another site.
+    type: select
+    required: true
+    classification: public
+    options:
+      - value: page
+        label: A page of the site
+      - value: external
+        label: Another site
+  - handle: url
+    label: URL
+    description: The address of the other site.
+    type: text
+    format: url
+    required: true
+    classification: public
+    when:
+      field: target
+      eq: external
+    when_hidden: clear
+  - handle: page_path
+    label: Page path
+    description: The path of the page of the site.
+    type: text
+    required: true
+    classification: public
+    when:
+      field: target
+      eq: page
+    when_hidden: clear
+  - handle: caption
+    label: Caption
+    description: The text shown under the card, when the link has none of its own.
+    type: text
+    classification: public
+    when:
+      field: url
+      "null": true
+    when_hidden: keep
+  - handle: tracking
+    label: Tracking
+    description: How a click on the card is counted.
+    type: group
+    classification: public
+    fields:
+      - handle: campaign
+        label: Campaign
+        description: The campaign the click counts for.
+        type: text
+      - handle: medium
+        label: Medium
+        description: The medium of the campaign, for a link to another site.
+        type: text
+        when:
+          all:
+            - field: campaign
+              not_null: true
+            - field: ../target
+              in: [external]
+        when_hidden: keep

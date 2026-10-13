@@ -17,6 +17,7 @@ use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Contracts\Validation\ValidationReport;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use DateTimeImmutable;
 
 /**
@@ -29,6 +30,11 @@ use DateTimeImmutable;
  * field is checked against its rules; a field that is left out or null only needs a value when its
  * Presence requires one at the stage. A key the type does not have, in the namespace it is given
  * in, is an error, so is a namespace no extender has.
+ *
+ * A conditional field (gap G3) whose condition does not hold for the input is hidden: it is never
+ * required, and a value for it is validation_hidden_field when it is WhenHidden::Clear. A hidden
+ * field of WhenHidden::Keep is checked as any value is. The condition reads the values as the
+ * input gives them, in the field's object and the objects it is in.
  *
  * It never throws for bad input: it returns every error it finds, at most MAX_ERRORS, each with the
  * path of the value and the code of the rule it breaks. Once a value has the wrong type, its other
@@ -112,26 +118,35 @@ final readonly class InputValidator
     /**
      * @param  list<FieldRules>  $rules
      * @param  array<array-key, mixed>  $object
+     * @param  list<array<array-key, mixed>>  $ancestors  the members of each object the object is in, the outermost first
      */
-    private function fields(array $rules, array $object, ?FieldPath $at, ValidationStage $stage, ValidationErrors $errors): void
+    private function fields(array $rules, array $object, ?FieldPath $at, ValidationStage $stage, ValidationErrors $errors, array $ancestors = []): void
     {
         $known = [];
+        $scopes = [...$ancestors, $object];
 
         foreach ($rules as $field) {
             $handle = $field->handle->value;
             $known[$handle] = true;
             $value = $object[$handle] ?? null;
             $path = InputPaths::below($at, $handle);
+            $shown = $field->shownFor(new InputConditionValues($scopes));
 
             if ($value === null) {
-                if ($field->presence->requiredAt($stage)) {
+                if ($shown && $field->presence->requiredAt($stage)) {
                     $errors->add(ErrorCode::ValidationRequired, $path, 'needs a value.');
                 }
 
                 continue;
             }
 
-            $this->value($field, $value, $path, $stage, $errors);
+            if (! $shown && $field->whenHidden === WhenHidden::Clear) {
+                $errors->add(ErrorCode::ValidationHiddenField, $path, 'has a value, and the field is hidden because its condition does not hold; leave it out or send null.');
+
+                continue;
+            }
+
+            $this->value($field, $value, $path, $stage, $errors, $scopes);
         }
 
         foreach (array_keys($object) as $key) {
@@ -152,7 +167,10 @@ final readonly class InputValidator
         $errors->add(ErrorCode::ValidationUnknownField, $at, sprintf('has the key %s, which is not known: %s.', InputPaths::shown($key), $why));
     }
 
-    private function value(FieldRules $field, mixed $value, FieldPath $path, ValidationStage $stage, ValidationErrors $errors): void
+    /**
+     * @param  list<array<array-key, mixed>>  $scopes  the members of the object that holds the field and of each object it is in
+     */
+    private function value(FieldRules $field, mixed $value, FieldPath $path, ValidationStage $stage, ValidationErrors $errors, array $scopes): void
     {
         if ($errors->full()) {
             return;
@@ -165,8 +183,8 @@ final readonly class InputValidator
             RuleName::Boolean => is_bool($value) || $this->wrongType($path, 'is not true or false', $errors),
             RuleName::Date => $this->date($field, $value, $path, $errors),
             RuleName::Datetime => $this->datetime($field, $value, $path, $errors),
-            RuleName::Object => $this->group($field, $value, $path, $stage, $errors),
-            RuleName::List => $this->list($field, $value, $path, $stage, $errors),
+            RuleName::Object => $this->group($field, $value, $path, $stage, $errors, $scopes),
+            RuleName::List => $this->list($field, $value, $path, $stage, $errors, $scopes),
             default => PortableTextInput::check($field, $value, $path, $errors),
         };
     }
@@ -283,7 +301,10 @@ final readonly class InputValidator
         }
     }
 
-    private function group(FieldRules $field, mixed $value, FieldPath $path, ValidationStage $stage, ValidationErrors $errors): bool
+    /**
+     * @param  list<array<array-key, mixed>>  $scopes
+     */
+    private function group(FieldRules $field, mixed $value, FieldPath $path, ValidationStage $stage, ValidationErrors $errors, array $scopes): bool
     {
         $object = InputPaths::object($value);
 
@@ -291,12 +312,15 @@ final readonly class InputValidator
             return $this->wrongType($path, 'is not an object of the group\'s fields by handle', $errors);
         }
 
-        $this->fields($field->fields, $object, $path, $stage, $errors);
+        $this->fields($field->fields, $object, $path, $stage, $errors, $scopes);
 
         return true;
     }
 
-    private function list(FieldRules $field, mixed $value, FieldPath $path, ValidationStage $stage, ValidationErrors $errors): bool
+    /**
+     * @param  list<array<array-key, mixed>>  $scopes
+     */
+    private function list(FieldRules $field, mixed $value, FieldPath $path, ValidationStage $stage, ValidationErrors $errors, array $scopes): bool
     {
         $items = InputPaths::list($value);
 
@@ -331,7 +355,7 @@ final readonly class InputValidator
                 if ($object === null) {
                     $this->wrongType($itemPath, 'is not an object of the group\'s fields by handle', $errors);
                 } else {
-                    $this->fields($field->fields, $object, $itemPath, $stage, $errors);
+                    $this->fields($field->fields, $object, $itemPath, $stage, $errors, $scopes);
                 }
 
                 continue;

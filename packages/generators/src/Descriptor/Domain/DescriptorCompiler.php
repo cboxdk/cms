@@ -5,6 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Descriptor\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\FieldReference;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
@@ -18,7 +21,9 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\ColumnName;
+use Cbox\Cms\Generators\Schema\Domain\Dto\ConditionReference;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldCondition;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ShapedOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
@@ -34,7 +39,8 @@ use Cbox\Cms\Generators\Schema\Domain\Owner;
  * - A confidential field is encrypted (PRD 12.2): its column is `bytea` of ciphertext without
  *   checks. Otherwise the field type describes the column: its Postgres type and CHECK expressions.
  * - An owner's required field is NOT NULL, its PHP and TypeScript types are not nullable and its
- *   validator starts with `required`. An extension field never is, whatever its blueprint says,
+ *   validator starts with `required`, unless it is conditional (gap G3): a hidden field holds no
+ *   value, so a conditional field starts with `nullable`, and its presence holds while it is shown. An extension field never is, whatever its blueprint says,
  *   because the owner's code creates and revises entries without knowing it; its `required` is
  *   enforced when an entry is published (PRD 11.12, point 1). Every other field starts with
  *   `nullable`.
@@ -137,7 +143,7 @@ final readonly class DescriptorCompiler
             return null;
         }
 
-        return self::field($field, $namespace, $field->classification, $column->value, ! $namespace instanceof Owner, $field->translatable, $field->fallback);
+        return self::field($field, $namespace, $field->classification, $column->value, ! $namespace instanceof Owner, $field->translatable, $field->fallback, 0);
     }
 
     /**
@@ -145,18 +151,19 @@ final readonly class DescriptorCompiler
      * @param  bool  $enforced  whether the owner's code enforces `required` when an entry is written
      * @param  bool  $translatable  the top-level field's `translatable`, which a nested field takes from its group
      * @param  FieldFallback  $fallback  the top-level field's `fallback`, which a nested field takes from its group
+     * @param  int  $depth  the groups the field is in
      */
-    private static function field(FieldBlueprint $field, ?Owner $namespace, Classification $classification, ?string $column, bool $enforced, bool $translatable, FieldFallback $fallback): FieldDescriptor
+    private static function field(FieldBlueprint $field, ?Owner $namespace, Classification $classification, ?string $column, bool $enforced, bool $translatable, FieldFallback $fallback, int $depth): FieldDescriptor
     {
         $nested = [];
 
         foreach ($field->options->nestedFields() as $inner) {
-            $nested[$inner->handle->value] = self::field($inner, $namespace, $classification, null, true, $translatable, $fallback);
+            $nested[$inner->handle->value] = self::field($inner, $namespace, $classification, null, true, $translatable, $fallback, $depth + 1);
         }
 
         ksort($nested, SORT_STRING);
         $nested = array_values($nested);
-        $notNull = $field->required && $enforced;
+        $notNull = $field->required && $enforced && ! $field->when instanceof FieldCondition;
         $encrypted = $classification->encrypted();
         $value = $field->options->describeValue($nested);
 
@@ -187,7 +194,29 @@ final readonly class DescriptorCompiler
             $field->descriptions,
             $field->ui,
             $field->default,
+            $field->when instanceof FieldCondition ? self::condition($field->when, $depth) : null,
+            $field->whenHidden,
         );
+    }
+
+    /**
+     * The condition in the kernel's form: each reference counted in groups up from the object that
+     * holds the field, `ext.<namespace>.<handle>` as the top of the field's set, which
+     * ConditionRules held the reference to.
+     *
+     * @param  int  $depth  the groups the conditional field is in
+     */
+    private static function condition(FieldCondition $condition, int $depth): Condition
+    {
+        $reference = $condition->field;
+
+        if (! $reference instanceof ConditionReference) {
+            return new Condition($condition->operator, conditions: array_map(static fn (FieldCondition $inner): Condition => self::condition($inner, $depth), $condition->conditions));
+        }
+
+        $up = $reference->namespace instanceof Owner ? $depth : $reference->up;
+
+        return new Condition($condition->operator, new FieldReference($up, new FieldHandle($reference->handle->value)), $condition->values);
     }
 
     private static function column(FieldBlueprint $field, string $name, bool $notNull, bool $encrypted): ColumnDescriptor

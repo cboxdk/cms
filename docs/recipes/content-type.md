@@ -16,6 +16,7 @@ The kernel knows no content types (GUARDRAILS 2.4). A type is one blueprint file
 - **capabilities**: `history` (`full`, `audit-only` or `none`), `stages` (`draft-release` or `none`), `localization` (`none` or `variants`) and `routable`. An entry of a type with stages `none` has no release and is public once it is placed and published. A type with stages `draft-release` is released with `variant.release`, which the kernel allows only with history `full` and otherwise rejects as `type_not_releasable`.
 - **localization**: with `none`, the one shared variant holds every field. With `variants` (PRD 10.1), every language is a variant of the entry with its own revisions and release, and each field says which variant holds it with `translatable: true` (the language's) or `false` (the shared one, the default); a translatable field may add `fallback: field` to fall back on its own along the site's chain instead of with its whole variant. Both keys belong to a `variants` type only, and `fallback: field` to a translatable field only; `cms:generate` refuses anything else with `generate_translatable_without_variants` and `generate_fallback_without_translatable`. The type table of a `variants` type holds one row per language with the shared fields in each (PRD 11.6), so its query builder takes `locale()`, and the entry commands of version 1 refuse such a type until version 2 writes the languages' variants. The workbench's `fixture_notice` is one.
 - **fields**: each with its handle, core field type, `required`, `classification` and the options of its type, as [blueprint schema v1](../addons/blueprint-v1.md) lists them.
+- **conditions**, optional (gap G3): a field shown only for some values of others has a `when`, such as `{ field: fixture_kind, eq: fixture_external }`, `in`, `neq`, `"null": true` (quoted in YAML), `not_null: true`, or `all` and `any` of conditions, over its siblings and with `../` the siblings of the groups it is in, and a `when_hidden` of `clear` or `keep`, which every conditional field needs. A hidden field is never required, and with `clear` holds no value; a conditional field's column is nullable. `cms:generate` refuses a reference it cannot reach, a circle, another owner's namespace, a field classified above the conditional field, a field of another variant and a comparison of the wrong kind, each with its own code: `generate_when_unknown_field`, `generate_when_cycle`, `generate_when_foreign_namespace`, `generate_when_classification_above`, `generate_when_other_variant` and `generate_when_value_wrong_kind`. See [Conditional fields](../addons/blueprint-v1.md#conditional-fields). The items of the workbench's `fixture_measurement` series have three conditional fields.
 - **presentation**, optional and form only (gap G2): a `label` and `description` as one text or a map of locale to text, such as `{ en: Title, da: Titel }`; a `layout` of tabs and a sidebar that places every top-level field exactly once, each with a width preset; per field a `ui` with `instructions`, an `input_hint`, `read_only`, `hidden`, the `display` of a select and the `summary` template of a repeated group; and a `default` of the field's kind, or the tokens `today` and `now`. They reach only the editor descriptor the panel's forms render the type from: no record, codec, validator or column changes, so a change of them is no new version and needs no migration. `cms:generate` refuses a layout that leaves a field out or places one twice, an unknown width and a default of the wrong kind with `generate_layout_field_omitted`, `generate_layout_field_repeated`, `generate_layout_width_unknown` and `generate_default_wrong_kind`. The workbench's `fixture_article` declares two tabs and a sidebar with Danish and English labels.
 
 From the owner and handle come the names every generator uses: the type's name `<owner>:<handle>`, its `TypeHandle` case `<Case>` (the owner and handle in TitleCase, `AppFixtureEvent`), and its table `<owner>__<handle>`.
@@ -28,7 +29,7 @@ From the owner and handle come the names every generator uses: the type's name `
 | `workbench/app/Cms/Generated/Boundary/<Case>CodecV1.php` and `Domain/Dto/<Case>V1*.php` | the record DTOs and JSON codec | generated |
 | `workbench/app/Cms/Generated/Records/<Case>/` | the record interfaces, the composite record, its factory, a `*Choice` enum per select and a class per group | generated |
 | `workbench/app/Cms/Generated/QueryBuilders/<Case>/` | `<Case>Query` with its filter and sort field enums | generated |
-| `workbench/app/Cms/Generated/Validators/<Case>Validator.php` | the runtime validator | generated |
+| `workbench/app/Cms/Generated/Validators/<Case>Validator.php` | the runtime validator, with the condition and `WhenHidden` of each conditional field, which the record's codec reads too | generated |
 | `workbench/app/Cms/Generated/TypeHandle.php`, `GeneratedTypeCatalog.php`, `GeneratedTypeValidators.php`, `GeneratedRecordCodecs.php`, `GeneratedTypesServiceProvider.php` | the type added to the catalog, validators, codecs and bindings | generated |
 | `workbench/app/Cms/Generated/GeneratedTypeEditors.php` | the type's editor descriptor: its layout, labels per locale, form hints and defaults with its fields | generated |
 | `workbench/resources/js/cms/generated/index.ts` and `records/<Case>V1.ts` | the TypeScript types and validator | generated |
@@ -39,7 +40,7 @@ From the owner and handle come the names every generator uses: the type's name `
 
 ## Steps
 
-1. Write the blueprint in `workbench/schema/<handle>.yaml`: `blueprint: 1`, `kind: type`, the `type_id`, `handle`, `label`, `description`, `version: 1`, the capabilities and the fields, and the presentation keys the form needs: a `layout` when the fields do not fit one section, `ui` and `default` per field, and the labels per language.
+1. Write the blueprint in `workbench/schema/<handle>.yaml`: `blueprint: 1`, `kind: type`, the `type_id`, `handle`, `label`, `description`, `version: 1`, the capabilities and the fields, each conditional field with its `when` and `when_hidden`, and the presentation keys the form needs: a `layout` when the fields do not fit one section, `ui` and `default` per field, and the labels per language.
 2. Run `vendor/bin/testbench cms:schema:editor`. It gives the file its first line, `# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json`, so an editor validates the file as you write it.
 3. Run `vendor/bin/testbench cms:generate`. It validates every blueprint, stops with a code such as `generate_duplicate_type_id` or `generate_schema_invalid` and the path of what is wrong, and otherwise writes the generated files above, the migration and the schema lock included. Never edit a generated file; change the blueprint and run the command again.
 4. Update the two tests that list the workbench's types, then stage everything with `git add`. The migration runs in the tests on its own, because the Postgres harness runs `migrate:fresh`; for the shared dev database, `composer dev:prepare` runs it from the main checkout.
@@ -54,6 +55,7 @@ A later change to the type is a new `version` of the same file. Until schema evo
 - `tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php` fails for a type table it has no row for, because it checks that every table under row level security, generated type tables included, holds no row for the app role without an actor context.
 - `tests/Arch/ContentTypesTest.php` fails for a handle without the `fixture_` prefix, or when the kernel's source names one.
 - A test below `packages/` that fails because a type was added reads the workbench by name. That test is the bug: fix it to read the types from the schema or the `TypeCatalog`, as M1-T50 did, in a commit of its own, and record it in `CHECKS-LOG.md`.
+- A type with conditional fields: a test feeds input in which each conditional field is shown and hidden through the generated validator and the record's codec and TypeScript validator, as `tests/Feature/Validation/WorkbenchValidatorsTest.php` and `tests/Codecs/TypeScriptValidatorsTest.php` do for `fixture_measurement`, and the seeder's values pass, which `packages/core/tests/Seeding/FieldValueGeneratorTest.php` checks for every type of the workbench.
 - `composer check:generated` (gate 6) and `composer check` (gates 1 to 6) pass.
 
 ## Running example
@@ -393,6 +395,214 @@ layout:
           - field: fixture_topics
 ```
 
+The workbench's `app:fixture_measurement` has every core field type and every rule, and its series' items have conditional fields: an operator required for a manual reading and cleared otherwise, a device shown on any of two conditions, one of them the measurement's `fixture_calibrated` one group up, which keeps its value, and a check required while all of a method and the kelvin scale hold. They are inside a group, whose column is one `jsonb`, so adding them changed no column and needed no migration:
+
+<!-- example-file: workbench/schema/fixture_measurement.yaml -->
+```yaml
+# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
+# The workbench's second fixture type (GUARDRAILS 2.4, MILESTONES M1), owner app: a measurement
+# with no history, no stages and no route, and other fields than fixture_article, so milestone 1
+# exercises a type whose entries are written once and never drafted. It has every core field type
+# and every rule of the runtime validators, which packages/generators/tests/Validators
+# /WorkbenchValidatorsTest.php feeds input through. Every handle and select value starts with
+# fixture_, as in fixture_article.yaml. cms:generate reads it and writes the committed
+# code in workbench/app/Cms/Generated and workbench/resources/js/cms/generated; the first line is
+# written by cms:schema:editor. The items of fixture_series have conditional fields (gap G3), which
+# tests/Codecs/TypeScriptValidatorsTest.php and WorkbenchValidatorsTest.php hold PHP and TypeScript
+# to: fixture_series_operator is required while the method is manual and cleared when hidden,
+# fixture_series_device is shown on any of two conditions, one on the measurement's
+# fixture_calibrated, and keeps its value when hidden, and fixture_series_check is required while
+# all of a method and the kelvin scale of the measurement hold. They are inside a group, so the
+# type table is unchanged.
+blueprint: 1
+kind: type
+type_id: 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b
+handle: fixture_measurement
+label: Fixture measurement
+description: One reading of a sensor at a station.
+version: 1
+capabilities:
+  history: none
+  stages: none
+  localization: none
+  routable: false
+fields:
+  - handle: fixture_reading
+    label: Reading
+    description: The value the sensor read, in the unit of the scale.
+    type: decimal
+    required: true
+    classification: public
+    sortable: true
+    precision: 12
+    scale: 3
+  - handle: fixture_scale
+    label: Scale
+    description: The scale of the reading.
+    type: select
+    required: true
+    classification: public
+    filterable: true
+    options:
+      - value: fixture_celsius
+        label: Celsius
+      - value: fixture_kelvin
+        label: Kelvin
+  - handle: fixture_measured_at
+    label: Measured at
+    description: When the sensor took the reading.
+    type: datetime
+    required: true
+    classification: public
+    filterable: true
+    sortable: true
+  - handle: fixture_station
+    label: Station
+    description: The code of the station the sensor stands at.
+    type: text
+    classification: internal
+    filterable: true
+    min_length: 3
+    max_length: 40
+  - handle: fixture_note
+    label: Note
+    type: long_text
+    classification: internal
+    agents: false
+  - handle: fixture_samples
+    label: Samples
+    description: How many samples the sensor averaged into the reading.
+    type: integer
+    classification: public
+    min: 1
+    max: 1000
+  - handle: fixture_calibrated
+    label: Calibrated
+    description: Whether the sensor was calibrated when it took the reading.
+    type: boolean
+    classification: public
+  - handle: fixture_calibrated_on
+    label: Calibrated on
+    description: The day the sensor was last calibrated.
+    type: date
+    classification: public
+    min: '2000-01-01'
+    max: '2099-12-31'
+  - handle: fixture_alerts
+    label: Alerts
+    description: The alerts the reading raised.
+    type: select
+    classification: public
+    multiple: true
+    min_items: 1
+    max_items: 2
+    options:
+      - value: fixture_low
+        label: Low
+      - value: fixture_high
+        label: High
+      - value: fixture_drift
+        label: Drift
+  - handle: fixture_remark
+    label: Remark
+    description: A remark on the reading, in rich text.
+    type: rich_text
+    classification: public
+    styles: [normal]
+    marks: [strong]
+    lists: [bullet]
+    links: []
+  - handle: fixture_sensor
+    label: Sensor
+    description: The sensor that took the reading.
+    type: group
+    classification: internal
+    fields:
+      - handle: fixture_sensor_code
+        label: Sensor code
+        description: The code of the sensor.
+        type: text
+        required: true
+      - handle: fixture_sensor_contact
+        label: Sensor contact
+        description: Who looks after the sensor.
+        type: text
+        format: email
+      - handle: fixture_sensor_manual
+        label: Sensor manual
+        description: Where the sensor's manual can be read.
+        type: text
+        format: url
+  - handle: fixture_series
+    label: Series
+    description: The single readings the reading is the mean of.
+    type: group
+    classification: public
+    repeat:
+      min_items: 1
+      max_items: 3
+    fields:
+      - handle: fixture_series_value
+        label: Series value
+        description: One single reading.
+        type: decimal
+        required: true
+        precision: 6
+        scale: 2
+        min: '-100.00'
+        max: '1000.00'
+      - handle: fixture_series_taken_at
+        label: Series taken at
+        description: When the single reading was taken.
+        type: datetime
+        min: '2000-01-01T00:00:00Z'
+        max: '2099-12-31T23:59:59Z'
+      - handle: fixture_series_method
+        label: Series method
+        description: How the single reading was taken.
+        type: select
+        options:
+          - value: fixture_manual
+            label: Manual
+          - value: fixture_logged
+            label: Logged
+      - handle: fixture_series_operator
+        label: Series operator
+        description: Who took the single reading by hand.
+        type: text
+        required: true
+        max_length: 60
+        when:
+          field: fixture_series_method
+          eq: fixture_manual
+        when_hidden: clear
+      - handle: fixture_series_device
+        label: Series device
+        description: The device that logged the single reading, or the calibrated sensor's.
+        type: text
+        max_length: 60
+        when:
+          any:
+            - field: fixture_series_method
+              eq: fixture_logged
+            - field: ../fixture_calibrated
+              eq: true
+        when_hidden: keep
+      - handle: fixture_series_check
+        label: Series check
+        description: How the single reading was checked against the kelvin scale.
+        type: text
+        required: true
+        max_length: 60
+        when:
+          all:
+            - field: fixture_series_method
+              not_null: true
+            - field: ../fixture_scale
+              in: [fixture_kelvin]
+        when_hidden: clear
+```
+
 <!-- example: tests/Feature/Workbench/WorkbenchSchemaTest.php -->
 ```php
 <?php
@@ -556,6 +766,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureAlertsChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSensorGroup.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesFixtureSeriesMethodChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesItem.php',
         'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNotice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeFactory.php',

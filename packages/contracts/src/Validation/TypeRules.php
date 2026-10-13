@@ -36,6 +36,7 @@ final readonly class TypeRules
         public array $extensions = [],
     ) {
         FieldRules::assertDistinct($fields);
+        FieldRules::assertReferences($fields);
         $namespaces = [];
 
         foreach ($extensions as $extension) {

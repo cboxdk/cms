@@ -47,7 +47,7 @@ afterEach(function (): void {
 
 function editorCompiler(): TypeEditorCompiler
 {
-    return new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...));
+    return new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...), RuleJson::condition(...));
 }
 
 function comprehensiveEditor(): TypeEditor

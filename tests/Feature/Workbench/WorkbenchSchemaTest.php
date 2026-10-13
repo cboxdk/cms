@@ -159,6 +159,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureAlertsChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureScaleChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSensorGroup.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesFixtureSeriesMethodChoice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureMeasurement/FixtureSeriesItem.php',
         'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNotice.php',
         'workbench/app/Cms/Generated/Records/AppFixtureNotice/AppFixtureNoticeFactory.php',

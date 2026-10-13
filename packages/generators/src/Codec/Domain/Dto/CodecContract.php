@@ -14,6 +14,10 @@ use Cbox\Cms\Contracts\Attributes\Internal;
  * $command, the codec of a query's contract version names the query, its JSON Schema and the codec
  * of its result in $query, and the codec of a query's result carries the result's JSON Schema in
  * $result.
+ *
+ * The codec of a record of a type with conditional fields (gap G3) names the type's generated
+ * validator in $conditions, whose rules hold the conditions it checks once every value of a
+ * document passed its rules.
  */
 #[Internal]
 final readonly class CodecContract
@@ -22,6 +26,7 @@ final readonly class CodecContract
      * @param  positive-int  $version
      * @param  list<string>  $summary
      * @param  ?class-string  $attribute  the attribute the codec class carries, or null for none
+     * @param  ?string  $conditions  the class of the generated validator that holds the conditions, or null
      */
     public function __construct(
         public CodecObject $root,
@@ -32,5 +37,6 @@ final readonly class CodecContract
         public ?CodecCommand $command = null,
         public ?CodecQuery $query = null,
         public ?CodecQueryResult $result = null,
+        public ?string $conditions = null,
     ) {}
 }

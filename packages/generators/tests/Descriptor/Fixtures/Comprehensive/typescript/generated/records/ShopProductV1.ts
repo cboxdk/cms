@@ -114,7 +114,20 @@ export interface ShopProductV1Supplier {
 const shopProductV1DimensionsRule: ObjectRule = {
   properties: [
     { key: 'size', presence: 'required', value: { kind: 'choice', choices: ['small', 'large'] } },
-    { key: 'width', presence: 'optional', value: { kind: 'integer', min: 1 } },
+    {
+      key: 'width',
+      presence: 'optional',
+      value: { kind: 'integer', min: 1 },
+      when: {
+        op: 'all',
+        conditions: [
+          { op: 'eq', field: { up: 0, key: 'size' }, value: 'large' },
+          { op: 'not_null', field: { up: 1, key: 'discontinued' } },
+        ],
+      },
+      whenHidden: 'keep',
+      requiredWhenShown: true,
+    },
   ],
 };
 
@@ -229,6 +242,8 @@ const shopProductV1Rule: ObjectRule = {
       key: 'support_email',
       presence: 'optional',
       value: { kind: 'text', maxLength: 255, format: 'email' },
+      when: { op: 'neq', field: { up: 0, key: 'discontinued' }, value: true },
+      whenHidden: 'clear',
     },
     {
       key: 'tags',

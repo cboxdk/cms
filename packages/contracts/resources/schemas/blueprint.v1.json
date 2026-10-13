@@ -220,6 +220,75 @@
       }
     },
 
+    "condition": {
+      "description": "A condition of the typed grammar (gap G3), with no expressions: a field compared with eq, neq or in, asked for a value with null or not_null, or all or any of other conditions. In YAML, quote the key null, as \"null\": true, because a bare null is no key.",
+      "type": "object",
+      "oneOf": [
+        { "$ref": "#/$defs/conditionCompare" },
+        { "$ref": "#/$defs/conditionIn" },
+        { "$ref": "#/$defs/conditionPresence" },
+        { "$ref": "#/$defs/conditionCombined" }
+      ]
+    },
+    "conditionField": {
+      "description": "The field a condition reads: a handle of a sibling, ../ once per group up before a handle of a sibling of a group the field is in, or ext.<namespace>.<handle> for a top-level field of the extender's own namespace.",
+      "type": "string",
+      "maxLength": 120,
+      "pattern": "^((\\.\\./){1,10})?[a-z][a-z0-9]*(_[a-z0-9]+)*$|^ext\\.[a-z][a-z0-9]{0,19}\\.[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    },
+    "conditionValue": {
+      "description": "A value a field is compared with: a string for a text, long text or select field, a whole number for an integer, true or false for a boolean.",
+      "type": ["string", "integer", "boolean"],
+      "maxLength": 255
+    },
+    "conditionCompare": {
+      "description": "The field's value is (eq) or is not (neq) the value.",
+      "type": "object",
+      "required": ["field"],
+      "minProperties": 2,
+      "maxProperties": 2,
+      "additionalProperties": false,
+      "properties": {
+        "field": { "$ref": "#/$defs/conditionField" },
+        "eq": { "$ref": "#/$defs/conditionValue" },
+        "neq": { "$ref": "#/$defs/conditionValue" }
+      }
+    },
+    "conditionIn": {
+      "description": "The field's value is one of the values.",
+      "type": "object",
+      "required": ["field", "in"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "$ref": "#/$defs/conditionField" },
+        "in": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/conditionValue" } }
+      }
+    },
+    "conditionPresence": {
+      "description": "The field has no value (null) or has one (not_null).",
+      "type": "object",
+      "required": ["field"],
+      "minProperties": 2,
+      "maxProperties": 2,
+      "additionalProperties": false,
+      "properties": {
+        "field": { "$ref": "#/$defs/conditionField" },
+        "null": { "const": true },
+        "not_null": { "const": true }
+      }
+    },
+    "conditionCombined": {
+      "description": "Every condition holds (all), or at least one does (any).",
+      "type": "object",
+      "minProperties": 1,
+      "maxProperties": 1,
+      "additionalProperties": false,
+      "properties": {
+        "all": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/condition" } },
+        "any": { "type": "array", "minItems": 1, "maxItems": 100, "items": { "$ref": "#/$defs/condition" } }
+      }
+    },
+
     "topLevelFields": {
       "type": "array",
       "minItems": 1,
@@ -348,6 +417,14 @@
           "type": "boolean"
         },
         "ui": { "description": "The hints a form takes for the input, see the ui definition.", "$ref": "#/$defs/ui" },
+        "when": {
+          "description": "The condition the field is shown on (gap G3): while it does not hold, the field is hidden, never required, and holds no value with when_hidden: clear. It reads siblings of the field, or with ../ siblings of a group the field is in, within the same set of fields: the owner's, or the fields one extender adds, whose top-level fields may also be named ext.<namespace>.<handle> of its own namespace. cms:generate refuses a cycle, another owner's namespace, a field above the field's classification and a field it cannot reach, each with its own generate_when_* code.",
+          "$ref": "#/$defs/condition"
+        },
+        "when_hidden": {
+          "description": "What happens to the value of the conditional field while it is hidden (gap G3): clear, it holds none and a form clears it, or keep, it keeps the value it has. Every field with when declares it, and only such a field.",
+          "enum": ["clear", "keep"]
+        },
         "default": {
           "description": "The value the form starts the input with (gap G2), form only and never filled in by a command: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, a boolean for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, an option's value for select, or a list of them with multiple: true. A group and rich text take none. cms:generate refuses another kind with generate_default_wrong_kind.",
           "type": ["string", "integer", "boolean", "array"],
@@ -355,6 +432,7 @@
           "items": { "type": "string" }
         }
       },
+      "dependentRequired": { "when": ["when_hidden"], "when_hidden": ["when"] },
       "allOf": [
         {
           "if": { "properties": { "type": { "const": "select" } } },

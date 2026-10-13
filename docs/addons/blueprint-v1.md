@@ -1,7 +1,7 @@
 ---
 title: Blueprint schema v1
 weight: 38
-description: "The reference of blueprint.v1.json: types, extensions of another owner's type, fields, core and addon field types, the presentation keys of the panel's forms, and the rules cms:generate checks across files."
+description: "The reference of blueprint.v1.json: types, extensions of another owner's type, fields, core and addon field types, the presentation keys of the panel's forms, conditional fields, and the rules cms:generate checks across files."
 ---
 
 # Blueprint schema, version 1
@@ -80,6 +80,8 @@ Every field has these keys:
 | `required` | no | `true` or `false`, default `false`. |
 | `ui` | no | The hints the panel's form takes for the input, see [Form hints](#form-hints). |
 | `default` | no | The value the form starts the input with, see [Form defaults](#form-defaults). |
+| `when` | no | The condition the field is shown on, see [Conditional fields](#conditional-fields). |
+| `when_hidden` | with `when` | `clear` or `keep`: what happens to the value while the field is hidden. Every field with `when` declares it, and only such a field. |
 
 A field in `fields` at the top of the document also has:
 
@@ -153,6 +155,30 @@ This edition refuses the classifications `personal` and `sensitive` (PRD 12.2). 
 
 Both classifications arrive as an addition to version 1, together with the keys they require. No valid file can use them now, so every valid file stays valid and keeps its meaning when they arrive.
 
+## Conditional fields
+
+A field with `when` is shown while its condition holds and hidden while it does not (gap G3). A link that goes to a page or to another site, or a media block that holds an image or a video, is then one type whose form shows the fields of the choice made, instead of a type per choice or a validate hook that the panel and the TypeScript validator cannot see.
+
+The condition is typed and has no expressions. It compares one field, named by `field`:
+
+| Condition | Holds when |
+|---|---|
+| `{ field: kind, eq: external }` | the field's value is the value |
+| `{ field: kind, neq: external }` | the field's value is not the value; a field without a value is not it either |
+| `{ field: kind, in: [video, audio] }` | the field's value is one of the values |
+| `{ field: kind, "null": true }` | the field has no value: it is left out or null |
+| `{ field: kind, not_null: true }` | the field has a value |
+| `{ all: [ ... ] }` | every condition of the list holds |
+| `{ any: [ ... ] }` | at least one condition of the list holds |
+
+Quote the key `"null"` in YAML: a bare `null` is read as no key, and the file is refused. `eq`, `neq` and `in` compare a `text`, `long_text` or `select` field with strings, a `select` only with its options, an `integer` with whole numbers and a `boolean` with `true` or `false`. Any other field, a `select` with `multiple: true` included, is asked only `null` or `not_null`.
+
+`field` names a sibling of the conditional field by its handle, or with `../` once per group a sibling of a group the field is in: a field of a group writes `../kind` for the type's field `kind`. An item of a repeated group is one object, so its fields read their siblings in the same item. The fields of one set read each other: the owner's fields, or the fields one extender adds to one type, whose top-level fields it may also name `ext.<namespace>.<handle>` with its own namespace. A condition never reads another owner's fields.
+
+While a field is hidden, it is never required, whatever its `required` says, at a write and at a release. `when_hidden: clear` says a hidden field holds no value: the validators refuse one with `validation_hidden_field`, and the form clears the input when it hides it. `when_hidden: keep` says it keeps the value it has, which is checked by its rules as any value is. Every conditional field declares one of the two, so nothing about a hidden value is a default. A condition reads the values as the input holds them, the kept value of a hidden field included.
+
+A conditional field is never NOT NULL, because a hidden field holds no value, and its PHP and TypeScript types are nullable; `required` holds while it is shown. The runtime validator, the record's JSON codec and its TypeScript validator check the conditions, and the [editor descriptor](type-editors.md) carries each field's condition so the form shows and hides it. Making a required field of a type that has a table conditional changes its column's NOT NULL, which `generate_field_changed` refuses until schema evolution comes (B3).
+
 ## Core field types
 
 | Type | What | Choices |
@@ -213,6 +239,12 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | A field whose column is in its type's schema lock stays in the schema. | `generate_field_removed` |
 | A field keeps the column type, NOT NULL, CHECK constraints and index of its type's schema lock: its type, options, `required`, classification, `filterable` and `sortable` stay as they were. | `generate_field_changed` |
 | A field added to a type that has a table is optional, so its column is nullable on the rows that exist. An extension field is always nullable. | `generate_required_field_added` |
+| A field's `when` names a field it can reach, see [Conditional fields](#conditional-fields): a sibling, or with `../` a sibling of a group the field is in, and the reference goes up no more groups than the field is in. | `generate_when_unknown_field` |
+| The conditions of a set of fields do not read each other in a circle, and no field's `when` reads the field itself or a group it is in, so whether a field is shown always has an answer. The problem names the circle. | `generate_when_cycle` |
+| `ext.<namespace>.<handle>` names the conditional field's own namespace: a condition of the owner's fields never reads an extension's, and an extension's never another owner's. | `generate_when_foreign_namespace` |
+| A field's `when` reads a field classified at most as the conditional field, because a reader who may see the field must be able to tell whether it is shown. A field inside a group has its group's classification. | `generate_when_classification_above` |
+| In a type with `localization: variants`, a field's `when` reads a field the same variant holds: a translatable field a translatable one, a shared field a shared one, because a revision holds the fields of one variant (PRD 10.1). | `generate_when_other_variant` |
+| `eq`, `neq` and `in` compare a field with values of its kind: strings for `text`, `long_text` and `select`, a `select`'s options only, whole numbers for `integer` and booleans for `boolean`. Any other field, and a `select` with `multiple: true`, takes only `null` and `not_null`. | `generate_when_value_wrong_kind` |
 
 An unknown `extends` is reported only when every file was read, because a file that cannot be read may be the one that defines the type.
 
@@ -236,7 +268,7 @@ A few rules decide more than the field type does:
 
 - The column of a field of the type's owner is its handle; the column of an extension field is `ext__<namespace>__<handle>`. The fields inside a group have no column of their own: the group is one `jsonb` column.
 - A `confidential` field is encrypted (PRD 12.2): its column is `bytea` holding ciphertext, without checks, whatever its type. The fields inside a confidential group are encrypted with it.
-- A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable. An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
+- A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable, unless it is conditional, see [Conditional fields](#conditional-fields). An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
 - A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
 
 From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO, its JSON codec and a TypeScript module with its validator, described on [Records and JSON codecs](codecs.md).
@@ -249,7 +281,7 @@ The rules of each field's runtime validator become a validator per type, which c
 
 ## Examples
 
-These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the five files against the schema, as an application's or addon's own tests can.
+These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the six files against the schema, as an application's or addon's own tests can.
 
 A type with every core field type:
 
@@ -589,6 +621,89 @@ layout:
             width: half
 ```
 
+A type with conditional fields: two fields shown each for one choice and cleared when hidden, one that reads whether another has a value, and a field of a group that reads its sibling and, one group up, the type's field.
+
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/conditional.yaml -->
+```yaml
+# A type with conditional fields (gap G3): url and page_path are each shown for one target and
+# cleared when hidden, caption reads whether url has a value, and the nested field medium reads its
+# sibling and, one group up, the target. Each conditional field declares its when_hidden.
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a7e
+handle: link_card
+label: Link card
+description: A card that links to a page of the site or to another site.
+version: 1
+capabilities:
+  history: full
+  stages: none
+  localization: none
+fields:
+  - handle: target
+    label: Target
+    description: Whether the card links inside the site or to another site.
+    type: select
+    required: true
+    classification: public
+    options:
+      - value: page
+        label: A page of the site
+      - value: external
+        label: Another site
+  - handle: url
+    label: URL
+    description: The address of the other site.
+    type: text
+    format: url
+    required: true
+    classification: public
+    when:
+      field: target
+      eq: external
+    when_hidden: clear
+  - handle: page_path
+    label: Page path
+    description: The path of the page of the site.
+    type: text
+    required: true
+    classification: public
+    when:
+      field: target
+      eq: page
+    when_hidden: clear
+  - handle: caption
+    label: Caption
+    description: The text shown under the card, when the link has none of its own.
+    type: text
+    classification: public
+    when:
+      field: url
+      "null": true
+    when_hidden: keep
+  - handle: tracking
+    label: Tracking
+    description: How a click on the card is counted.
+    type: group
+    classification: public
+    fields:
+      - handle: campaign
+        label: Campaign
+        description: The campaign the click counts for.
+        type: text
+      - handle: medium
+        label: Medium
+        description: The medium of the campaign, for a link to another site.
+        type: text
+        when:
+          all:
+            - field: campaign
+              not_null: true
+            - field: ../target
+              in: [external]
+        when_hidden: keep
+```
+
 <!-- example: examples/Codecs/Blueprint/ValidBlueprintsTest.php -->
 ```php
 <?php
@@ -620,5 +735,6 @@ it('accepts the blueprint file', function (string $file): void {
     'the type product with the addon field type acme:colour' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml'],
     'the type notice with localization variants' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml'],
     'the type event with labels per locale, a layout, ui hints and defaults' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml'],
+    'the type link_card with conditional fields' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/conditional.yaml'],
 ]);
 ```

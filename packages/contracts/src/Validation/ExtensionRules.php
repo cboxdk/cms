@@ -24,5 +24,6 @@ final readonly class ExtensionRules
         public array $fields,
     ) {
         FieldRules::assertDistinct($fields);
+        FieldRules::assertReferences($fields);
     }
 }

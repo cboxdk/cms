@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\TypeEditors\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Validation\Condition;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\ArrayLiteral;
 use Cbox\Cms\Generators\Codec\Domain\TypeScript\BooleanLiteral;
@@ -44,6 +45,22 @@ final readonly class RuleJson
             return json_encode(self::json(TypeScriptEmitter::rule($value)), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
         } catch (JsonException $exception) {
             throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, 'The rule of a field cannot be written as JSON: '.$exception->getMessage());
+        }
+    }
+
+    /**
+     * The condition of a conditional field as JSON (gap G3): the ConditionRule of the generated
+     * validation runtime that TypeScriptEmitter::conditionRule() gives, as the record's module
+     * declares it, so a form shows and hides the field with the runtime's conditionHolds().
+     *
+     * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
+     */
+    public static function condition(Condition $condition): string
+    {
+        try {
+            return json_encode(self::json(TypeScriptEmitter::conditionRule($condition)), JSON_THROW_ON_ERROR | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE);
+        } catch (JsonException $exception) {
+            throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, 'The condition of a field cannot be written as JSON: '.$exception->getMessage());
         }
     }
 

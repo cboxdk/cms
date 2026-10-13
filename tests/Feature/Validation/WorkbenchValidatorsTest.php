@@ -7,6 +7,7 @@ namespace Cbox\Cms\Tests\Feature\Validation;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Validation\ValidationReport;
+use Cbox\Cms\Contracts\Validation\ValidationStage;
 use Cbox\Cms\Core\Validation\Boundary\InputValidator;
 use Workbench\App\Cms\Generated\Validators\AppFixtureArticleValidator;
 use Workbench\App\Cms\Generated\Validators\AppFixtureMeasurementValidator;
@@ -16,7 +17,9 @@ use Workbench\App\Cms\Generated\Validators\AppFixtureMeasurementValidator;
  * MILESTONES M1 point 2), fed input as the REST API, MCP or the CLI would send it: valid input
  * passes, and for every field type one invalid input per rule gives exactly one field error with
  * the value's path and the rule's code from the error catalog. fixture_measurement has every core
- * field type and every rule; its blueprint is workbench/schema/fixture_measurement.yaml.
+ * field type and every rule; its blueprint is workbench/schema/fixture_measurement.yaml. The
+ * conditional fields of its series' items (gap G3) are never required while hidden, and a value for
+ * one that is hidden and clear is validation_hidden_field.
  */
 
 /**
@@ -205,4 +208,25 @@ it('collects every error of the input in one report, in the order of the fields'
         'fixture_samples: validation_below_minimum',
         'fixture_scale: validation_not_an_option',
     ]);
+});
+
+it('never requires a hidden field, and refuses a value on a hidden field marked clear, with the codes of the catalog', function (array $item, array $measurement, array $expected): void {
+    $input = [...validMeasurement(), ...$measurement, 'fixture_series' => [['fixture_series_value' => '1', ...$item]]];
+
+    expect(fieldErrors(new InputValidator()->validate(new AppFixtureMeasurementValidator()->rules(), $input)))->toBe($expected);
+})->with([
+    'hidden: no method, so no operator is asked for' => [[], [], []],
+    'shown and required: a manual reading without its operator' => [['fixture_series_method' => 'fixture_manual'], [], ['fixture_series[0].fixture_series_operator: validation_required']],
+    'shown: a manual reading with its operator' => [['fixture_series_method' => 'fixture_manual', 'fixture_series_operator' => 'Ana'], [], []],
+    'hidden with a value under clear' => [['fixture_series_method' => 'fixture_logged', 'fixture_series_operator' => 'Ana'], [], ['fixture_series[0].fixture_series_operator: validation_hidden_field']],
+    'hidden with a value under keep, checked as any value' => [['fixture_series_device' => str_repeat('d', 61)], [], ['fixture_series[0].fixture_series_device: validation_too_long']],
+    'any: shown by the measurement\'s field one group up' => [['fixture_series_device' => 'D-1'], ['fixture_calibrated' => true], []],
+    'all: shown and required on the kelvin scale with a method' => [['fixture_series_method' => 'fixture_logged'], ['fixture_scale' => 'fixture_kelvin'], ['fixture_series[0].fixture_series_check: validation_required']],
+    'all: hidden with a value under clear on the celsius scale' => [['fixture_series_method' => 'fixture_logged', 'fixture_series_check' => 'x'], [], ['fixture_series[0].fixture_series_check: validation_hidden_field']],
+]);
+
+it('never requires a hidden field at the release stage either', function (): void {
+    $input = [...validMeasurement(), 'fixture_series' => [['fixture_series_value' => '1', 'fixture_series_method' => 'fixture_logged']]];
+
+    expect(fieldErrors(new InputValidator()->validate(new AppFixtureMeasurementValidator()->rules(), $input, ValidationStage::Release)))->toBe([]);
 });

@@ -45,6 +45,9 @@ export type SelectDisplay = 'radio' | 'buttons' | 'dropdown';
 /** The values of Stages. */
 export type Stages = 'none' | 'draft-release';
 
+/** The values of WhenHidden. */
+export type WhenHidden = 'clear' | 'keep';
+
 /**
  * What the panel's forms render a type from (PRD 11.12, 14.1, GUARDRAILS 2.4): the type's name,
  * labels, capabilities and inferred title field, its layout of tabs and a sidebar that places every
@@ -235,6 +238,20 @@ export interface EditorFieldV1 {
   type: string;
   /** The hints the form takes for the input. */
   ui: EditorUiV1;
+  /**
+   * The condition the field is shown on (gap G3), or null for a field that is always shown: a
+   * ConditionRule of the generated validation runtime,
+   * {"op":"eq","field":{"up":0,"key":"kind"},"value":"external"} and the like, whose field is the
+   * key of a sibling in the field's object, up objects above it, an item of a repeated group being
+   * one object. While it does not hold, the field is hidden and never required.
+   */
+  when: JsonObject | null;
+  /**
+   * What happens to the value of a conditional field while it is hidden: clear, the form clears it
+   * and the validators refuse one, or keep, it keeps its value; null for a field without a
+   * condition.
+   */
+  when_hidden: WhenHidden | null;
 }
 
 /** One option of a select field: the value the field stores and its label. */
@@ -525,6 +542,8 @@ const editorFieldV1Rule: ObjectRule = {
     },
     { key: 'ui', presence: 'required', value: { kind: 'object', object: editorUiV1Rule } },
     { key: 'default', presence: 'present', value: { kind: 'document' } },
+    { key: 'when', presence: 'present', value: { kind: 'document' } },
+    { key: 'when_hidden', presence: 'present', value: { kind: 'enum', values: ['clear', 'keep'] } },
   ],
 };
 

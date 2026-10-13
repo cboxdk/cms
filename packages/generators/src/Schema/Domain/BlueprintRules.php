@@ -46,6 +46,10 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  *   names its tabs and sections once (LayoutRules, gap G2).
  * - A `default` is of the kind the field's type takes, and a repeated group's `ui.summary` names
  *   only the group's fields (PresentationRules, gap G2).
+ * - A field's `when` names a field of its own set it can reach, of its classification or lower,
+ *   held by its variant, with values of that field's kind, and the conditions of a set never read
+ *   each other in a circle (ConditionRules, gap G3). The fields one owner adds to one type are one
+ *   set across its extension files.
  *
  * The rules run on the blueprints that were read. When a file could not be read, the type it
  * defines is unknown, so an unknown `extends` is reported only when every file was read; the other
@@ -107,6 +111,7 @@ final readonly class BlueprintRules
             $seen = [];
             $this->fields($type->fields, sprintf('the type %s', $type->handle->value), $seen, $problems);
             $this->localization($type->fields, $type, $problems);
+            array_push($problems, ...ConditionRules::problems($type->fields, null, $type->capabilities->localization === Localization::Variants));
 
             if ($type->layout instanceof Layout) {
                 array_push($problems, ...LayoutRules::problems($type->layout, $type->fields, sprintf('the type %s', $type->handle->value)));
@@ -163,6 +168,10 @@ final readonly class BlueprintRules
         $namespaces = [];
         /** @var array<string, ExtensionBlueprint> $firsts the first extension file of each extended type and extender */
         $firsts = [];
+        /** @var array<string, list<FieldBlueprint>> $sets the top-level fields of each extended type and extender, across its files */
+        $sets = [];
+        /** @var array<string, array{Owner, ?TypeBlueprint}> $setTargets the extender and the extended type, when it was read */
+        $setTargets = [];
 
         foreach ($blueprints->extensions as $extension) {
             $extends = $extension->extends->toString();
@@ -202,6 +211,8 @@ final readonly class BlueprintRules
 
             $namespaces[$namespace] ??= [];
             $this->fields($extension->fields, $this->extensionNamespace($extension), $namespaces[$namespace], $problems);
+            $sets[$namespace] = [...$sets[$namespace] ?? [], ...$extension->fields];
+            $setTargets[$namespace] = [$extension->owner, $target];
 
             $this->localization($extension->fields, $target, $problems);
 
@@ -212,6 +223,11 @@ final readonly class BlueprintRules
             foreach ($extension->fields as $field) {
                 $this->columnName(ColumnName::ofExtensionField($extension->owner, $field->handle), $field, $problems);
             }
+        }
+
+        foreach ($sets as $namespace => $fields) {
+            [$extender, $target] = $setTargets[$namespace];
+            array_push($problems, ...ConditionRules::problems($fields, $extender, $target?->capabilities->localization === Localization::Variants));
         }
     }
 

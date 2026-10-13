@@ -85,7 +85,9 @@
                     ],
                     "rule": "links"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -168,7 +170,9 @@
                     ],
                     "rule": "links"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -220,7 +224,9 @@
                     ],
                     "rule": "min"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -283,7 +289,9 @@
                     ],
                     "rule": "in"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -351,7 +359,9 @@
                             ],
                             "rule": "in"
                         }
-                    ]
+                    ],
+                    "when": null,
+                    "when_hidden": null
                 },
                 {
                     "agents": true,
@@ -373,7 +383,7 @@
                         "native": "int",
                         "nullable": true
                     },
-                    "required": false,
+                    "required": true,
                     "sortable": false,
                     "translatable": false,
                     "type": "integer",
@@ -396,7 +406,29 @@
                             ],
                             "rule": "min"
                         }
-                    ]
+                    ],
+                    "when": {
+                        "conditions": [
+                            {
+                                "conditions": [],
+                                "field": "size",
+                                "operator": "eq",
+                                "values": [
+                                    "large"
+                                ]
+                            },
+                            {
+                                "conditions": [],
+                                "field": "../discontinued",
+                                "operator": "not_null",
+                                "values": []
+                            }
+                        ],
+                        "field": null,
+                        "operator": "all",
+                        "values": []
+                    },
+                    "when_hidden": "keep"
                 }
             ],
             "filterable": false,
@@ -438,7 +470,9 @@
                     ],
                     "rule": "max_items"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -482,7 +516,9 @@
                     "arguments": [],
                     "rule": "boolean"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -534,7 +570,9 @@
                     ],
                     "rule": "max_length"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -586,7 +624,9 @@
                     ],
                     "rule": "max_length"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -645,7 +685,9 @@
                     ],
                     "rule": "max"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -704,7 +746,9 @@
                     ],
                     "rule": "max_length"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -766,7 +810,9 @@
                     ],
                     "rule": "max"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": false,
@@ -813,7 +859,9 @@
                     ],
                     "rule": "decimal"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -872,7 +920,9 @@
                     ],
                     "rule": "max"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": false,
@@ -924,7 +974,9 @@
                     ],
                     "rule": "max_length"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -984,7 +1036,9 @@
                             ],
                             "rule": "max_length"
                         }
-                    ]
+                    ],
+                    "when": null,
+                    "when_hidden": null
                 },
                 {
                     "agents": false,
@@ -1029,7 +1083,9 @@
                             ],
                             "rule": "max_length"
                         }
-                    ]
+                    ],
+                    "when": null,
+                    "when_hidden": null
                 },
                 {
                     "agents": true,
@@ -1080,7 +1136,9 @@
                             ],
                             "rule": "format"
                         }
-                    ]
+                    ],
+                    "when": null,
+                    "when_hidden": null
                 }
             ],
             "filterable": false,
@@ -1110,7 +1168,9 @@
                     "arguments": [],
                     "rule": "object"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -1168,7 +1228,16 @@
                     ],
                     "rule": "format"
                 }
-            ]
+            ],
+            "when": {
+                "conditions": [],
+                "field": "discontinued",
+                "operator": "neq",
+                "values": [
+                    true
+                ]
+            },
+            "when_hidden": "clear"
         },
         {
             "agents": true,
@@ -1253,7 +1322,9 @@
                     ],
                     "rule": "max_items"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -1305,7 +1376,9 @@
                     ],
                     "rule": "min"
                 }
-            ]
+            ],
+            "when": null,
+            "when_hidden": null
         }
     ],
     "handle": "product",

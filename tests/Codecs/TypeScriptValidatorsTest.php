@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ReceiptCodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
+use Cbox\Cms\Core\Validation\Boundary\InputValidator;
 use Cbox\Cms\Generators\Protocol\Boundary\SampleProps;
 use Cbox\Cms\Generators\Protocol\Domain\Dto\SchemaBinding;
 use Cbox\Cms\Panel\Tests\Points\PanelPointFixtures;
@@ -26,6 +27,7 @@ use LogicException;
 use stdClass;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureArticleCodecV1;
 use Workbench\App\Cms\Generated\Boundary\AppFixtureMeasurementCodecV1;
+use Workbench\App\Cms\Generated\Validators\AppFixtureMeasurementValidator;
 
 /*
  * The TypeScript validators cms:generate writes, run in Node against what the PHP codecs actually
@@ -317,6 +319,64 @@ it('accepts every record of app:fixture_measurement v1 the PHP codec writes, and
         'rich text with a span without text' => [measurementJson($block(['children' => [['_type' => 'span', '_key' => 'a1']]])), 'fixture_remark[0].children[0].text'],
         'rich text with an object that is not a block' => [measurementJson(['fixture_remark' => [['_type' => 'image', '_key' => 'a']]]), 'fixture_remark[0]._type'],
     ]);
+});
+
+/**
+ * The measurement with the items of its series and other fields: the items' conditional fields
+ * (gap G3) read their siblings, the measurement's fixture_calibrated and its fixture_scale.
+ *
+ * @param  list<array<string, mixed>>  $items
+ * @param  array<string, mixed>  $fields
+ */
+function seriesJson(array $items, array $fields = []): string
+{
+    return measurementJson(['fixture_series' => $items, ...$fields]);
+}
+
+it('holds the conditional fields of app:fixture_measurement v1 to the same verdict and path in the PHP codec, the InputValidator and the TypeScript validator', function (): void {
+    $manual = ['fixture_series_value' => '1', 'fixture_series_method' => 'fixture_manual', 'fixture_series_operator' => 'Ana'];
+    $logged = ['fixture_series_value' => '1', 'fixture_series_method' => 'fixture_logged'];
+    $kelvin = ['fixture_scale' => 'fixture_kelvin'];
+    $fixtures = [
+        'hidden and required: no method, so no operator is asked for' => [seriesJson([['fixture_series_value' => '1']]), null],
+        'shown and required: a manual reading without its operator' => [seriesJson([['fixture_series_value' => '1', 'fixture_series_method' => 'fixture_manual']]), 'fixture_series[0].fixture_series_operator'],
+        'shown and required: a manual reading with its operator null' => [seriesJson([[...$manual, 'fixture_series_operator' => null]]), 'fixture_series[0].fixture_series_operator'],
+        'shown and required: a manual reading with its operator' => [seriesJson([$manual]), null],
+        'shown and required in the second item only' => [seriesJson([['fixture_series_value' => '1'], ['fixture_series_value' => '2', 'fixture_series_method' => 'fixture_manual']]), 'fixture_series[1].fixture_series_operator'],
+        'hidden with a value under clear: a logged reading with an operator' => [seriesJson([[...$logged, 'fixture_series_operator' => 'Ana']]), 'fixture_series[0].fixture_series_operator'],
+        'hidden with a value under clear: an operator without a method' => [seriesJson([['fixture_series_value' => '1', 'fixture_series_operator' => 'Ana']]), 'fixture_series[0].fixture_series_operator'],
+        'hidden and null under clear' => [seriesJson([[...$logged, 'fixture_series_operator' => null]]), null],
+        'hidden with a value under keep: a manual reading with a device, the sensor not calibrated' => [seriesJson([[...$manual, 'fixture_series_device' => 'D-1']]), null],
+        'any: shown by its sibling, a logged reading with its device' => [seriesJson([[...$logged, 'fixture_series_device' => 'D-1']]), null],
+        'any: shown by the measurement\'s fixture_calibrated' => [seriesJson([[...$manual, 'fixture_series_device' => 'D-1']], ['fixture_calibrated' => true]), null],
+        'any: a kept device still meets its rules' => [seriesJson([[...$manual, 'fixture_series_device' => str_repeat('d', 61)]]), 'fixture_series[0].fixture_series_device'],
+        'all: a method and the kelvin scale, without the check' => [seriesJson([$manual], $kelvin), 'fixture_series[0].fixture_series_check'],
+        'all: a method and the kelvin scale, with the check' => [seriesJson([[...$manual, 'fixture_series_check' => 'Against the reference cell']], $kelvin), null],
+        'all: the celsius scale, so no check is asked for' => [seriesJson([$manual]), null],
+        'all: hidden with a value under clear, the celsius scale' => [seriesJson([[...$manual, 'fixture_series_check' => 'x']]), 'fixture_series[0].fixture_series_check'],
+        'all: hidden with a value under clear, the kelvin scale without a method' => [seriesJson([['fixture_series_value' => '1', 'fixture_series_check' => 'x']], $kelvin), 'fixture_series[0].fixture_series_check'],
+        'a value that breaks its rule before any condition' => [seriesJson([['fixture_series_value' => '1', 'fixture_series_method' => 'fixture_typed']]), 'fixture_series[0].fixture_series_method'],
+    ];
+
+    crossCheck(new AppFixtureMeasurementCodecV1, 'records/AppFixtureMeasurementV1', 'validateAppFixtureMeasurementV1', $fixtures);
+
+    $rules = new AppFixtureMeasurementValidator()->rules();
+
+    foreach ($fixtures as $name => [$document, $path]) {
+        $input = json_decode($document, true, 64, JSON_THROW_ON_ERROR);
+        expect($input)->toBeArray();
+
+        if (! is_array($input)) {
+            continue;
+        }
+
+        unset($input['cms_id']);
+        $errors = new InputValidator()->validate($rules, $input)->errors;
+        $first = $errors[0] ?? null;
+
+        expect($first?->path?->toString())->toBe($path, 'The InputValidator on the fixture '.$name)
+            ->and($first === null || in_array($first->code, [ErrorCode::ValidationRequired, ErrorCode::ValidationHiddenField, ErrorCode::ValidationTooLong, ErrorCode::ValidationNotAnOption], true))->toBeTrue('The code of the InputValidator on the fixture '.$name);
+    }
 });
 
 it('accepts every record of app:fixture_article v1 the PHP codec writes, and refuses what it refuses at the same value', function (): void {

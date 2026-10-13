@@ -89,6 +89,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Core\Access\Domain\Commands\AssignGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
@@ -461,6 +462,8 @@ final readonly class ProtocolSchemas
                     '#/$defs/field/properties/namespace' => ValueBinding::value(FieldNamespace::class),
                     '#/$defs/field/properties/presence' => ValueBinding::enum(Presence::class),
                     '#/$defs/field/properties/rule' => $document,
+                    '#/$defs/field/properties/when' => $document,
+                    '#/$defs/field/properties/when_hidden' => ValueBinding::enum(WhenHidden::class),
                     '#/$defs/placement/properties/width' => ValueBinding::enum(EditorWidth::class),
                     '#/$defs/section/properties/handle' => ValueBinding::value(FieldHandle::class),
                     '#/$defs/tab/properties/handle' => ValueBinding::value(FieldHandle::class),

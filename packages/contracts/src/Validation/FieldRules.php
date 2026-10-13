@@ -18,6 +18,12 @@ use DateTimeImmutable;
  * for `datetime`. An `object` has nested fields; a `list` has nested fields, a repeated group whose
  * items are each an object of them, or `items_in`, the options of its items; no other field has
  * nested fields. The nested fields have different handles.
+ *
+ * A conditional field (gap G3) has a condition, `when`, and says what happens to its value while
+ * the condition does not hold, `whenHidden`; a field has both or neither. A hidden field is never
+ * required, whatever its presence, and holds no value when it is WhenHidden::Clear. The condition
+ * reads siblings of the field and siblings of the groups it is in (FieldReference), which the
+ * TypeRules and ExtensionRules that hold the field check it names (assertReferences()).
  */
 #[Experimental]
 final readonly class FieldRules
@@ -28,6 +34,8 @@ final readonly class FieldRules
      * @param  list<Rule>  $rules  the type rule first
      * @param  list<FieldRules>  $fields  the nested fields of a group
      * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
+     * @param  ?Condition  $when  the condition the field is shown on, or null for a field that is always shown
+     * @param  ?WhenHidden  $whenHidden  what happens to the value of a hidden field, for a conditional field
      *
      * @throws InvalidRules
      */
@@ -37,7 +45,13 @@ final readonly class FieldRules
         public array $rules,
         public array $fields = [],
         public bool $translatable = false,
+        public ?Condition $when = null,
+        public ?WhenHidden $whenHidden = null,
     ) {
+        if (($when instanceof Condition) !== ($whenHidden instanceof WhenHidden)) {
+            throw InvalidRules::whenHidden($handle);
+        }
+
         $type = ($rules[0] ?? null)?->name;
 
         if ($type === null || ! $type->isType()) {
@@ -75,6 +89,42 @@ final readonly class FieldRules
 
         self::assertDistinct($fields);
         $this->type = $type;
+    }
+
+    /**
+     * Whether the field is shown for the values: it has no condition, or its condition holds.
+     */
+    public function shownFor(ConditionValues $values): bool
+    {
+        return ! $this->when instanceof Condition || $this->when->holds($values);
+    }
+
+    /**
+     * Checks that the condition of every field, nested fields included, names a field it can
+     * reach: a sibling, or a sibling of a group the field is in, within the fields given.
+     *
+     * @param  list<FieldRules>  $fields  the fields of one object
+     * @param  list<list<FieldRules>>  $ancestors  the fields of each object the object is in, the outermost first
+     *
+     * @throws InvalidRules
+     */
+    public static function assertReferences(array $fields, array $ancestors = []): void
+    {
+        $scopes = [...$ancestors, $fields];
+
+        foreach ($fields as $field) {
+            foreach ($field->when?->references() ?? [] as $reference) {
+                $scope = $scopes[count($scopes) - 1 - $reference->up] ?? null;
+
+                if ($scope === null || ! array_any($scope, static fn (FieldRules $sibling): bool => $sibling->handle->equals($reference->handle))) {
+                    throw InvalidRules::unknownReference($field->handle, $reference);
+                }
+            }
+
+            if ($field->fields !== []) {
+                self::assertReferences($field->fields, $scopes);
+            }
+        }
     }
 
     /**

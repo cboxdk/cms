@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
@@ -28,6 +29,9 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * The presentation keys (gap G2) reach only the editor descriptor: `labels` and `descriptions`
  * are the label and the description per locale when the file gives a map, `ui` the hints of the
  * form and `default` the form's starting value; each is empty or null when the file has none.
+ *
+ * `when` is the condition the field is shown on and `whenHidden` what happens to its value while
+ * it is hidden (gap G3); a conditional field has both, every other field neither.
  */
 #[Internal]
 final readonly class FieldBlueprint
@@ -68,5 +72,7 @@ final readonly class FieldBlueprint
         public array $descriptions = [],
         public ?FieldUi $ui = null,
         public ?FieldDefault $default = null,
+        public ?FieldCondition $when = null,
+        public ?WhenHidden $whenHidden = null,
     ) {}
 }

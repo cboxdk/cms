@@ -88,7 +88,7 @@ final class LocalizedExample
      */
     public static function php(): array
     {
-        return self::generated(new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))), new PhpTypeQueries, new PhpTypeValidators]));
+        return self::generated(new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...), RuleJson::condition(...))), new PhpTypeQueries, new PhpTypeValidators]));
     }
 
     /**

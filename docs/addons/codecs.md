@@ -50,6 +50,10 @@ A field classified above public can be withheld (PRD 12.2). The codec takes the 
 - `json_malformed`: the document is not well-formed JSON, not an object, nests too deep, or an object in it has the same key twice. `json_decode()` keeps the last of two equal keys; the codec refuses them.
 - `json_invalid`: a key is missing or unknown, a value has the wrong type or breaks a rule, or a field is classified above the access. `path` is the `FieldPath` of the value, such as `fixture_sources[0].fixture_source_url`.
 
+### Conditional fields
+
+A conditional field (gap G3, see [Conditional fields](blueprint-v1.md#conditional-fields)) may be missing or `null`, so its DTO property may hold `Omitted` and `null`, and its TypeScript key is optional. Once every value of a document passed its rules, the codec of a type with conditional fields checks their conditions with the core's `JsonConditions` and the rules of the type's generated validator: a shown field its blueprint requires needs a value, and a hidden field of `when_hidden: clear` has none, each refused with `json_invalid` at the field's path. A field withheld above the caller's access is never asked for. The TypeScript validator checks the same conditions after the same rules, from each key's `when`, `whenHidden` and `requiredWhenShown`.
+
 ## The TypeScript form and its validator
 
 `cms:generate` also writes the JSON form as TypeScript, into the TypeScript directory of `cbox-cms.generators` (`resources/js/cms/generated` in an application), so the browser and the kernel agree on each contract version (PRD 11.12, GUARDRAILS 2.2):

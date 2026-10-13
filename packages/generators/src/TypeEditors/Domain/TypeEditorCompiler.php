@@ -32,7 +32,7 @@ use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
-use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\Condition;
 use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\PhpSource;
 use Cbox\Cms\Generators\Codec\Domain\RecordContracts;
@@ -70,6 +70,10 @@ use Closure;
  * The title field is the first required text field of the owner in blueprint order, else the
  * owner's first text field, or null when the owner has no text field.
  *
+ * A conditional field (gap G3) carries its condition as one JSON document in the form of the
+ * runtime's ConditionRule, written by the third closure (RuleJson::condition() in the Boundary),
+ * and its when_hidden; its presence holds while it is shown.
+ *
  * The presentation keys (gap G2) come from the descriptor as the blueprints gave them: the label
  * and the description per locale as EditorTexts, the composed layout as the EditorLayout, each
  * field's `ui` as its EditorUi, and its `default` as one JSON document written by the second
@@ -81,8 +85,9 @@ final readonly class TypeEditorCompiler
     /**
      * @param  Closure(CodecValue): string  $ruleJson  writes the ValueRule of a leaf field as JSON
      * @param  Closure(FieldDefault): string  $defaultJson  writes the default of a field as JSON
+     * @param  Closure(Condition): string  $conditionJson  writes the condition of a field as JSON
      */
-    public function __construct(private Closure $ruleJson, private Closure $defaultJson) {}
+    public function __construct(private Closure $ruleJson, private Closure $defaultJson, private Closure $conditionJson) {}
 
     /**
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
@@ -159,7 +164,7 @@ final readonly class TypeEditorCompiler
             base: $base,
             label: $field->label,
             description: $field->description,
-            presence: $this->presence($field),
+            presence: $field->presence(),
             classification: ClassificationAccess::from($field->classification->value),
             agents: $field->agents,
             encrypted: $field->encrypted,
@@ -172,6 +177,8 @@ final readonly class TypeEditorCompiler
             descriptions: self::texts($field->descriptions),
             ui: $field->ui instanceof FieldUi ? $this->ui($field->ui) : new EditorUi,
             defaultValue: $field->default instanceof FieldDefault ? new JsonDocument(($this->defaultJson)($field->default)) : null,
+            when: $field->when instanceof Condition ? new JsonDocument(($this->conditionJson)($field->when)) : null,
+            whenHidden: $field->whenHidden,
         )];
 
         foreach ($this->inFileOrder($field->fields) as $nested) {
@@ -252,17 +259,6 @@ final readonly class TypeEditorCompiler
         $max = PhpSource::rule($value, ValidationRuleName::MaxItems)->arguments[0] ?? null;
 
         return new EditorRepeat($min === null ? null : (int) $min, $max === null ? null : (int) $max);
-    }
-
-    private function presence(FieldDescriptor $field): Presence
-    {
-        $first = $field->validation[0] ?? null;
-
-        return match (true) {
-            $first?->name === ValidationRuleName::Required => Presence::Required,
-            $field->required => Presence::RequiredOnRelease,
-            default => Presence::Optional,
-        };
     }
 
     /**

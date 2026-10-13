@@ -159,11 +159,46 @@ export type ValueRule =
   | FieldsRule
   | DocumentRule;
 
-/** A key of an object, in the order the kernel's codec reads it. */
+/** A value a condition compares a field with: text, a whole number or a boolean. */
+export type ConditionValue = string | number | boolean;
+
+/**
+ * The field a condition reads: `key` in the object that holds the conditional field, or `up`
+ * objects above it, an item of a repeated group being one object.
+ */
+export interface FieldReference {
+  readonly up: number;
+  readonly key: string;
+}
+
+/**
+ * The condition of a conditional field (gap G3), typed and without expressions: a field compared
+ * with `eq`, `neq` or `in`, asked for a value with `null` or `not_null`, or `all` or `any` of other
+ * conditions. A field without a value, left out or null, equals nothing, so `neq` holds for it.
+ */
+export type ConditionRule =
+  | { readonly op: 'eq' | 'neq'; readonly field: FieldReference; readonly value: ConditionValue }
+  | {
+      readonly op: 'in';
+      readonly field: FieldReference;
+      readonly values: readonly ConditionValue[];
+    }
+  | { readonly op: 'null' | 'not_null'; readonly field: FieldReference }
+  | { readonly op: 'all' | 'any'; readonly conditions: readonly ConditionRule[] };
+
+/**
+ * A key of an object, in the order the kernel's codec reads it. A conditional key (gap G3) has its
+ * condition, `when`, and what happens to its value while it is hidden, `whenHidden`: a hidden key
+ * is never required, and holds no value when it is `clear`. `requiredWhenShown` says it needs a
+ * value while it is shown.
+ */
 export interface PropertyRule {
   readonly key: string;
   readonly presence: Presence;
   readonly value: ValueRule;
+  readonly when?: ConditionRule;
+  readonly whenHidden?: 'clear' | 'keep';
+  readonly requiredWhenShown?: boolean;
 }
 
 /** An object that has only the keys of its properties. */
@@ -233,6 +268,7 @@ export type FieldValues = { readonly [handle: string]: FieldValue } & {
 export function validate<T>(value: unknown, rule: ObjectRule): Validation<T> {
   try {
     checkObject(value, [], rule);
+    checkConditions(record(value, []), [], rule, []);
   } catch (error) {
     if (error instanceof Invalid) {
       return { valid: false, issue: { path: error.path, reason: error.reason } };
@@ -242,6 +278,95 @@ export function validate<T>(value: unknown, rule: ObjectRule): Validation<T> {
   }
 
   return { valid: true, value: value as T };
+}
+
+/**
+ * Whether a condition holds for the objects that hold the conditional field: the object itself
+ * last, and each object it is in before it, the outermost first.
+ */
+export function conditionHolds(
+  condition: ConditionRule,
+  scopes: readonly Readonly<Record<string, unknown>>[],
+): boolean {
+  switch (condition.op) {
+    case 'all':
+      return condition.conditions.every((inner) => conditionHolds(inner, scopes));
+    case 'any':
+      return condition.conditions.some((inner) => conditionHolds(inner, scopes));
+    case 'null':
+      return referenced(condition.field, scopes) === null;
+    case 'not_null':
+      return referenced(condition.field, scopes) !== null;
+    case 'eq':
+      return referenced(condition.field, scopes) === condition.value;
+    case 'neq':
+      return referenced(condition.field, scopes) !== condition.value;
+    case 'in':
+      return condition.values.some((value) => referenced(condition.field, scopes) === value);
+  }
+}
+
+/** The value a reference names, or null when it has none. */
+function referenced(
+  field: FieldReference,
+  scopes: readonly Readonly<Record<string, unknown>>[],
+): unknown {
+  const object = scopes[scopes.length - 1 - field.up];
+
+  return object === undefined || !Object.hasOwn(object, field.key) ? null : object[field.key];
+}
+
+/**
+ * Checks the conditions of the conditional keys once every value passed its rules, as the
+ * kernel's codec does: each key before the keys of the objects it holds, the first key that
+ * breaks one reported. A shown key with `requiredWhenShown` needs a value, and a hidden key of
+ * `clear` has none.
+ */
+function checkConditions(
+  object: Readonly<Record<string, unknown>>,
+  at: Path,
+  rule: ObjectRule,
+  ancestors: readonly Readonly<Record<string, unknown>>[],
+): void {
+  const scopes = [...ancestors, object];
+
+  for (const property of rule.properties) {
+    const path = [...at, property.key];
+    const value = Object.hasOwn(object, property.key) ? object[property.key] : null;
+    const shown = property.when === undefined || conditionHolds(property.when, scopes);
+
+    if (value === null || value === undefined) {
+      if (shown && property.requiredWhenShown === true) {
+        throw new Invalid(path, 'is missing, and the field is shown and required');
+      }
+
+      continue;
+    }
+
+    if (!shown && property.whenHidden === 'clear') {
+      throw new Invalid(
+        path,
+        'has a value, and the field is hidden because its condition does not hold',
+      );
+    }
+
+    const inner = property.value.kind === 'list' ? property.value.item : property.value;
+
+    if (inner.kind !== 'object') {
+      continue;
+    }
+
+    if (Array.isArray(value)) {
+      const items: readonly unknown[] = value;
+      items.forEach((item, index) => {
+        if (isRecord(item)) {
+          checkConditions(item, [...path, index], inner.object, scopes);
+        }
+      });
+    } else if (isRecord(value)) {
+      checkConditions(value, path, inner.object, scopes);
+    }
+  }
 }
 
 /** The path as the kernel's FieldPath writes it, or null for the document itself. */

@@ -57,7 +57,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -93,7 +95,16 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": {
+                "op": "neq",
+                "field": {
+                    "up": 0,
+                    "key": "discontinued"
+                },
+                "value": true
+            },
+            "when_hidden": "clear"
         },
         {
             "agents": false,
@@ -128,7 +139,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -167,7 +180,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -202,7 +217,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -243,7 +260,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -280,7 +299,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -319,7 +340,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -357,7 +380,9 @@
                 "instructions_by_locale": [],
                 "read_only": true,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -433,7 +458,9 @@
                 ],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -499,7 +526,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -548,7 +577,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -607,7 +638,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -639,7 +672,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -674,7 +709,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -710,7 +747,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": false,
@@ -745,7 +784,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -780,7 +821,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": "{size}: {width} mm"
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -829,7 +872,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -847,7 +892,7 @@
             "namespace": null,
             "parent": "dimensions",
             "path": "dimensions.width",
-            "presence": "optional",
+            "presence": "required",
             "repeat": null,
             "rule": {
                 "kind": "integer",
@@ -864,7 +909,28 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": {
+                "op": "all",
+                "conditions": [
+                    {
+                        "op": "eq",
+                        "field": {
+                            "up": 0,
+                            "key": "size"
+                        },
+                        "value": "large"
+                    },
+                    {
+                        "op": "not_null",
+                        "field": {
+                            "up": 1,
+                            "key": "discontinued"
+                        }
+                    }
+                ]
+            },
+            "when_hidden": "keep"
         },
         {
             "agents": false,
@@ -900,7 +966,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -935,7 +1003,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         },
         {
             "agents": true,
@@ -970,7 +1040,9 @@
                 "instructions_by_locale": [],
                 "read_only": false,
                 "summary": null
-            }
+            },
+            "when": null,
+            "when_hidden": null
         }
     ],
     "id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20",

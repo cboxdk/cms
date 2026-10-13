@@ -8,13 +8,17 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Validation\Condition;
+use Cbox\Cms\Contracts\Validation\ConditionOperator;
 use Cbox\Cms\Contracts\Validation\ExtensionRules;
+use Cbox\Cms\Contracts\Validation\FieldReference;
 use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Contracts\Validation\Rule;
 use Cbox\Cms\Contracts\Validation\RuleName;
 use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
@@ -24,7 +28,6 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
-use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Override;
 
 /**
@@ -41,6 +44,10 @@ use Override;
  * point 1, invariant 36). The other rules keep their names and arguments. The owner's fields come
  * first, sorted by handle, then each extender's under its namespace, sorted by namespace and handle;
  * a group's nested fields are sorted by handle.
+ *
+ * A conditional field (gap G3) keeps the presence its blueprint gives it, which holds while it is
+ * shown, and declares its condition and its when_hidden, so the InputValidator never requires it
+ * while it is hidden and refuses a value for it while it is hidden and clear.
  */
 #[Internal]
 final readonly class PhpTypeValidators implements Generator
@@ -110,7 +117,7 @@ final readonly class PhpTypeValidators implements Generator
         $fields = [];
 
         foreach ($type->ownFields() as $field) {
-            array_push($fields, ...$this->field($field, $this->presence($field, true), 4));
+            array_push($fields, ...$this->field($field, $field->presence(), 4));
         }
 
         $arguments = [$this->line(3, '['), ...$fields, $this->line(3, '],')];
@@ -122,7 +129,7 @@ final readonly class PhpTypeValidators implements Generator
                 $arguments[] = $this->line(4, 'new ExtensionRules(new FieldNamespace('.$this->literal($namespace).'), [');
 
                 foreach ($extensionFields as $field) {
-                    array_push($arguments, ...$this->field($field, $this->presence($field, true), 5));
+                    array_push($arguments, ...$this->field($field, $field->presence(), 5));
                 }
 
                 $arguments[] = $this->line(4, ']),');
@@ -131,9 +138,11 @@ final readonly class PhpTypeValidators implements Generator
             $arguments[] = $this->line(3, '],');
         }
 
+        $conditional = array_any($type->fields, self::conditional(...));
         $uses = [
             FieldHandle::class,
             ...($extensions === [] ? [] : [FieldNamespace::class, ExtensionRules::class]),
+            ...($conditional ? [Condition::class, FieldReference::class, WhenHidden::class] : []),
             TypeId::class,
             FieldRules::class,
             Presence::class,
@@ -203,12 +212,12 @@ final readonly class PhpTypeValidators implements Generator
         $lines = [];
 
         foreach ($type->ownFields() as $field) {
-            array_push($lines, ...$this->fieldLines($field, '', $this->presence($field, true)));
+            array_push($lines, ...$this->fieldLines($field, '', $field->presence()));
         }
 
         foreach ($type->extensionFields() as $namespace => $fields) {
             foreach ($fields as $field) {
-                array_push($lines, ...$this->fieldLines($field, 'ext.'.$namespace.'.', $this->presence($field, true)));
+                array_push($lines, ...$this->fieldLines($field, 'ext.'.$namespace.'.', $field->presence()));
             }
         }
 
@@ -223,16 +232,16 @@ final readonly class PhpTypeValidators implements Generator
     private function fieldLines(FieldDescriptor $field, string $prefix, Presence $presence): array
     {
         $address = $prefix.$field->handle->value;
-        $lines = [sprintf(' *   %s: %s, %s', $address, GeneratedLines::typeName(self::class, self::FIELD_TYPES, $field), match ($presence) {
+        $lines = [sprintf(' *   %s: %s, %s%s', $address, GeneratedLines::typeName(self::class, self::FIELD_TYPES, $field), match ($presence) {
             Presence::Required => 'required',
             Presence::RequiredOnRelease => 'required on release',
             Presence::Optional => 'optional',
-        })];
+        }, $field->whenHidden instanceof WhenHidden ? sprintf(', shown on a condition, %s when hidden', $field->whenHidden->value) : '')];
 
         $repeated = array_any($field->validation, static fn (ValidationRule $rule): bool => $rule->name === ValidationRuleName::List);
 
         foreach ($field->fields as $nested) {
-            array_push($lines, ...$this->fieldLines($nested, $address.($repeated ? '[].' : '.'), $this->presence($nested, false)));
+            array_push($lines, ...$this->fieldLines($nested, $address.($repeated ? '[].' : '.'), $nested->presence()));
         }
 
         return $lines;
@@ -260,7 +269,7 @@ final readonly class PhpTypeValidators implements Generator
             $lines[] = $this->line($depth + 1, '[');
 
             foreach ($field->fields as $nested) {
-                array_push($lines, ...$this->field($nested, $this->presence($nested, false), $depth + 2));
+                array_push($lines, ...$this->field($nested, $nested->presence(), $depth + 2));
             }
 
             $lines[] = $this->line($depth + 1, '],');
@@ -272,9 +281,72 @@ final readonly class PhpTypeValidators implements Generator
             $lines[] = $this->line($depth + 1, 'true,');
         }
 
+        if ($field->when instanceof Condition && $field->whenHidden instanceof WhenHidden) {
+            $condition = $this->condition($field->when, $depth + 1);
+            $condition[0] = $this->line($depth + 1, 'when: '.ltrim($condition[0]));
+            $condition[count($condition) - 1] .= ',';
+            array_push($lines, ...$condition);
+            $lines[] = $this->line($depth + 1, 'whenHidden: WhenHidden::'.$field->whenHidden->name.',');
+        }
+
         $lines[] = $this->line($depth, '),');
 
         return $lines;
+    }
+
+    /**
+     * Whether the field or a field nested in it is conditional.
+     */
+    private static function conditional(FieldDescriptor $field): bool
+    {
+        return $field->when instanceof Condition || array_any($field->fields, self::conditional(...));
+    }
+
+    /**
+     * The lines of a Condition expression, the first indented as the others, without a comma.
+     *
+     * @return list<string>
+     */
+    private function condition(Condition $condition, int $depth): array
+    {
+        $field = $condition->field;
+
+        if (! $field instanceof FieldReference) {
+            $lines = [$this->line($depth, sprintf('Condition::%s([', $condition->operator === ConditionOperator::All ? 'all' : 'any'))];
+
+            foreach ($condition->conditions as $inner) {
+                $innerLines = $this->condition($inner, $depth + 1);
+                $innerLines[count($innerLines) - 1] .= ',';
+                array_push($lines, ...$innerLines);
+            }
+
+            $lines[] = $this->line($depth, '])');
+
+            return $lines;
+        }
+
+        $reference = sprintf('new FieldReference(%d, new FieldHandle(%s))', $field->up, $this->literal($field->handle->value));
+        $values = array_map($this->value(...), $condition->values);
+
+        return [$this->line($depth, match ($condition->operator) {
+            ConditionOperator::Eq => sprintf('Condition::eq(%s, %s)', $reference, $values[0] ?? ''),
+            ConditionOperator::Neq => sprintf('Condition::neq(%s, %s)', $reference, $values[0] ?? ''),
+            ConditionOperator::In => sprintf('Condition::in(%s, [%s])', $reference, implode(', ', $values)),
+            ConditionOperator::Null => sprintf('Condition::isNull(%s)', $reference),
+            default => sprintf('Condition::notNull(%s)', $reference),
+        })];
+    }
+
+    /**
+     * A value of a condition as a PHP literal.
+     */
+    private function value(string|int|bool $value): string
+    {
+        return match (true) {
+            is_bool($value) => $value ? 'true' : 'false',
+            is_int($value) => (string) $value,
+            default => $this->literal($value),
+        };
     }
 
     private function rule(ValidationRule $rule): string
@@ -305,19 +377,6 @@ final readonly class PhpTypeValidators implements Generator
         }
 
         return $rules;
-    }
-
-    /**
-     * The field's Presence: Required when its validator starts with `required`; for a top-level
-     * extension field that its blueprint marks required, RequiredOnRelease; otherwise Optional.
-     */
-    private function presence(FieldDescriptor $field, bool $topLevel): Presence
-    {
-        if (($field->validation[0] ?? null)?->name === ValidationRuleName::Required) {
-            return Presence::Required;
-        }
-
-        return $topLevel && $field->namespace instanceof Owner && $field->required ? Presence::RequiredOnRelease : Presence::Optional;
     }
 
     /**

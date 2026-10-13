@@ -145,6 +145,12 @@ enum ErrorCode: string
     case GenerateTypeRemoved = 'generate_type_removed';
     case GenerateUnknownExtendsTarget = 'generate_unknown_extends_target';
     case GenerateUnknownFieldType = 'generate_unknown_field_type';
+    case GenerateWhenClassificationAbove = 'generate_when_classification_above';
+    case GenerateWhenCycle = 'generate_when_cycle';
+    case GenerateWhenForeignNamespace = 'generate_when_foreign_namespace';
+    case GenerateWhenOtherVariant = 'generate_when_other_variant';
+    case GenerateWhenUnknownField = 'generate_when_unknown_field';
+    case GenerateWhenValueWrongKind = 'generate_when_value_wrong_kind';
     case GrantEscalationRefused = 'grant_escalation_refused';
     case HookBudgetExceeded = 'hook_budget_exceeded';
     case HookChangeRefused = 'hook_change_refused';
@@ -279,6 +285,7 @@ enum ErrorCode: string
     case ValidationBelowMinimum = 'validation_below_minimum';
     case ValidationDuplicateItem = 'validation_duplicate_item';
     case ValidationFailed = 'validation_failed';
+    case ValidationHiddenField = 'validation_hidden_field';
     case ValidationHookFailed = 'validation_hook_failed';
     case ValidationInvalidFormat = 'validation_invalid_format';
     case ValidationInvalidRichText = 'validation_invalid_rich_text';
@@ -703,6 +710,24 @@ enum ErrorCode: string
             ),
             self::GenerateUnknownFieldType => $this->refusedInput(
                 'A field\'s type is a <namespace>:<handle> that no installed module or addon registers. Correct the type, or install the addon that provides it.',
+            ),
+            self::GenerateWhenClassificationAbove => $this->refusedInput(
+                'A field\'s when reads a field classified above the conditional field, so a reader who may see the field could not tell whether it is shown. Read a field of the same classification or lower, or raise the conditional field\'s classification.',
+            ),
+            self::GenerateWhenCycle => $this->refusedInput(
+                'The conditions of a type\'s fields read each other in a circle, or a field\'s when reads itself or a group it is in, so whether a field is shown has no answer. Remove one of the references.',
+            ),
+            self::GenerateWhenForeignNamespace => $this->refusedInput(
+                'A field\'s when reads a field of another owner\'s namespace, written ext.<namespace>.<handle>. A condition reads only the fields of its own set: the owner\'s fields, or the fields its extender adds. Read a field of the same set.',
+            ),
+            self::GenerateWhenOtherVariant => $this->refusedInput(
+                'In a type with localization variants, a field\'s when reads a field that another variant holds: a translatable field reads a shared one, or the other way round (PRD 10.1). A revision holds one variant\'s fields, so the condition could not be read. Read a field the same variant holds.',
+            ),
+            self::GenerateWhenUnknownField => $this->refusedInput(
+                'A field\'s when names a field it cannot reach: no sibling of the field, and no sibling of a group it is in, has that handle, or the reference goes up more groups than the field is in. Name a field the condition can reach.',
+            ),
+            self::GenerateWhenValueWrongKind => $this->refusedInput(
+                'A field\'s when compares a field with eq, neq or in, and the value is not of the field\'s kind or the field cannot be compared: text, long text and a select take a string, a select one of its options, an integer a whole number and a boolean true or false; any other field, and a select with multiple, takes only null and not_null.',
             ),
             self::GrantEscalationRefused => $this->caller(
                 HttpStatus::Forbidden,
@@ -1249,6 +1274,11 @@ enum ErrorCode: string
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'The command\'s content is invalid: a field is missing, has the wrong type or breaks a rule of its blueprint, so nothing was committed. Correct the fields the error lists, then send the command again.',
+            ),
+            self::ValidationHiddenField => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The field is hidden, because the condition its blueprint gives it does not hold for the input, and a hidden field of when_hidden: clear holds no value (gap G3). Nothing was committed. Leave the field out or send null, or change the fields its condition reads so it is shown.',
             ),
             self::ValidationHookFailed => $this->caller(
                 HttpStatus::UnprocessableContent,

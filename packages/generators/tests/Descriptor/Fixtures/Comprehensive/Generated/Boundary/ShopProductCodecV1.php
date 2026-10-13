@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Results\FieldPath;
+use Cbox\Cms\Core\Codecs\Boundary\JsonConditions;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -19,6 +20,7 @@ use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Domain
 use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Domain\Dto\ShopProductV1Ext;
 use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Domain\Dto\ShopProductV1ExtApp;
 use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Domain\Dto\ShopProductV1Supplier;
+use Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Validators\ShopProductValidator;
 use DateTimeImmutable;
 use Override;
 use stdClass;
@@ -60,7 +62,11 @@ final readonly class ShopProductCodecV1 implements JsonCodec
     #[Override]
     public function decode(string $json, ClassificationAccess $access): ShopProductV1
     {
-        return $this->decodeShopProductV1(JsonText::decode($json), $access);
+        $document = JsonText::decode($json);
+        $record = $this->decodeShopProductV1($document, $access);
+        JsonConditions::check($document, new ShopProductValidator()->rules(), $access);
+
+        return $record;
     }
 
     private function encodeShopProductV1(ShopProductV1 $object): stdClass

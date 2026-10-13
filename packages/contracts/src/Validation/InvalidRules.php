@@ -58,6 +58,35 @@ final class InvalidRules extends InvalidArgumentException
         return new self(sprintf('The extension namespace %s is given twice.', $namespace->value));
     }
 
+    public static function condition(ConditionOperator $operator): self
+    {
+        return new self(sprintf(
+            'The condition %s takes %s.',
+            $operator->value,
+            match ($operator) {
+                ConditionOperator::Eq, ConditionOperator::Neq => 'a field and one value',
+                ConditionOperator::In => sprintf('a field and 1 to %d values', Condition::MAX_ITEMS),
+                ConditionOperator::Null, ConditionOperator::NotNull => 'a field and no value',
+                default => sprintf('1 to %d conditions and no field', Condition::MAX_ITEMS),
+            },
+        ));
+    }
+
+    public static function reference(string $reference): self
+    {
+        return new self(sprintf('The reference %s goes up 0 to %d groups.', self::shown($reference), FieldReference::MAX_UP));
+    }
+
+    public static function whenHidden(FieldHandle $field): self
+    {
+        return new self(sprintf('The field %s has a condition and no when_hidden, or a when_hidden and no condition: a conditional field has both.', $field->value));
+    }
+
+    public static function unknownReference(FieldHandle $field, FieldReference $reference): self
+    {
+        return new self(sprintf('The condition of the field %s names %s, which is not a field it can reach: a sibling, or a sibling of a group it is in.', $field->value, $reference->toString()));
+    }
+
     private static function shown(string $value): string
     {
         $cut = strlen($value) > 64 ? substr($value, 0, 64).'...' : $value;

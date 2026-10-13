@@ -6,7 +6,13 @@
 # /WorkbenchValidatorsTest.php feeds input through. Every handle and select value starts with
 # fixture_, as in fixture_article.yaml. cms:generate reads it and writes the committed
 # code in workbench/app/Cms/Generated and workbench/resources/js/cms/generated; the first line is
-# written by cms:schema:editor.
+# written by cms:schema:editor. The items of fixture_series have conditional fields (gap G3), which
+# tests/Codecs/TypeScriptValidatorsTest.php and WorkbenchValidatorsTest.php hold PHP and TypeScript
+# to: fixture_series_operator is required while the method is manual and cleared when hidden,
+# fixture_series_device is shown on any of two conditions, one on the measurement's
+# fixture_calibrated, and keeps its value when hidden, and fixture_series_check is required while
+# all of a method and the kelvin scale of the measurement hold. They are inside a group, so the
+# type table is unchanged.
 blueprint: 1
 kind: type
 type_id: 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b
@@ -150,3 +156,47 @@ fields:
         type: datetime
         min: '2000-01-01T00:00:00Z'
         max: '2099-12-31T23:59:59Z'
+      - handle: fixture_series_method
+        label: Series method
+        description: How the single reading was taken.
+        type: select
+        options:
+          - value: fixture_manual
+            label: Manual
+          - value: fixture_logged
+            label: Logged
+      - handle: fixture_series_operator
+        label: Series operator
+        description: Who took the single reading by hand.
+        type: text
+        required: true
+        max_length: 60
+        when:
+          field: fixture_series_method
+          eq: fixture_manual
+        when_hidden: clear
+      - handle: fixture_series_device
+        label: Series device
+        description: The device that logged the single reading, or the calibrated sensor's.
+        type: text
+        max_length: 60
+        when:
+          any:
+            - field: fixture_series_method
+              eq: fixture_logged
+            - field: ../fixture_calibrated
+              eq: true
+        when_hidden: keep
+      - handle: fixture_series_check
+        label: Series check
+        description: How the single reading was checked against the kelvin scale.
+        type: text
+        required: true
+        max_length: 60
+        when:
+          all:
+            - field: fixture_series_method
+              not_null: true
+            - field: ../fixture_scale
+              in: [fixture_kelvin]
+        when_hidden: clear

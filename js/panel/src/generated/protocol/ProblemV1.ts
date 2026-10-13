@@ -128,6 +128,12 @@ export type ErrorCode =
   | 'generate_type_removed'
   | 'generate_unknown_extends_target'
   | 'generate_unknown_field_type'
+  | 'generate_when_classification_above'
+  | 'generate_when_cycle'
+  | 'generate_when_foreign_namespace'
+  | 'generate_when_other_variant'
+  | 'generate_when_unknown_field'
+  | 'generate_when_value_wrong_kind'
   | 'grant_escalation_refused'
   | 'hook_budget_exceeded'
   | 'hook_change_refused'
@@ -262,6 +268,7 @@ export type ErrorCode =
   | 'validation_below_minimum'
   | 'validation_duplicate_item'
   | 'validation_failed'
+  | 'validation_hidden_field'
   | 'validation_hook_failed'
   | 'validation_invalid_format'
   | 'validation_invalid_rich_text'
@@ -460,6 +467,12 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'generate_when_classification_above',
+          'generate_when_cycle',
+          'generate_when_foreign_namespace',
+          'generate_when_other_variant',
+          'generate_when_unknown_field',
+          'generate_when_value_wrong_kind',
           'grant_escalation_refused',
           'hook_budget_exceeded',
           'hook_change_refused',
@@ -594,6 +607,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'validation_below_minimum',
           'validation_duplicate_item',
           'validation_failed',
+          'validation_hidden_field',
           'validation_hook_failed',
           'validation_invalid_format',
           'validation_invalid_rich_text',
@@ -756,6 +770,12 @@ const problemV1Rule: ObjectRule = {
           'generate_type_removed',
           'generate_unknown_extends_target',
           'generate_unknown_field_type',
+          'generate_when_classification_above',
+          'generate_when_cycle',
+          'generate_when_foreign_namespace',
+          'generate_when_other_variant',
+          'generate_when_unknown_field',
+          'generate_when_value_wrong_kind',
           'grant_escalation_refused',
           'hook_budget_exceeded',
           'hook_change_refused',
@@ -890,6 +910,7 @@ const problemV1Rule: ObjectRule = {
           'validation_below_minimum',
           'validation_duplicate_item',
           'validation_failed',
+          'validation_hidden_field',
           'validation_hook_failed',
           'validation_invalid_format',
           'validation_invalid_rich_text',

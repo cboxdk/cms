@@ -133,6 +133,12 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_type_removed`](#generate_type_removed) | 500 | 65 | internal_error | no |
 | [`generate_unknown_extends_target`](#generate_unknown_extends_target) | 500 | 65 | internal_error | no |
 | [`generate_unknown_field_type`](#generate_unknown_field_type) | 500 | 65 | internal_error | no |
+| [`generate_when_classification_above`](#generate_when_classification_above) | 500 | 65 | internal_error | no |
+| [`generate_when_cycle`](#generate_when_cycle) | 500 | 65 | internal_error | no |
+| [`generate_when_foreign_namespace`](#generate_when_foreign_namespace) | 500 | 65 | internal_error | no |
+| [`generate_when_other_variant`](#generate_when_other_variant) | 500 | 65 | internal_error | no |
+| [`generate_when_unknown_field`](#generate_when_unknown_field) | 500 | 65 | internal_error | no |
+| [`generate_when_value_wrong_kind`](#generate_when_value_wrong_kind) | 500 | 65 | internal_error | no |
 | [`grant_escalation_refused`](#grant_escalation_refused) | 403 | 77 | tool_error | no |
 | [`hook_budget_exceeded`](#hook_budget_exceeded) | 503 | 75 | internal_error | yes |
 | [`hook_change_refused`](#hook_change_refused) | 500 | 70 | internal_error | no |
@@ -267,6 +273,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`validation_below_minimum`](#validation_below_minimum) | 422 | 65 | tool_error | no |
 | [`validation_duplicate_item`](#validation_duplicate_item) | 422 | 65 | tool_error | no |
 | [`validation_failed`](#validation_failed) | 422 | 65 | tool_error | no |
+| [`validation_hidden_field`](#validation_hidden_field) | 422 | 65 | tool_error | no |
 | [`validation_hook_failed`](#validation_hook_failed) | 422 | 65 | tool_error | no |
 | [`validation_invalid_format`](#validation_invalid_format) | 422 | 65 | tool_error | no |
 | [`validation_invalid_rich_text`](#validation_invalid_rich_text) | 422 | 65 | tool_error | no |
@@ -1349,6 +1356,60 @@ An extension's extends names a type_id that no blueprint file below the schema r
 ### generate_unknown_field_type
 
 A field's type is a <namespace>:<handle> that no installed module or addon registers. Correct the type, or install the addon that provides it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_when_classification_above
+
+A field's when reads a field classified above the conditional field, so a reader who may see the field could not tell whether it is shown. Read a field of the same classification or lower, or raise the conditional field's classification.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_when_cycle
+
+The conditions of a type's fields read each other in a circle, or a field's when reads itself or a group it is in, so whether a field is shown has no answer. Remove one of the references.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_when_foreign_namespace
+
+A field's when reads a field of another owner's namespace, written ext.<namespace>.<handle>. A condition reads only the fields of its own set: the owner's fields, or the fields its extender adds. Read a field of the same set.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_when_other_variant
+
+In a type with localization variants, a field's when reads a field that another variant holds: a translatable field reads a shared one, or the other way round (PRD 10.1). A revision holds one variant's fields, so the condition could not be read. Read a field the same variant holds.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_when_unknown_field
+
+A field's when names a field it cannot reach: no sibling of the field, and no sibling of a group it is in, has that handle, or the reference goes up more groups than the field is in. Name a field the condition can reach.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_when_value_wrong_kind
+
+A field's when compares a field with eq, neq or in, and the value is not of the field's kind or the field cannot be compared: text, long text and a select take a string, a select one of its options, an integer a whole number and a boolean true or false; any other field, and a select with multiple, takes only null and not_null.
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 65 (EX_DATAERR)
@@ -2555,6 +2616,15 @@ A list that holds each value at most once, such as the choices of a select field
 ### validation_failed
 
 The command's content is invalid: a field is missing, has the wrong type or breaks a rule of its blueprint, so nothing was committed. Correct the fields the error lists, then send the command again.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### validation_hidden_field
+
+The field is hidden, because the condition its blueprint gives it does not hold for the input, and a hidden field of when_hidden: clear holds no value (gap G3). Nothing was committed. Leave the field out or send null, or change the fields its condition reads so it is shown.
 
 - HTTP status: 422 Unprocessable Content
 - CLI exit code: 65 (EX_DATAERR)

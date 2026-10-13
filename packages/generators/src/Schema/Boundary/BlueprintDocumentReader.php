@@ -5,16 +5,20 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Validation\ConditionOperator;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\DefaultToken;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
+use Cbox\Cms\Generators\Schema\Domain\Dto\ConditionReference;
 use Cbox\Cms\Generators\Schema\Domain\Dto\DateOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\DatetimeOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldCondition;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldDefault;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Layout;
@@ -74,7 +78,7 @@ final readonly class BlueprintDocumentReader
 
     private const array CAPABILITY_KEYS = ['history', 'stages', 'localization', 'routable'];
 
-    private const array FIELD_KEYS = ['handle', 'label', 'description', 'type', 'required', 'classification', 'filterable', 'sortable', 'translatable', 'fallback', 'agents', 'ui', 'default'];
+    private const array FIELD_KEYS = ['handle', 'label', 'description', 'type', 'required', 'classification', 'filterable', 'sortable', 'translatable', 'fallback', 'agents', 'ui', 'default', 'when', 'when_hidden'];
 
     private const array LAYOUT_KEYS = ['tabs', 'sidebar'];
 
@@ -266,12 +270,121 @@ final readonly class BlueprintDocumentReader
         $sortable = $field->bool('sortable', FieldBlueprint::DEFAULT_SORTABLE);
         $translatable = $field->bool('translatable', FieldBlueprint::DEFAULT_TRANSLATABLE);
         $fallback = $field->has('fallback') ? $field->enum(FieldFallback::class, 'fallback') : FieldBlueprint::DEFAULT_FALLBACK;
+        $when = $field->has('when') ? $this->condition($field->value('when'), $field->at()->below('when'), $field) : null;
+        $whenHidden = $field->optionalEnum(WhenHidden::class, 'when_hidden');
 
         if (! $options instanceof FieldOptions || ! $handle instanceof Handle || ! $label instanceof LocalizedText || ! $fallback instanceof FieldFallback || (! $group instanceof EnclosingGroup && ! $classification instanceof Classification) || ($field->has('ui') && ! $ui instanceof FieldUi)) {
             return null;
         }
 
-        return new FieldBlueprint($handle, $label->text, $description?->text, $required, $classification, $filterable, $sortable, $agents, $options, $owner, $field->at(), $translatable, $fallback, $label->byLocale, $description->byLocale ?? [], $ui, $default);
+        if (($field->has('when') && ! $when instanceof FieldCondition) || ($field->has('when_hidden') && ! $whenHidden instanceof WhenHidden)) {
+            return null;
+        }
+
+        if (($when instanceof FieldCondition) !== ($whenHidden instanceof WhenHidden)) {
+            $field->invalid($when instanceof FieldCondition ? 'when' : 'when_hidden', 'a conditional field declares both when and when_hidden (gap G3), so what happens to its value while it is hidden is never a default.');
+
+            return null;
+        }
+
+        return new FieldBlueprint($handle, $label->text, $description?->text, $required, $classification, $filterable, $sortable, $agents, $options, $owner, $field->at(), $translatable, $fallback, $label->byLocale, $description->byLocale ?? [], $ui, $default, $when, $whenHidden);
+    }
+
+    /**
+     * A field's `when` (gap G3), or null when it could not be read: an object of `field` and one of
+     * `eq`, `neq`, `in`, `null` and `not_null`, or of `all` or `any` and a list of conditions.
+     */
+    private function condition(mixed $value, SourceLocation $at, DocumentValues $field): ?FieldCondition
+    {
+        if (! $value instanceof stdClass) {
+            $field->problem(DocumentValues::unreadableAt($at));
+
+            return null;
+        }
+
+        $members = get_object_vars($value);
+
+        foreach ([ConditionOperator::All, ConditionOperator::Any] as $combinator) {
+            if (array_key_exists($combinator->value, $members)) {
+                $items = $members[$combinator->value];
+
+                if (count($members) !== 1 || ! is_array($items) || ! array_is_list($items) || $items === []) {
+                    $field->problem(DocumentValues::unreadableAt($at));
+
+                    return null;
+                }
+
+                $conditions = [];
+
+                foreach ($items as $index => $item) {
+                    $condition = $this->condition($item, $at->below($combinator->value, $index), $field);
+
+                    if (! $condition instanceof FieldCondition) {
+                        return null;
+                    }
+
+                    $conditions[] = $condition;
+                }
+
+                return new FieldCondition($combinator, null, [], $conditions, $at);
+            }
+        }
+
+        $reference = is_string($members['field'] ?? null) ? $this->reference($members['field']) : null;
+        unset($members['field']);
+        $operator = count($members) === 1 ? ConditionOperator::tryFrom((string) array_key_first($members)) : null;
+        $argument = $operator instanceof ConditionOperator ? $members[$operator->value] : null;
+        $values = match ($operator) {
+            ConditionOperator::Eq, ConditionOperator::Neq => $this->conditionValue($argument) ? [$argument] : null,
+            ConditionOperator::In => is_array($argument) && array_is_list($argument) && $argument !== [] && array_all($argument, $this->conditionValue(...)) ? $argument : null,
+            ConditionOperator::Null, ConditionOperator::NotNull => $argument === true ? [] : null,
+            default => null,
+        };
+
+        if (! $reference instanceof ConditionReference || ! $operator instanceof ConditionOperator || $values === null) {
+            $field->problem(DocumentValues::unreadableAt($at));
+
+            return null;
+        }
+
+        /** @var list<string|int|bool> $values */
+        return new FieldCondition($operator, $reference, $values, [], $at);
+    }
+
+    /**
+     * Whether a condition can compare with the value: text, a whole number or a boolean.
+     */
+    private function conditionValue(mixed $value): bool
+    {
+        return is_string($value) || is_int($value) || is_bool($value);
+    }
+
+    /**
+     * The field a condition names, from its written form, or null when it has none of the forms.
+     */
+    private function reference(string $written): ?ConditionReference
+    {
+        try {
+            return $this->parsedReference($written);
+        } catch (GenerationFailed) {
+            return null;
+        }
+    }
+
+    /**
+     * @throws GenerationFailed for a handle or a namespace that is reserved
+     */
+    private function parsedReference(string $written): ?ConditionReference
+    {
+        if (preg_match('/\Aext\.([a-z][a-z0-9]{0,19})\.([a-z][a-z0-9]*(?:_[a-z0-9]+)*)\z/', $written, $named) === 1) {
+            return new ConditionReference(0, new Owner($named[1]), new Handle($named[2]));
+        }
+
+        if (preg_match('/\A((?:\.\.\/)*)([a-z][a-z0-9]*(?:_[a-z0-9]+)*)\z/', $written, $relative) !== 1 || strlen($relative[2]) > Handle::MAX_LENGTH) {
+            return null;
+        }
+
+        return new ConditionReference(intdiv(strlen($relative[1]), 3), null, new Handle($relative[2]));
     }
 
     /**

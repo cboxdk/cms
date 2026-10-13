@@ -6,6 +6,10 @@
 # descriptor with ../descriptor.json. The presentation keys (gap G2) reach only the editor
 # descriptor, ../editor.json: a label per locale, a layout of two tabs and a sidebar, which the
 # app's fragment joins, the ui hints of a select and of a repeated group, and form-only defaults.
+# Two fields are conditional (gap G3): support_email is shown unless the product is discontinued
+# and is cleared when it is hidden, and a dimension's width is required while its size is large
+# and the product says whether it is discontinued, reading its group's sibling with ../, and keeps
+# its value when it is hidden.
 blueprint: 1
 kind: type
 type_id: 0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20
@@ -41,6 +45,10 @@ fields:
     type: text
     classification: public
     format: email
+    when:
+      field: discontinued
+      neq: true
+    when_hidden: clear
   - handle: summary
     label: Summary
     type: long_text
@@ -200,7 +208,15 @@ fields:
         label: Width
         description: The width in millimetres.
         type: integer
+        required: true
         min: 1
+        when:
+          all:
+            - field: size
+              eq: large
+            - field: ../discontinued
+              not_null: true
+        when_hidden: keep
   - handle: purchase_price
     label: Purchase price
     description: What the shop pays the supplier for one item.

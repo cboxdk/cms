@@ -33,6 +33,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
@@ -147,6 +148,7 @@ final readonly class PhpTypeEditors implements Generator
                 TypeEditors::class,
                 TypeId::class,
                 TypeName::class,
+                WhenHidden::class,
             ], [
                 '/**',
                 ' * The editor descriptors of the schema roots\' types, as the panel\'s forms render them at run time',
@@ -410,6 +412,10 @@ final readonly class PhpTypeEditors implements Generator
             ...($field->descriptions === [] ? [] : $this->texts($field->descriptions, $indent.'    ', 'descriptions')),
             ...($field->ui->isEmpty() ? [] : $this->ui($field->ui, $indent.'    ')),
             ...($field->defaultValue instanceof JsonDocument ? [$indent.'    defaultValue: new JsonDocument('.PhpSource::literal($field->defaultValue->value).'),'] : []),
+            ...($field->when instanceof JsonDocument && $field->whenHidden instanceof WhenHidden ? [
+                $indent.'    when: new JsonDocument('.PhpSource::literal($field->when->value).'),',
+                $indent.'    whenHidden: WhenHidden::'.$field->whenHidden->name.',',
+            ] : []),
             $indent.'),',
         ];
     }

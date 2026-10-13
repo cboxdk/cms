@@ -48,6 +48,9 @@ use Random\Randomizer;
  * the entries; a choice falls on the first options most often; numbers crowd towards their low
  * bound; dates and date-times crowd towards the profile's anchor and reach back spanDays; text and
  * lists vary in length. The same randomizer state gives the same values.
+ *
+ * A conditional field (gap G3) keeps its value only while it is shown (ShownFields), so a hidden
+ * field never holds one; every required field gets a value, so a shown one has it.
  */
 #[Internal]
 final readonly class FieldValueGenerator
@@ -94,11 +97,11 @@ final readonly class FieldValueGenerator
     public function fields(SeedableType $type, ClassificationAccess $access, Randomizer $random, ?TypeRules $rules = null): FieldValues
     {
         $rules ??= $type->rules;
-        $own = $this->top($type, null, $rules->fields, $access, $random);
+        $own = ShownFields::of($rules->fields, $this->top($type, null, $rules->fields, $access, $random));
         $extensions = [];
 
         foreach ($rules->extensions as $extension) {
-            $fields = $this->top($type, $extension->namespace, $extension->fields, $access, $random);
+            $fields = ShownFields::of($extension->fields, $this->top($type, $extension->namespace, $extension->fields, $access, $random));
 
             if (! $fields->isEmpty()) {
                 $extensions[] = new ExtensionFields($extension->namespace, $fields);

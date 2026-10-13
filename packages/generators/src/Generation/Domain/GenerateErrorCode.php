@@ -199,6 +199,31 @@ enum GenerateErrorCode: string
     /** A repeated group's `ui.summary` names a field in braces that the group does not have. */
     case SummaryFieldUnknown = 'generate_summary_field_unknown';
 
+    /**
+     * A field's `when` names a field it cannot reach: no sibling, and no sibling of a group it is
+     * in, has the handle, or the reference goes up more groups than the field is in (gap G3).
+     */
+    case WhenUnknownField = 'generate_when_unknown_field';
+
+    /** The `when` of a type's fields read each other in a circle, or a field reads itself or a group it is in. */
+    case WhenCycle = 'generate_when_cycle';
+
+    /** A field's `when` reads `ext.<namespace>.<handle>` of a set that is not the field's own. */
+    case WhenForeignNamespace = 'generate_when_foreign_namespace';
+
+    /** A field's `when` reads a field classified above the conditional field. */
+    case WhenClassificationAbove = 'generate_when_classification_above';
+
+    /** In a type with localization variants, a field's `when` reads a field another variant holds. */
+    case WhenOtherVariant = 'generate_when_other_variant';
+
+    /**
+     * A field's `when` compares with eq, neq or in a value that is not of the field's kind, or a
+     * field that cannot be compared: a group, rich text, a decimal, a date, a datetime or a select
+     * with multiple.
+     */
+    case WhenValueWrongKind = 'generate_when_value_wrong_kind';
+
     /** A generator produced a file outside its directory, or two files with the same path. */
     case InvalidOutput = 'generate_invalid_output';
 

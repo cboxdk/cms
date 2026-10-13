@@ -185,6 +185,9 @@ function blueprintInvalidCases(): array
         'a label map without a locale' => ['label-map-empty.yaml', '/label', 'at least 1 properties'],
         'blueprint: 2' => ['blueprint-2.yaml', '/blueprint', 'const'],
         'a missing blueprint' => ['missing-blueprint.yaml', '/', '(blueprint)'],
+        'a when without when_hidden, so what happens to a hidden value would be a default' => ['when-without-when-hidden.yaml', '/fields/1', "'when_hidden' property is required by 'when' property"],
+        'a when written as an expression' => ['when-expression.yaml', '/fields/1/when', 'must match the type: object'],
+        'a when with two operators' => ['when-two-operators.yaml', '/fields/1/when', 'at most 2 properties'],
     ];
 }
 
@@ -206,6 +209,7 @@ it('accepts the valid fixtures', function (string $fixture): void {
     'a type with the addon field type acme:colour and its options' => ['valid/addon-field-type.yaml'],
     'a type with localization variants, translatable fields and a field fallback' => ['valid/localized.yaml'],
     'a type with labels per locale, a layout, ui hints and defaults' => ['valid/layout.yaml'],
+    'a type with conditional fields, a nested one among them' => ['valid/conditional.yaml'],
 ]);
 
 it('covers every core field type of the schema in the valid article', function (): void {
@@ -336,6 +340,7 @@ it('embeds each valid fixture on the reference page, byte for byte', function ()
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/conditional.yaml',
     ]);
 
     foreach ($examples as $path => $body) {

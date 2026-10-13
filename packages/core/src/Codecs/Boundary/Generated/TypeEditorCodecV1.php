@@ -34,6 +34,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\Presence;
+use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
@@ -206,13 +207,15 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json->translatable = $object->translatable;
         $json->type = $object->fieldType;
         $json->ui = $this->encodeEditorUi($object->ui);
+        $json->when = $object->when instanceof JsonDocument ? JsonValues::encodeDocument($object->when->value) : null;
+        $json->when_hidden = $object->whenHidden instanceof WhenHidden ? $object->whenHidden->value : null;
 
         return $json;
     }
 
     private function decodeEditorField(mixed $value, FieldPath $path): EditorField
     {
-        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'default', 'description', 'descriptions', 'encrypted', 'fallback', 'handle', 'label', 'labels', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'translatable', 'type', 'ui']);
+        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'default', 'description', 'descriptions', 'encrypted', 'fallback', 'handle', 'label', 'labels', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'translatable', 'type', 'ui', 'when', 'when_hidden']);
 
         return JsonValues::build($path, fn (): EditorField => new EditorField(
             path: JsonValues::required($object, 'path', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
@@ -236,6 +239,8 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
             descriptions: JsonValues::required($object, 'descriptions', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
             ui: JsonValues::required($object, 'ui', $path, $this->decodeEditorUi(...)),
             defaultValue: JsonValues::present($object, 'default', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
+            when: JsonValues::present($object, 'when', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
+            whenHidden: JsonValues::present($object, 'when_hidden', $path, static fn (mixed $value, FieldPath $at): WhenHidden => JsonValues::enum($value, $at, WhenHidden::class)),
         ));
     }
 
