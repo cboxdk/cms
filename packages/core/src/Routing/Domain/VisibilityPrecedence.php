@@ -19,6 +19,11 @@ use DateTimeImmutable;
  * exception, the release of a type with stages, and the placement's window at the time, not the
  * state stored when the window was set, which nothing moves before the scheduler (PRD 6.7, block
  * B3).
+ *
+ * A reader that cannot read the entry, as the anonymous context cannot read the entry of a
+ * withdrawn placement, gives no lifecycle; when the placement it can read is withdrawn, the
+ * decision is the placement's withdrawal, which is sticky (invariant 7), so the public gets 410 for
+ * a URL that is gone and not the 404 of an entry it cannot see.
  */
 #[Internal]
 final readonly class VisibilityPrecedence
@@ -30,6 +35,7 @@ final readonly class VisibilityPrecedence
     public static function decide(PlacementMatch $placement, ?Stages $stages, DateTimeImmutable $at): VisibilityStep
     {
         $decision = match (true) {
+            ! $placement->lifecycle instanceof EntryLifecycle && $placement->visibility === Visibility::Withdrawn => VisibilityDecision::PlacementWithdrawn,
             $placement->lifecycle !== EntryLifecycle::Active => VisibilityDecision::EntryNotActive,
             $placement->release === ReleaseState::Withdrawn => VisibilityDecision::VariantWithdrawn,
             $placement->visibility === Visibility::Withdrawn => VisibilityDecision::PlacementWithdrawn,

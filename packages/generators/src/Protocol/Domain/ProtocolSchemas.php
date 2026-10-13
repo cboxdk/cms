@@ -133,6 +133,7 @@ use Cbox\Cms\Core\Identity\Domain\Queries\WhoAmI;
 use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
@@ -179,6 +180,7 @@ use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
 use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\ChangeNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
@@ -869,6 +871,13 @@ final readonly class ProtocolSchemas
                 '#/properties/site' => $id(SiteId::class),
                 '#/properties/version' => $version,
             ]),
+            self::command('node.set_route.v2.json', 'ChangeNodeRouteCodecV2', ChangeNodeRoute::class, [
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/node' => $id(NodeId::class),
+                '#/properties/route' => ValueBinding::value(RequestPath::class),
+                '#/properties/site' => $id(SiteId::class),
+                '#/properties/version' => $version,
+            ], version: 2),
             self::command('placement.create.v1.json', 'CreatePlacementCodecV1', CreatePlacement::class, [
                 '#/properties/entry' => $id(EntryId::class),
                 '#/properties/node' => $id(NodeId::class),
@@ -877,6 +886,12 @@ final readonly class ProtocolSchemas
                 '#/$defs/locale_slug/properties/locale' => ValueBinding::value(Locale::class),
                 '#/$defs/locale_slug/properties/slug' => ValueBinding::value(Slug::class),
             ], ['#/$defs/locale_slug' => LocaleSlug::class]),
+            self::command('placement.set_slug.v1.json', 'SetPlacementSlugCodecV1', SetPlacementSlug::class, [
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/placement' => $id(PlacementId::class),
+                '#/properties/slug' => ValueBinding::value(Slug::class),
+                '#/properties/version' => $version,
+            ]),
             self::command('placement.set_window.v1.json', 'SetPlacementWindowCodecV1', SetPlacementWindow::class, [
                 '#/properties/locale' => ValueBinding::value(Locale::class),
                 '#/properties/placement' => $id(PlacementId::class),
@@ -1133,7 +1148,8 @@ final readonly class ProtocolSchemas
     }
 
     /**
-     * The binding of version 1 of a command's schema, with its document bound to the command.
+     * The binding of a version of a command's schema, version 1 unless given, with its document
+     * bound to the command.
      *
      * @param  class-string  $command
      * @param  array<string, ValueBinding>  $values

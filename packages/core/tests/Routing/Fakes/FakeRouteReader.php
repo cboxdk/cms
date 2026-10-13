@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Schema\Localization;
@@ -19,6 +20,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
@@ -52,6 +54,12 @@ final class FakeRouteReader implements RouteReader
 
     /** @var list<string> the entries a mount hides, as "<mount> <entry>" */
     private array $hidden = [];
+
+    /** @var array<string, PlacementId> the slug history, by "<node> <locale> <slug>": the placement that had the slug */
+    private array $slugHistory = [];
+
+    /** @var array<string, NodeId> the route history, by "<handle> <locale> <route>": the node that had the route */
+    private array $routeHistory = [];
 
     /** How many reads were made. */
     public int $reads = 0;
@@ -107,6 +115,26 @@ final class FakeRouteReader implements RouteReader
         return $this;
     }
 
+    /**
+     * The placement had the slug below the node in the locale before it was renamed (PRD 5.9).
+     */
+    public function withSlugHistory(NodeId $node, Locale $locale, Slug $slug, PlacementId $placement): self
+    {
+        $this->slugHistory[$node->toString().' '.$locale->value.' '.$slug->value] = $placement;
+
+        return $this;
+    }
+
+    /**
+     * The node had the route on the site in the locale before it was moved (PRD 5.9).
+     */
+    public function withRouteHistory(SiteHandle $site, Locale $locale, string $route, NodeId $node): self
+    {
+        $this->routeHistory[$site->value.' '.$locale->value.' '.$route] = $node;
+
+        return $this;
+    }
+
     #[Override]
     public function route(SiteHandle $site, Locale $locale, RequestPath $path): ?SiteRoute
     {
@@ -137,18 +165,55 @@ final class FakeRouteReader implements RouteReader
     public function placement(NodeId $node, Locale $locale, Slug $slug, ?NodeId $mount = null): ?PlacementMatch
     {
         $this->reads++;
-        $found = array_values(array_map(
-            static fn (array $placed): PlacementMatch => $placed[3],
-            array_filter($this->placements, static fn (array $placed): bool => $placed[0]->equals($node) && $placed[1]->equals($locale) && $placed[2]->equals($slug)),
-        ));
-        usort($found, static fn (PlacementMatch $a, PlacementMatch $b): int => [$a->visibility === Visibility::Withdrawn, $a->placement->toString()] <=> [$b->visibility === Visibility::Withdrawn, $b->placement->toString()]);
-        $match = $found[0] ?? null;
+        /** @var list<array{int, PlacementMatch}> each placement found, with its rank: live first, then the slug history, then withdrawn */
+        $found = [];
+        $renamed = $this->slugHistory[$node->toString().' '.$locale->value.' '.$slug->value] ?? null;
+
+        foreach ($this->placements as [$placedUnder, $placedIn, $placedAs, $placement]) {
+            if (! $placedUnder->equals($node) || ! $placedIn->equals($locale)) {
+                continue;
+            }
+
+            if ($placedAs->equals($slug)) {
+                $found[] = [$placement->visibility === Visibility::Withdrawn ? 2 : 0, $placement];
+            } elseif ($renamed instanceof PlacementId && $placement->placement->equals($renamed)) {
+                $found[] = [1, new PlacementMatch($placement->placement, $placement->entry, $placement->visibility, $placement->window, $placement->canonical, $placement->type, $placement->lifecycle, $placement->release, renamedTo: $placedAs)];
+            }
+        }
+
+        usort($found, static fn (array $a, array $b): int => [$a[0], $a[1]->placement->toString()] <=> [$b[0], $b[1]->placement->toString()]);
+        $match = $found[0][1] ?? null;
 
         if (! $match instanceof PlacementMatch || ! $mount instanceof NodeId || ! in_array($mount->toString().' '.$match->entry->toString(), $this->hidden, true)) {
             return $match;
         }
 
-        return new PlacementMatch($match->placement, $match->entry, $match->visibility, $match->window, $match->canonical, $match->type, $match->lifecycle, $match->release, true);
+        return new PlacementMatch($match->placement, $match->entry, $match->visibility, $match->window, $match->canonical, $match->type, $match->lifecycle, $match->release, true, $match->renamedTo);
+    }
+
+    #[Override]
+    public function redirectedRoute(SiteId $site, Locale $locale, RequestPath $path): ?RouteRedirect
+    {
+        $this->reads++;
+        $handle = null;
+
+        foreach ($this->sites as $each => [$id]) {
+            if ($id->equals($site)) {
+                $handle = $each;
+            }
+        }
+
+        foreach ($path->prefixes() as $prefix) {
+            $node = $this->routeHistory[$handle.' '.$locale->value.' '.$prefix] ?? null;
+
+            if ($node instanceof NodeId) {
+                [$kind, , $source] = $this->nodes[$node->toString()] ?? [NodeKind::Section, $handle, null];
+
+                return new RouteRedirect($prefix, $node, $kind, $source, $this->routeOf($handle, $locale, $node));
+            }
+        }
+
+        return null;
     }
 
     #[Override]

@@ -63,10 +63,12 @@ use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriters;
 use Cbox\Cms\Core\Pipeline\Domain\VersionLocks;
 use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
+use Cbox\Cms\Core\Placements\Actions\SetPlacementSlugAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Adapter\PlacementCanonicalSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementSlugSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
@@ -75,6 +77,7 @@ use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementSlugLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementVersionLock;
 use Cbox\Cms\Core\Placements\Adapter\ReaderPublicPlacements;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
@@ -82,6 +85,7 @@ use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\ChangeNodeRouteAction;
 use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
@@ -95,6 +99,7 @@ use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeMovedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeRouteMovedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeRouteLock;
@@ -107,6 +112,7 @@ use Cbox\Cms\Core\Structure\Adapter\SiteLocaleAddedWriter;
 use Cbox\Cms\Core\Structure\Adapter\SiteLocaleRemovedWriter;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\ChangeNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
@@ -142,9 +148,10 @@ use Illuminate\Database\ConnectionResolverInterface;
 use LogicException;
 
 /**
- * The real command pipeline on Postgres for node.create, node.archive, node.set_route, node.move,
- * node.set_label, mount.create, mount.set_override, site.add_locale and site.remove_locale, with
- * entry.create, variant.release, placement.create and placement.set_window to put live content
+ * The real command pipeline on Postgres for node.create, node.archive, node.set_route (both
+ * versions), node.move, node.set_label, mount.create, mount.set_override, site.add_locale and
+ * site.remove_locale, with entry.create, variant.release, placement.create, placement.set_window
+ * and placement.set_slug to put live content
  * below a node (PRD 5.8, 5.9, 6.2, 6.4, 11.14), on the default connection or the one named: the
  * command transaction, the Postgres stores, the actor directory, the entry, placement and node
  * readers, the site directory and the site's locale use, and the PostgresChangesetCommitter with
@@ -279,6 +286,25 @@ final class NodeWorld
     }
 
     /**
+     * node.set_route version 2 of the node on the site in the locale, read at the version given,
+     * which moves a route the node has.
+     */
+    public function changeRoute(NodeId $node, StructureSite $site, string $route, string $key, int $version = 1, string $locale = 'da', bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
+    {
+        $command = new ChangeNodeRoute($node, new AggregateVersion($version), $site->id, new Locale($locale), new RequestPath($route));
+
+        return $this->run($command, $key, $agentCredential, $agentEnvelope);
+    }
+
+    /**
+     * placement.set_slug of the placement, read at the version given, in the locale.
+     */
+    public function setSlug(PlacementId $placement, int $version, string $slug, string $key, string $locale = 'da', bool $agentCredential = false): WriteResult
+    {
+        return $this->run(new SetPlacementSlug($placement, new AggregateVersion($version), new Locale($locale), new Slug($slug)), $key, $agentCredential);
+    }
+
+    /**
      * node.move of the node, read at the version given, below the parent.
      */
     public function moveNode(NodeId $node, StructureNode $parent, string $key, int $version = 1, bool $agentCredential = false, bool $agentEnvelope = false): WriteResult
@@ -356,6 +382,8 @@ final class NodeWorld
                 ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction(new PostgresEntryReader($connections, $this->connection), $types, new VariantReleasePlanner)),
                 CreatePlacement::class => $this->binding('placement.create', $this->interleaved(new CreatePlacementAction($placements, $this->clock))),
                 SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $types, $this->clock)),
+                SetPlacementSlug::class => $this->binding('placement.set_slug', $this->interleaved(new SetPlacementSlugAction($placements))),
+                ChangeNodeRoute::class => $this->binding('node.set_route', $this->interleaved(new ChangeNodeRouteAction($nodes, $sites)), version: 2),
                 CreateNode::class => $this->binding('node.create', $this->interleaved(new CreateNodeAction($nodes))),
                 ArchiveNode::class => $this->binding('node.archive', $this->interleaved(new ArchiveNodeAction($nodes, $this->clock))),
                 SetNodeRoute::class => $this->binding('node.set_route', $this->interleaved(new SetNodeRouteAction($nodes, $sites))),
@@ -398,6 +426,8 @@ final class NodeWorld
                     new PlacementLocaleAddedWriter($connections, $this->connection),
                     new PlacementWindowSetWriter($connections, $this->connection),
                     new PlacementCanonicalSetWriter($connections, $this->connection),
+                    new PlacementSlugSetWriter($connections, $this->connection),
+                    new NodeRouteMovedWriter($connections, $this->connection),
                     new NodeCreatedWriter($connections, $this->connection),
                     new NodeArchivedWriter($connections, $this->connection),
                     new NodeRouteSetWriter($connections, $this->connection),
@@ -431,12 +461,12 @@ final class NodeWorld
         return $this->meanwhile instanceof Closure ? new InterleavedAction($action, $this->meanwhile) : $action;
     }
 
-    private function binding(string $command, object $action): ActionBinding
+    private function binding(string $command, object $action, int $version = 1): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName($command), 1, $action);
+        return new ActionBinding(new CommandName($command), $version, $action);
     }
 }

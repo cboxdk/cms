@@ -43,6 +43,7 @@ use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\ChangeNodeRouteAction;
 use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\MoveNodeAction;
@@ -52,6 +53,7 @@ use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\ChangeNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
@@ -257,6 +259,23 @@ final class NodeActionWorld
     }
 
     /**
+     * node.set_route version 2 of the node, read at the version given.
+     */
+    public function changeRoute(
+        string $node = self::SECTION,
+        int $version = self::SECTION_VERSION,
+        string $route = '/aktuelt',
+        string $site = self::NORTH,
+        string $locale = 'da',
+        bool $agent = false,
+        bool $agentEnvelope = false,
+    ): WriteResult {
+        $command = new ChangeNodeRoute(self::node($node), new AggregateVersion($version), self::site($site), new Locale($locale), new RequestPath($route));
+
+        return $this->run($command, $agent, $agentEnvelope);
+    }
+
+    /**
      * node.move of the node, read at the version given, below the parent.
      */
     public function move(string $node = self::SPARE, int $version = 1, string $parent = self::SECTION, bool $agent = false, bool $agentEnvelope = false): WriteResult
@@ -310,6 +329,7 @@ final class NodeActionWorld
                 CreateNode::class => $this->binding('node.create', new CreateNodeAction($this->nodes)),
                 ArchiveNode::class => $this->binding('node.archive', new ArchiveNodeAction($this->nodes, $this->clock)),
                 SetNodeRoute::class => $this->binding('node.set_route', new SetNodeRouteAction($this->nodes, $this->sites)),
+                ChangeNodeRoute::class => $this->binding('node.set_route', new ChangeNodeRouteAction($this->nodes, $this->sites), version: 2),
                 MoveNode::class => $this->binding('node.move', new MoveNodeAction($this->nodes, $this->clock)),
                 SetNodeLabel::class => $this->binding('node.set_label', new SetNodeLabelAction($this->nodes)),
                 AddSiteLocale::class => $this->binding('site.add_locale', new AddSiteLocaleAction($this->sites)),
@@ -397,12 +417,12 @@ final class NodeActionWorld
     /**
      * The binding of a command, version 1, as the registry gives it: it takes any write action.
      */
-    private function binding(string $command, object $action): ActionBinding
+    private function binding(string $command, object $action, int $version = 1): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName($command), 1, $action);
+        return new ActionBinding(new CommandName($command), $version, $action);
     }
 }

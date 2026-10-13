@@ -178,6 +178,8 @@ final readonly class ExplainOutput
             $redirect->placement instanceof PlacementId ? sprintf(' (placement %s)', $redirect->placement->toString()) : '',
             match ($redirect->reason) {
                 RedirectReason::OwnPlacement => 'the site\'s own placement of the entry, which suppresses the mounted one',
+                RedirectReason::SlugChanged => 'the placement\'s current slug; the slug asked for is one it had before',
+                RedirectReason::RouteChanged => 'the node\'s current route; the route matched is one it had before',
             },
             $redirect->validUntil instanceof DateTimeImmutable ? '; valid until '.$this->time($redirect->validUntil) : '',
         );

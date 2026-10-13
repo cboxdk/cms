@@ -32,6 +32,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
@@ -54,7 +55,11 @@ use PHPUnit\Framework\Attributes\Test;
  * "/national" to MOUNT, a mount of SECTION below FAR. ENTRY, of the type TYPE, active and released,
  * is placed by PLACED below SECTION in da with the slug "harbour", live since LIVE_FROM and
  * canonical, and by OLD below SECTION in da with the same slug, withdrawn. GONE_B and GONE_A are
- * two withdrawn placements of ENTRY with the slug "gone". DRAFT, of the type TYPE, active and with
+ * two withdrawn placements of ENTRY with the slug "gone", and PIER a withdrawn one with the slug
+ * "pier". The slug history of SECTION in da (PRD 5.9) says PLACED had the slugs "quay" and "pier"
+ * before, and that GONE_A had "harbour"; the route history of north in da says SECTION had the
+ * route "/nyt" and SPORT "/nyt/sport" before, and of south in da that MOUNT had "/landsdaekkende".
+ * DRAFT, of the type TYPE, active and with
  * no head, is placed by DRAFTED below SPORT in da with the slug "match", hidden and canonical.
  * ENTRY has a released row with the fields released() in the table of releasedType(), the
  * workbench's fixture measurement; DRAFT has none. The site south hides ENTRY on MOUNT. In the
@@ -94,6 +99,8 @@ trait RouteReaderBehaviour
     public const string GONE_B = '0192a0c0-0000-7000-8000-0000000035c4';
 
     public const string DRAFTED = '0192a0c0-0000-7000-8000-0000000035c5';
+
+    public const string PIER = '0192a0c0-0000-7000-8000-0000000035c6';
 
     public const string LIVE_FROM = '2026-03-01T06:00:00.000000+00:00';
 
@@ -224,6 +231,48 @@ trait RouteReaderBehaviour
         Assert::assertSame(self::GONE_A, $found?->placement->toString());
         Assert::assertSame(Visibility::Withdrawn, $found->visibility);
         Assert::assertFalse($found->canonical);
+    }
+
+    #[Test]
+    public function it_reads_the_placement_that_had_the_slug_before_with_its_current_slug_after_the_live_lookup_and_before_a_withdrawn_one(): void
+    {
+        $reader = $this->routeReader();
+        $section = NodeId::fromString(self::SECTION);
+        $da = new Locale('da');
+        $live = new PlacementMatch(
+            PlacementId::fromString(self::PLACED),
+            EntryId::fromString(self::ENTRY),
+            Visibility::Live,
+            new TimeWindow(new DateTimeImmutable(self::LIVE_FROM)),
+            true,
+            TypeId::fromString(self::TYPE),
+            EntryLifecycle::Active,
+            ReleaseState::Released,
+        );
+
+        Assert::assertEquals(new PlacementMatch($live->placement, $live->entry, $live->visibility, $live->window, true, $live->type, $live->lifecycle, $live->release, false, new Slug('harbour')), $reader->placement($section, $da, new Slug('quay')));
+        Assert::assertEquals(new PlacementMatch($live->placement, $live->entry, $live->visibility, $live->window, true, $live->type, $live->lifecycle, $live->release, false, new Slug('harbour')), $reader->placement($section, $da, new Slug('pier')));
+        Assert::assertEquals($live, $reader->placement($section, $da, new Slug('harbour')));
+        Assert::assertSame(self::GONE_A, $reader->placement($section, $da, new Slug('gone'))?->placement->toString());
+        Assert::assertNull($reader->placement($section, new Locale('en'), new Slug('quay')));
+        Assert::assertNull($reader->placement(NodeId::fromString(self::SPORT), $da, new Slug('quay')));
+        Assert::assertTrue($reader->placement($section, $da, new Slug('quay'), NodeId::fromString(self::MOUNT))?->hiddenOnMount);
+    }
+
+    #[Test]
+    public function it_reads_the_prefix_redirect_of_the_longest_route_a_node_had_before_with_the_nodes_current_route(): void
+    {
+        $reader = $this->routeReader();
+        $north = SiteId::fromString(self::NORTH);
+        $da = new Locale('da');
+
+        Assert::assertEquals(new RouteRedirect('/nyt/sport', NodeId::fromString(self::SPORT), NodeKind::Section, null, '/nyheder/sport'), $reader->redirectedRoute($north, $da, new RequestPath('/nyt/sport/match')));
+        Assert::assertEquals(new RouteRedirect('/nyt', NodeId::fromString(self::SECTION), NodeKind::Section, null, '/nyheder'), $reader->redirectedRoute($north, $da, new RequestPath('/nyt/harbour/more')));
+        Assert::assertEquals(new RouteRedirect('/nyt', NodeId::fromString(self::SECTION), NodeKind::Section, null, '/nyheder'), $reader->redirectedRoute($north, $da, new RequestPath('/nyt')));
+        Assert::assertEquals(new RouteRedirect('/landsdaekkende', NodeId::fromString(self::MOUNT), NodeKind::Mount, NodeId::fromString(self::SECTION), '/national'), $reader->redirectedRoute(SiteId::fromString(self::SOUTH), $da, new RequestPath('/landsdaekkende/harbour')));
+        Assert::assertNull($reader->redirectedRoute($north, $da, new RequestPath('/nyheder/harbour')));
+        Assert::assertNull($reader->redirectedRoute($north, new Locale('en'), new RequestPath('/nyt/harbour')));
+        Assert::assertNull($reader->redirectedRoute(SiteId::fromString(self::SOUTH), $da, new RequestPath('/nyt/harbour')));
     }
 
     #[Test]

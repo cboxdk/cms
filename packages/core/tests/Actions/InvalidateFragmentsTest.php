@@ -14,8 +14,12 @@ use Cbox\Cms\Contracts\Cdn\CdnUnavailable;
 use Cbox\Cms\Contracts\Cdn\PurgeMode;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
+use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\Subscribers\Lane;
 use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
@@ -24,11 +28,15 @@ use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementSlugChanged;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementSlugChangedV1;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Structure\Domain\Events\MountOverrideSet;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeRouteChanged;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeRouteChangedV1;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAdded;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved;
 use Cbox\Cms\Core\Structure\Domain\LocaleChangeKind;
@@ -240,7 +248,7 @@ it('subscribes on the critical lane to every event that changes what a fragment 
     $world->handle($world->stored(InvalidationWorld::revised(2), $world->changeset('origin'), 100));
     $subscription = new ReflectionClass(InvalidateFragments::class)->getAttributes(Subscription::class)[0]->newInstance();
 
-    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
+    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementSlugChanged::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, NodeRouteChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe(InvalidateFragments::PROJECTION);
 });
@@ -317,5 +325,41 @@ it('purges the node of node.moved alone when the subtree reads as empty, as it d
 
     expect($world->fragments->read(new FragmentKey('crumbs:gone')))->toBeNull()
         ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::nodeKey('0192a0c0-0000-7000-8000-0000000001a9')], PurgeMode::Soft)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the entry and the node of placement.slug_changed softly, so the answers of the old and the new URL are rebuilt', function (): void {
+    $world = new InvalidationWorld;
+    $world->write('page:old', 90);
+    $world->writeUnderNode('missing:new', 90);
+    $changeset = $world->changeset('origin');
+    $renamed = new PlacementSlugChanged(3, new PlacementSlugChangedV1(
+        PlacementId::fromString(InvalidationWorld::PLACEMENT),
+        InvalidationWorld::entry(),
+        NodeId::fromString(InvalidationWorld::NODE),
+        new Locale('da'),
+    ));
+
+    $world->handle($world->stored($renamed, $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:old')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('missing:new')))->toBeNull()
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key(), InvalidationWorld::nodeKey()], PurgeMode::Soft)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the node of node.route_changed softly, so every answer below the node, at its old route and its new, is rebuilt', function (): void {
+    $world = new InvalidationWorld;
+    $world->writeUnderNode('page:below', 90);
+    $world->write('page:a', 90);
+    $changeset = $world->changeset('origin');
+    $moved = new NodeRouteChanged(2, new NodeRouteChangedV1(NodeId::fromString(InvalidationWorld::NODE), SiteId::fromString(InvalidationWorld::SITE), new Locale('da')));
+
+    $world->handle($world->stored($moved, $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:below')))->toBeNull()
+        ->and($world->fragments->read(new FragmentKey('page:a')))->not->toBeNull()
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::nodeKey()], PurgeMode::Soft)])
+        ->and($world->subtree->reads)->toBe([])
         ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
 });

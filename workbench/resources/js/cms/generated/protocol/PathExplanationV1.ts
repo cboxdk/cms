@@ -14,7 +14,7 @@ export type EntryLifecycle = 'active' | 'archived' | 'merged' | 'tombstoned' | '
 export type NodeKind = 'site' | 'section' | 'page' | 'list' | 'storage' | 'mount';
 
 /** The values of RedirectReason. */
-export type RedirectReason = 'own_placement';
+export type RedirectReason = 'own_placement' | 'slug_changed' | 'route_changed';
 
 /** The values of ReleaseState. */
 export type ReleaseState = 'unreleased' | 'released' | 'withdrawn';
@@ -158,16 +158,20 @@ export interface PlacementStepV1 {
 
 /**
  * The resolution ends in a redirect (PRD 5.8, 5.9, 8.10): the page lives at another URL, reached in
- * one hop, never through another redirect. In this version the reason is own_placement: the site
- * has a placement of its own of the entry a mount shows, which suppresses the mounted one, so the
- * mount URL answers 301 to it.
+ * one hop, never through another redirect. The reason is own_placement (the site has a placement of
+ * its own of the entry a mount shows, which suppresses the mounted one, so the mount URL answers
+ * 301 to it), slug_changed (the slug is one the placement had before it was renamed, so the URL
+ * answers 301 to the placement's current one below the same route) or route_changed (the path
+ * begins with a route a node had before it was moved, so the URL answers 301 to the same rest of
+ * the path below the node's current route).
  */
 export interface RedirectStepV1 {
   /** The placement the URL is of, or null when the redirect targets no placement. */
   placement: string | null;
   /**
    * Why the path redirects: own_placement (the site has its own placement of the entry the mount
-   * shows, PRD 5.8).
+   * shows, PRD 5.8), slug_changed (the slug is one the placement had before it was renamed, PRD
+   * 5.9) or route_changed (the path begins with a route the node had before it was moved, PRD 5.9).
    */
   reason: RedirectReason;
   /**
@@ -382,7 +386,11 @@ const redirectStepV1Rule: ObjectRule = {
           '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
       },
     },
-    { key: 'reason', presence: 'required', value: { kind: 'enum', values: ['own_placement'] } },
+    {
+      key: 'reason',
+      presence: 'required',
+      value: { kind: 'enum', values: ['own_placement', 'slug_changed', 'route_changed'] },
+    },
     { key: 'valid_until', presence: 'present', value: { kind: 'datetime' } },
   ],
 };

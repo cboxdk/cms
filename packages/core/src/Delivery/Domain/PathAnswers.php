@@ -8,11 +8,13 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
 use DateTimeImmutable;
@@ -30,7 +32,8 @@ use DateTimeImmutable;
  * - The keys are the read's `e-{entry}` and `n-{node}` and, once a route was matched, `n-{node}` of
  *   the node the slug was looked up under, and of the mount the route reached, whose exceptions
  *   change what its URLs answer (PRD 5.8), so a 404 and a 410 are purged too when what they depend
- *   on changes (point 10).
+ *   on changes (point 10). A prefix redirect that looked no slug up depends on the node whose
+ *   route moved, so it is purged when the route moves again.
  * - The answer holds until the placement's window next changes the decision, its end for a visible
  *   placement and its start for one that has not opened (invariant 17), the same cap for 200, 404
  *   and 410, and for a 301 the end of the target placement's window (point 10).
@@ -81,9 +84,11 @@ final readonly class PathAnswers
      */
     public static function contentKeys(PathExplanation $explanation, array $read): array
     {
-        $keys = $explanation->placement instanceof PlacementStep
-            ? [...$read, DependencyKey::node($explanation->placement->lookedUnder)]
-            : $read;
+        $keys = match (true) {
+            $explanation->placement instanceof PlacementStep => [...$read, DependencyKey::node($explanation->placement->lookedUnder)],
+            $explanation->redirect?->reason === RedirectReason::RouteChanged && $explanation->node instanceof NodeStep => [...$read, DependencyKey::node($explanation->node->node)],
+            default => $read,
+        };
 
         return $explanation->mount instanceof MountStep ? [...$keys, DependencyKey::node($explanation->mount->mount)] : $keys;
     }

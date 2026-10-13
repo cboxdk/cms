@@ -109,9 +109,9 @@ final class AccessWorld
      */
     public const array TABLES = [
         'actor_profiles', 'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
-        'grants', 'head_snapshots', 'installation', 'mount_overrides', 'node_labels', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
+        'grants', 'head_snapshots', 'installation', 'mount_overrides', 'node_labels', 'node_route_history', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
         'placements', 'read_audit', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
-        'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'variant_heads',
+        'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'slug_history', 'variant_heads',
     ];
 
     public static function alice(): ActorPrincipal
@@ -296,6 +296,8 @@ final class AccessWorld
         }
 
         $superuser->table('mount_overrides')->insert(['mount_node_id' => self::MOUNT, 'source_node_id' => self::NEWS, 'entry_id' => self::ENTRY_PUBLIC, 'hidden' => true, 'version' => 1, 'created_at' => self::CREATED_AT]);
+        $superuser->table('slug_history')->insert(['node_id' => self::NEWS, 'locale' => 'da', 'slug' => 'old-story', 'placement_id' => self::PLACEMENT_PUBLIC, 'changeset_id' => self::CHANGESET_ALICE, 'created_at' => self::CREATED_AT]);
+        $superuser->table('node_route_history')->insert(['site_id' => self::SITE, 'locale' => 'da', 'route' => '/gammelt', 'node_id' => self::NEWS, 'changeset_id' => self::CHANGESET_ALICE, 'created_at' => self::CREATED_AT]);
     }
 
     /**

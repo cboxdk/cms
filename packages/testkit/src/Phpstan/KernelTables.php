@@ -39,6 +39,7 @@ final class KernelTables
         'installation',
         'mount_overrides',
         'node_labels',
+        'node_route_history',
         'node_routes',
         'nodes',
         'placement_generations',
@@ -62,6 +63,7 @@ final class KernelTables
         'service_credentials',
         'site_locales',
         'sites',
+        'slug_history',
         'variant_heads',
     ];
 

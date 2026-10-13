@@ -110,4 +110,9 @@ final class InvalidMutation extends InvalidArgumentException
             mb_substr($route, 0, 80),
         ));
     }
+
+    public static function nodeRouteWithoutChange(NodeId $node, string $route): self
+    {
+        return new self(sprintf('The node %s has its route moved from "%s" to the same route; a move changes the route.', $node->toString(), mb_substr($route, 0, 80)));
+    }
 }

@@ -44,8 +44,10 @@ use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Maintenance\Actions\GrantBootstrapRoleAction;
 use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
+use Cbox\Cms\Core\Placements\Actions\SetPlacementSlugAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
@@ -73,6 +75,7 @@ use Cbox\Cms\Core\Seeding\Actions\SeedEntriesAction;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Actions\AddSiteLocaleAction;
 use Cbox\Cms\Core\Structure\Actions\ArchiveNodeAction;
+use Cbox\Cms\Core\Structure\Actions\ChangeNodeRouteAction;
 use Cbox\Cms\Core\Structure\Actions\CreateMountAction;
 use Cbox\Cms\Core\Structure\Actions\CreateNodeAction;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
@@ -84,6 +87,7 @@ use Cbox\Cms\Core\Structure\Actions\SetNodeLabelAction;
 use Cbox\Cms\Core\Structure\Actions\SetNodeRouteAction;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\ChangeNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
@@ -179,7 +183,9 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'node.move@1 '.MoveNode::class,
             'node.set_label@1 '.SetNodeLabel::class,
             'node.set_route@1 '.SetNodeRoute::class,
+            'node.set_route@2 '.ChangeNodeRoute::class,
             'placement.create@1 '.CreatePlacement::class,
+            'placement.set_slug@1 '.SetPlacementSlug::class,
             'placement.set_window@1 '.SetPlacementWindow::class,
             'role.create@1 '.CreateRole::class,
             'role.set_permissions@1 '.SetRolePermissions::class,
@@ -218,8 +224,10 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'node.move@1 '.MoveNodeAction::class.' write',
             'node.set_label@1 '.SetNodeLabelAction::class.' write',
             'node.set_route@1 '.SetNodeRouteAction::class.' write',
+            'node.set_route@2 '.ChangeNodeRouteAction::class.' write',
             'path.resolve@1 '.ResolvePathAction::class.' query',
             'placement.create@1 '.CreatePlacementAction::class.' write',
+            'placement.set_slug@1 '.SetPlacementSlugAction::class.' write',
             'placement.set_window@1 '.SetPlacementWindowAction::class.' write',
             'role.create@1 '.CreateRoleAction::class.' write',
             'role.list@1 '.ListRolesAction::class.' query',
@@ -247,7 +255,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([40, 0, 29, 0, 15, 34, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([42, 0, 31, 0, 15, 36, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

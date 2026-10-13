@@ -152,6 +152,24 @@ it('decides from the window at the time, not from the state stored when it was s
         ->and($unread->validUntil)->toBeNull();
 });
 
+it('decides a withdrawn placement whose entry the reader cannot read as withdrawn, so the public gets 410 and not 404', function (): void {
+    $at = new DateTimeImmutable('2026-03-10T12:00:00Z');
+    $withdrawn = static fn (?EntryLifecycle $lifecycle): VisibilityDecision => VisibilityPrecedence::decide(new PlacementMatch(
+        PlacementId::fromString('01936f5e-8a2b-7c3d-9e4f-000000003541'),
+        EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000003531'),
+        Visibility::Withdrawn,
+        TimeWindow::always(),
+        false,
+        $lifecycle instanceof EntryLifecycle ? TypeId::fromString('01936f5e-8a2b-7c3d-9e4f-000000003521') : null,
+        $lifecycle,
+        $lifecycle instanceof EntryLifecycle ? ReleaseState::Released : null,
+    ), null, $at)->decision;
+
+    expect($withdrawn(null))->toBe(VisibilityDecision::PlacementWithdrawn)
+        ->and($withdrawn(EntryLifecycle::Active))->toBe(VisibilityDecision::PlacementWithdrawn)
+        ->and($withdrawn(EntryLifecycle::Tombstoned))->toBe(VisibilityDecision::EntryNotActive);
+});
+
 it('holds at most one entry as its content and hands the same explanation back with it', function (): void {
     $content = new ReadContent(
         EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000003531'),

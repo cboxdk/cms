@@ -205,6 +205,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementCanonicalSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementClosedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementSlugSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
@@ -266,6 +267,7 @@ use Cbox\Cms\Core\Structure\Adapter\NodeArchivedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeCreatedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeLabelSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeMovedWriter;
+use Cbox\Cms\Core\Structure\Adapter\NodeRouteMovedWriter;
 use Cbox\Cms\Core\Structure\Adapter\NodeRouteSetWriter;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeListing;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeReader;
@@ -575,6 +577,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->tag([PostgresPlacementVersionLock::class, PostgresSiteVersionLock::class, PostgresPlacementSlugLock::class, PostgresCanonicalPlacementLock::class, PostgresEntryReleaseLock::class], VersionLocks::TAG);
         $this->app->tag([PlacementCreatedWriter::class, PlacementLocaleAddedWriter::class, PlacementWindowSetWriter::class, PlacementCanonicalSetWriter::class], MutationWriters::TAG);
 
+        // placement.set_slug (PRD 5.9): the writer, which renames the placement and keeps the slug
+        // it had in the slug history, so the old URL answers 301.
+        $this->app->tag([PlacementSlugSetWriter::class], MutationWriters::TAG);
+
         // The composite commands entry.publish and entry.unpublish (PRD 6.4) compose the planners of
         // the release and the placement commands and read through their readers; they add the
         // writers of taking a release back and of closing a placement on every site.
@@ -646,6 +652,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // mount.create and mount.set_override (PRD 5.8): the writers, which create a mount below a
         // node and set a site's exception to a mount for an entry.
         $this->app->tag([MountCreatedWriter::class, MountOverrideSetWriter::class], MutationWriters::TAG);
+
+        // node.set_route version 2 (PRD 5.9): the writer, which moves a node's route and keeps the
+        // route it had in the route history as a prefix redirect.
+        $this->app->tag([NodeRouteMovedWriter::class], MutationWriters::TAG);
         $this->app->bind(
             VersionLocks::class,
             static fn (Application $app): VersionLocks => new VersionLocks(...self::tagged($app, VersionLocks::TAG, VersionLock::class)),

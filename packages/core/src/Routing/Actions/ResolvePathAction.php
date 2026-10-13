@@ -32,6 +32,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
@@ -58,7 +59,15 @@ use Override;
  *    and the node it reaches. A mount shows its source's placements: the slug is looked up below
  *    the source, and what is found there is shown exactly as the source shows it (PRD 5.8), unless
  *    the mount's site hides the entry there, which the same lookup reads.
- * 3. The rest of the path, one slug, in (node, locale, slug) of the placements' released stage.
+ * 3. The rest of the path, one slug, in (node, locale, slug) of the placements' released stage,
+ *    and, when no placement has the slug now, the slug history (PRD 5.9): a placement that had the
+ *    slug before it was renamed is found with its current slug, and a visible one ends the
+ *    resolution in a redirect to its current URL below the same route; one that is not visible
+ *    answers as it would at its current URL, 410 for a withdrawn one. When the live lookup and the
+ *    slug history answer nothing, the prefix redirects: a route a node had before it was moved that
+ *    is a longer prefix of the path than the route matched redirects to the same rest of the path
+ *    below the node's current route, with a renamed slug redirected to its current one as well, so
+ *    every redirect is one hop, also after several renames.
  * 4. Whether the entry's type has URLs. Through a mount, whether the site has a placement of its
  *    own of the entry: one that shows at the Clock's time below a node with a route of the site,
  *    while the entry itself can be shown. It suppresses the mounted one, and the resolution ends in
@@ -73,7 +82,7 @@ use Override;
  * The answer is ResolvedPath: the entry whenever its placement and entry were read, with the fields
  * of its released row when the placement is visible and without fields otherwise, and the
  * PathExplanation. It costs COST, the five statements of the RouteReader at most, whatever the
- * number of routes and placements.
+ * number of routes, placements and history rows.
  *
  * @implements QueryAction<ResolvePath, ResolvedPath>
  */
@@ -81,7 +90,11 @@ use Override;
 #[Internal]
 final readonly class ResolvePathAction implements QueryAction
 {
-    /** The cost of a resolution: at most one route, one placement, a site's own placement through a mount, the released row and one canonical placement. */
+    /**
+     * The cost of a resolution: at most one route, one placement, a site's own placement through a
+     * mount, the released row and one canonical placement; a prefix redirect reads the route history
+     * and one placement below the node instead of the last three.
+     */
     public const int COST = 5;
 
     public function __construct(
@@ -143,13 +156,15 @@ final readonly class ResolvePathAction implements QueryAction
         $slug = $this->slug($rest);
 
         if (! $slug instanceof Slug) {
-            return $this->ended(new PathExplanation(ResolveOutcome::NoSlug, $site, $route, $node, $mount));
+            return $this->movedRoute($query, $configured, $site, $siteId, $match->route)
+                ?? $this->ended(new PathExplanation(ResolveOutcome::NoSlug, $site, $route, $node, $mount));
         }
 
         $placement = $this->routes->placement($under, $query->locale, $slug, $mount?->mount);
 
         if (! $placement instanceof PlacementMatch) {
-            return $this->ended(new PathExplanation(ResolveOutcome::NoPlacement, $site, $route, $node, $mount, new PlacementStep($under, $slug)));
+            return $this->movedRoute($query, $configured, $site, $siteId, $match->route)
+                ?? $this->ended(new PathExplanation(ResolveOutcome::NoPlacement, $site, $route, $node, $mount, new PlacementStep($under, $slug)));
         }
 
         $type = $placement->type instanceof TypeId ? $this->types->find($placement->type) : null;
@@ -172,6 +187,12 @@ final readonly class ResolvePathAction implements QueryAction
 
         if (! $visibility->decision->visible()) {
             return new ResolvedPath($content, new PathExplanation(ResolveOutcome::NotVisible, $site, $route, $node, $mount, $step, $visibility));
+        }
+
+        if ($placement->renamedTo instanceof Slug) {
+            $redirect = new RedirectStep($configured->origin->url($this->pathBelow($match->route, $placement->renamedTo->value)), $placement->placement, RedirectReason::SlugChanged, $visibility->validUntil);
+
+            return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Redirect, $site, $route, $node, $mount, $step, redirect: $redirect));
         }
 
         $canonical = $this->canonical($query, $placement, $mount);
@@ -200,6 +221,61 @@ final readonly class ResolvePathAction implements QueryAction
         }
 
         return new RedirectStep($configured->origin->url($own->path()), $own->placement, RedirectReason::OwnPlacement, Visibility::nextTransition($own->window, $at));
+    }
+
+    /**
+     * The prefix redirect (PRD 5.9), consulted once the live lookup answered nothing: when a route a
+     * node had before it was moved is a longer prefix of the path than the route matched, and the
+     * node has a route on the site in the locale now, the resolution ends in a redirect to the same
+     * rest of the path below the current route, in one hop. The rest is looked up as a slug below
+     * the node, the mount's source for a mount, so a slug that was renamed as well redirects to its
+     * current one, and the answer carries the placement found, whatever its visibility: the target
+     * is the current URL, which answers for itself. Null when no such route is a prefix of the path.
+     */
+    private function movedRoute(ResolvePath $query, ConfiguredSite $configured, SiteStep $site, SiteId $siteId, string $matched): ?ResolvedPath
+    {
+        $moved = $this->routes->redirectedRoute($siteId, $query->locale, $query->path);
+
+        if (! $moved instanceof RouteRedirect || strlen($moved->from) <= strlen($matched) || $moved->current === null) {
+            return null;
+        }
+
+        $rest = $query->path->rest($moved->from) ?? '';
+        $route = new RouteStep($query->path, $moved->from, $rest);
+        $node = new NodeStep($moved->node, $moved->kind);
+        $mount = $moved->kind === NodeKind::Mount && $moved->mountSource instanceof NodeId ? new MountStep($moved->node, $moved->mountSource) : null;
+        $under = $mount instanceof MountStep ? $mount->source : $moved->node;
+        $slug = $this->slug($rest);
+        $placement = $slug instanceof Slug ? $this->routes->placement($under, $query->locale, $slug, $mount?->mount) : null;
+        $step = null;
+        $content = null;
+        $target = $rest;
+
+        if ($slug instanceof Slug && $placement instanceof PlacementMatch) {
+            $type = $placement->type instanceof TypeId ? $this->types->find($placement->type) : null;
+            $step = new PlacementStep($under, $slug, $placement->placement, $placement->entry, $placement->type, $placement->canonical, $type instanceof TypeDefinition && $type->capabilities->routable);
+            $content = $placement->type instanceof TypeId ? new ReadContent($placement->entry, $under, $placement->type) : null;
+            $target = ($placement->renamedTo ?? $slug)->value;
+        } elseif ($slug instanceof Slug) {
+            $step = new PlacementStep($under, $slug);
+        }
+
+        $redirect = new RedirectStep($configured->origin->url($this->pathBelow($moved->current, $target)), $placement?->placement, RedirectReason::RouteChanged, null);
+
+        return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Redirect, $site, $route, $node, $mount, $step, redirect: $redirect));
+    }
+
+    /**
+     * The path of the rest below the route: the route alone for nothing, else the route and the
+     * rest with one slash between them.
+     */
+    private function pathBelow(string $route, string $rest): string
+    {
+        return match (true) {
+            $rest === '' => $route,
+            $route === '/' => '/'.$rest,
+            default => $route.'/'.$rest,
+        };
     }
 
     private function canonical(ResolvePath $query, PlacementMatch $placement, ?MountStep $mount): CanonicalStep

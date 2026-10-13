@@ -21,6 +21,7 @@ use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
 use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
@@ -29,6 +30,7 @@ use Cbox\Cms\Core\Registry\Domain\RegistryCache;
 use Cbox\Cms\Core\Seeding\Domain\Commands\SeedEntries;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\ChangeNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
@@ -130,15 +132,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 42',
+            'actions: 44',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 30',
+            'commands: 32',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 36',
+            'rest: 38',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -155,7 +157,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 44', 'addons: 1', 'commands: 31', 'hooks: 5', 'panel: 16', 'rest: 37'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 46', 'addons: 1', 'commands: 33', 'hooks: 5', 'panel: 16', 'rest: 39'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -262,8 +264,18 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [
+            'class' => ChangeNodeRoute::class,
+            'name' => 'node.set_route',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 2,
+        ], [
             'class' => CreatePlacement::class,
             'name' => 'placement.create',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => SetPlacementSlug::class,
+            'name' => 'placement.set_slug',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

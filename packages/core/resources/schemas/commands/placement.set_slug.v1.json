@@ -1,0 +1,60 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "placement.set_slug, contract version 1",
+  "description": "Gives a placement another slug in one locale (PRD 5.9) in one changeset: the placement, the version of it the caller read, the locale and the new slug. The slug the placement had goes to the slug history, pointing at the placement, so the URL that was out there answers 301 to the placement's current URL in one hop, also after several renames. A rename is not a visibility change: the placement keeps its state, its window and its canonical flag, and a visible placement stays visible at its new URL, so an agent may rename one. The issuing actor needs placement.set_slug on the placement's node in the locale, and a placement below a node its grants do not reach is unauthorized. A slug another placement that is not withdrawn has below the node in the locale is placement_slug_taken; a placement at another version than the caller read, and a slug another command claimed between the read and the commit, are version_conflict; a locale the placement does not have, a withdrawn placement and the slug the placement has already are validation_failed. The PHP form is Cbox\\Cms\\Core\\Placements\\Domain\\Commands\\SetPlacementSlug, and the generated codec SetPlacementSlugCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "locale",
+    "placement",
+    "slug",
+    "version"
+  ],
+  "properties": {
+    "locale": {
+      "description": "The locale the slug is in.",
+      "$ref": "#/$defs/locale"
+    },
+    "placement": {
+      "description": "The placement's id.",
+      "$ref": "#/$defs/id"
+    },
+    "slug": {
+      "description": "The new slug, the last segment of the placement's path in the locale: 1 to 255 characters without a slash or white space, and not . or ..; compared exactly. The slug the placement had becomes a redirect to it.",
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 255,
+      "pattern": "^(?!\\.\\.?$)[^/\\s]+$",
+      "examples": [
+        "welcome"
+      ]
+    },
+    "version": {
+      "description": "The version of the placement the caller read.",
+      "$ref": "#/$defs/version"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$",
+      "examples": [
+        "en"
+      ]
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

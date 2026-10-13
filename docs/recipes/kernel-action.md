@@ -719,20 +719,25 @@ use PHPUnit\Framework\ExpectationFailedException;
  */
 final class SurfaceContractTest extends TestCase
 {
-    /** The commands of M1 point 3 and the node and site locale commands of B2 that the kernel exposes on every surface. */
+    /**
+     * The commands of M1 point 3 and the node, site locale and placement commands of B2 that the
+     * kernel exposes on every surface.
+     */
     private const array EXPOSED = [
         'entry.create', 'entry.publish', 'entry.revise', 'entry.unpublish', 'mount.create', 'mount.set_override', 'node.archive', 'node.create',
-        'node.move', 'node.set_label', 'node.set_route', 'placement.create', 'placement.set_window', 'site.add_locale', 'site.remove_locale',
+        'node.move', 'node.set_label', 'node.set_route', 'placement.create', 'placement.set_slug', 'placement.set_window', 'site.add_locale', 'site.remove_locale',
         'variant.release',
     ];
 
     /**
      * The commands exposed in more than one version, each with its versions (B2 point 2): the
-     * entry commands of version 2 write an entry's shared variant and its languages.
+     * entry commands of version 2 write an entry's shared variant and its languages, and
+     * node.set_route version 2 moves a route a node has (PRD 5.9).
      */
     private const array VERSIONS = [
         'entry.create' => [1, 2],
         'entry.revise' => [1, 2],
+        'node.set_route' => [1, 2],
         'variant.release' => [1, 2],
     ];
 

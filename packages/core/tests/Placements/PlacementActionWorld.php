@@ -41,8 +41,10 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingChangeset;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\WaitSettings;
 use Cbox\Cms\Core\Pipeline\Domain\HookPlans;
 use Cbox\Cms\Core\Placements\Actions\CreatePlacementAction;
+use Cbox\Cms\Core\Placements\Actions\SetPlacementSlugAction;
 use Cbox\Cms\Core\Placements\Actions\SetPlacementWindowAction;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\EntryRelease;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
@@ -245,6 +247,11 @@ final class PlacementActionWorld
         return $this->run(new SetPlacementWindow(self::placement($placement), new AggregateVersion($version), new Locale($locale), $window), $agent);
     }
 
+    public function setSlug(string $placement, int $version, string $slug, string $locale = 'da', bool $agent = false): WriteResult
+    {
+        return $this->run(new SetPlacementSlug(self::placement($placement), new AggregateVersion($version), new Locale($locale), new Slug($slug)), $agent);
+    }
+
     public function run(Command $command, bool $agent = false): WriteResult
     {
         $clock = new FakeClock;
@@ -256,6 +263,7 @@ final class PlacementActionWorld
             new FakeWriteActions([
                 CreatePlacement::class => $this->binding('placement.create', new CreatePlacementAction($this->placements, $this->clock)),
                 SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($this->placements, $types, $this->clock)),
+                SetPlacementSlug::class => $this->binding('placement.set_slug', new SetPlacementSlugAction($this->placements)),
             ]),
             $this->identity,
             new FakeCommandAuthorizer,

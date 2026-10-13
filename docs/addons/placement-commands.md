@@ -1,15 +1,16 @@
 ---
 title: Placement commands
 weight: 45
-description: "The kernel's commands placement.create and placement.set_window: where a placement is decided, the slug and canonical rules the kernel keeps, the visibility states a window gives, the events they emit, and how they are rejected."
+description: "The kernel's commands placement.create, placement.set_window and placement.set_slug: where a placement is decided, the slug and canonical rules the kernel keeps, the visibility states a window gives, the events they emit, and how they are rejected."
 ---
 
 # Placement commands
 
 <!-- extension-point: Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement -->
 <!-- extension-point: Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow -->
+<!-- extension-point: Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug -->
 
-An entry is shown on a site through a placement: the entry below a node of the site, with a slug and a visibility window in each language (PRD 5.7). Two commands of the kernel, version 1 of each, make and open placements: `placement.create` and `placement.set_window`. They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI. Both work for any type; the kernel names no type (GUARDRAILS 2.4). The commands, `LocaleSlug`, `Visibility` and the events are `#[Experimental]`.
+An entry is shown on a site through a placement: the entry below a node of the site, with a slug and a visibility window in each language (PRD 5.7). Three commands of the kernel, version 1 of each, make, open and rename placements: `placement.create`, `placement.set_window` and `placement.set_slug`. They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI. Both work for any type; the kernel names no type (GUARDRAILS 2.4). The commands, `LocaleSlug`, `Visibility` and the events are `#[Experimental]`.
 
 ## The commands
 
@@ -77,6 +78,43 @@ it('opens the window of the placement in one locale at the version the caller re
 });
 ```
 
+## Renaming a placement
+
+`Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug` (`placement.set_slug`) gives a placement another slug in one language: the placement, the `AggregateVersion` of it the caller read, the `Locale` and the new `Slug`. The writer changes the slug and keeps the old one in `slug_history`, a row of the node, the language and the slug that points at the placement, never at another history row. path.resolve looks a slug up live first, then in the history: a slug the placement had answers 301 to its current URL in one hop, however many times it was renamed (PRD 5.9). A placement renamed back to a slug it had loses that history row, because the live lookup answers it. When the placement is not visible, its old URL answers as its current one would, so a withdrawn placement's old URL answers 410.
+
+A rename is not a visibility change: the placement keeps its state, its window and its canonical flag, so a visible placement stays visible at its new URL, and an agent may rename one. A slug another placement that is not withdrawn has below the node in the language is `placement_slug_taken`, and the slug the placement has already, a language it does not have and a withdrawn placement are `validation_failed`. The command emits `placement.slug_changed` with the placement, the entry, the node and the language, never a slug, and the invalidation subscriber purges the entry's and the node's keys, so the answers of the old and the new URL are rebuilt.
+
+<!-- example: examples/Unit/Placements/PlacementSlugTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\Slug;
+use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Contracts\Plans\Mutations\PlacementSlugSet;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementSlugChanged;
+
+// An editor fixes a typo in a story's URL after it went live: the placement gets another slug in
+// Danish at the version the editor read. The old URL goes to the slug history and answers 301 to
+// the new one; the placement stays live, because a rename is not a visibility change.
+
+it('renames a placement in one locale at the version the caller read', function (): void {
+    $placement = PlacementId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000911');
+
+    $rename = new SetPlacementSlug($placement, new AggregateVersion(2), new Locale('da'), new Slug('havnen-aabner'));
+    $mutation = new PlacementSlugSet($placement, new Locale('da'), new Slug('havnen-aabner'));
+
+    expect($rename->expectedVersions()->of($placement))->toEqual(ReadVersion::at($placement, new AggregateVersion(2)))
+        ->and($mutation->aggregate())->toBe($placement)
+        ->and(PlacementSlugChanged::type()->name)->toBe('placement.slug_changed');
+});
+```
+
 ## Where a placement is decided
 
 A placement is decided on the placement's node, not on the entry's home (PRD 5.10): the actor's grants must reach the node, whatever node the entry lives on, so a regional desk can take a national story onto its site and open and close it there without any right to the story's text. The entry must be one the actor can read: homed where its grants reach, or live somewhere. A placement below a node the actor's grants do not reach is refused with `unauthorized`, for `placement.set_window` too.
@@ -94,10 +132,11 @@ A placement is decided on the placement's node, not on the entry's home (PRD 5.1
 | What | Where |
 |---|---|
 | the placement at its version | `placements` |
+| a renamed placement's old slug, pointing at the placement | `slug_history` |
 | its released generation below the node | `placement_generations` |
 | each language's slug, state, window, next transition and canonical flag | `placement_locales` |
 | the changeset, its audit row and its receipt | the changeset tables, `audit`, `receipts` |
-| `placement.created` about a new placement, and `placement.visibility_changed` about a placement whose window was set | `events` |
+| `placement.created` about a new placement, and `placement.visibility_changed` about a placement whose window was set, and `placement.slug_changed` about a renamed one | `events` |
 
 M1 has no placement workflow, so the commands write the released stage (PRD 4.1). A placement whose canonical flag moves is changed by the changeset too, at its next version. The events carry ids, the locale, the states before and after and the times, never a slug (see [events](events.md)).
 
@@ -106,7 +145,7 @@ M1 has no placement workflow, so the commands write the released stage (PRD 4.1)
 | Code | When |
 |---|---|
 | `unauthorized` | the actor's grants do not reach the node, or the placement's node |
-| `validation_failed` | the node is not below the site's root or is a mount, the site does not publish in a language, a language is given twice or none is, the entry is not one the actor can read, the placement has no such language, or it is withdrawn; or a window would make the placement live or scheduled while the entry is not active with a released revision |
+| `validation_failed` | the node is not below the site's root or is a mount, the site does not publish in a language, a language is given twice or none is, the entry is not one the actor can read, the placement has no such language, or it is withdrawn; a rename to the slug the placement has already; or a window would make the placement live or scheduled while the entry is not active with a released revision |
 | `placement_slug_taken` | another placement that is not withdrawn has the slug below the node in the language |
 | `agent_visibility_forbidden` | an agent or a token opens a window |
 | `version_conflict` | the placement exists already, is not at the version the caller read, or it, a slug it claims, another placement of the entry in the language or, for a window that shows the placement, the entry's release changed after the command read it |

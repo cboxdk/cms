@@ -34,10 +34,12 @@ use Cbox\Cms\Core\Fragments\Domain\EdgePurge;
 use Cbox\Cms\Core\Fragments\Domain\SubtreeNodes;
 use Cbox\Cms\Core\Pipeline\Domain\WaitLevelRule;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
+use Cbox\Cms\Core\Placements\Domain\Events\PlacementSlugChanged;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\MountOverrideSet;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeLabelChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\NodeMoved;
+use Cbox\Cms\Core\Structure\Domain\Events\NodeRouteChanged;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleAdded;
 use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved;
 use DateTimeImmutable;
@@ -46,8 +48,9 @@ use Override;
 /**
  * The invalidation subscriber (PRD 7.6, 8.4, 8.12, 9.4), on the critical lane: for each content
  * event (an entry created, a variant revised, released or unreleased, a placement created or its
- * window set, which covers publishing and unpublishing, a node moved or given a label, a site's
- * locale added or removed, an exception to a mount set for an entry) it purges the fragments of
+ * window set, which covers publishing and unpublishing, or its slug changed, a node moved, given a
+ * route or given a label, a site's locale added or removed, an exception to a mount set for an
+ * entry) it purges the fragments of
  * the content keys the event affects, then purges the same keys at the edge through the CDN
  * driver, then acknowledges the projection "origin" on the receipt of the event's changeset, so a
  * caller waiting at the wait level origin learns that the server fragments are invalidated.
@@ -58,8 +61,10 @@ use Override;
  *   cbox-cms.fragments.fence_seconds from the Clock's now.
  * - The content keys are the entry's and, for a placement event, the node the placement sits
  *   under (ContentKeys), so an answer of a path nothing was placed at, a 404, is purged when a
- *   placement is created or opened there, and for a mount's exception the mount node, whose URLs
- *   answer the entry. A node event's key is the node's; a move is about the
+ *   placement is created or opened there, and the answers of a renamed placement's old and new URL
+ *   are purged together, and for a mount's exception the mount node, whose URLs
+ *   answer the entry. A node event's key is the node's, so a route that moves purges every answer
+ *   below the node, old URLs and new; a move is about the
  *   whole subtree, whose nodes the subscriber reads BATCH at a time (SubtreeNodes) and purges
  *   batch by batch, so a move of thousands of nodes holds no list of them in memory and sends the
  *   edge one purge per batch, which the driver splits further by its own limit. For a site's
@@ -77,7 +82,7 @@ use Override;
  * Each step is idempotent and a fence never moves down, so an event handled twice, or an older
  * version handled after a newer one, changes nothing more.
  */
-#[Subscription(self::NAME, events: [EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, NodeMoved::class, NodeLabelChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class, MountOverrideSet::class], lane: Lane::Critical, projection: self::PROJECTION)]
+#[Subscription(self::NAME, events: [EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, PlacementSlugChanged::class, NodeMoved::class, NodeRouteChanged::class, NodeLabelChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class, MountOverrideSet::class], lane: Lane::Critical, projection: self::PROJECTION)]
 #[Internal]
 final readonly class InvalidateFragments implements Subscriber
 {

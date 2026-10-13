@@ -27,11 +27,13 @@ use Cbox\Cms\Core\Maintenance\Domain\Commands\GrantBootstrapRole;
 use Cbox\Cms\Core\Pipeline\Domain\CommandEncoder;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCodec;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
+use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
+use Cbox\Cms\Core\Structure\Domain\Commands\ChangeNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateMount;
 use Cbox\Cms\Core\Structure\Domain\Commands\CreateNode;
 use Cbox\Cms\Core\Structure\Domain\Commands\MoveNode;
@@ -77,7 +79,9 @@ function kernelCommandClasses(): array
         'node.move@1' => MoveNode::class,
         'node.set_label@1' => SetNodeLabel::class,
         'node.set_route@1' => SetNodeRoute::class,
+        'node.set_route@2' => ChangeNodeRoute::class,
         'placement.create@1' => CreatePlacement::class,
+        'placement.set_slug@1' => SetPlacementSlug::class,
         'placement.set_window@1' => SetPlacementWindow::class,
         'role.create@1' => CreateRole::class,
         'role.set_permissions@1' => SetRolePermissions::class,

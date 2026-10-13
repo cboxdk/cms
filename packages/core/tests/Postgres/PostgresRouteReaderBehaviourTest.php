@@ -95,6 +95,7 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
             [self::OLD, self::ENTRY, self::SECTION, 'harbour', 'withdrawn', false, null],
             [self::GONE_B, self::ENTRY, self::SECTION, 'gone', 'withdrawn', false, null],
             [self::GONE_A, self::ENTRY, self::SECTION, 'gone', 'withdrawn', false, null],
+            [self::PIER, self::ENTRY, self::SECTION, 'pier', 'withdrawn', false, null],
             [self::DRAFTED, self::DRAFT, self::SPORT, 'match', 'hidden', true, null],
         ];
 
@@ -107,6 +108,10 @@ final class PostgresRouteReaderBehaviourTest extends TestCase
             ]));
         }
 
+        $history = static fn (string $slug, string $placement): array => ['node_id' => self::SECTION, 'locale' => 'da', 'slug' => $slug, 'placement_id' => $placement, 'changeset_id' => self::CHANGESET, 'created_at' => StorageTables::CREATED_AT];
+        $superuser->table('slug_history')->insert([$history('quay', self::PLACED), $history('pier', self::PLACED), $history('harbour', self::GONE_A)]);
+        $moved = static fn (string $site, string $route, string $node): array => ['site_id' => $site, 'locale' => 'da', 'route' => $route, 'node_id' => $node, 'changeset_id' => self::CHANGESET, 'created_at' => StorageTables::CREATED_AT];
+        $superuser->table('node_route_history')->insert([$moved(self::NORTH, '/nyt', self::SECTION), $moved(self::NORTH, '/nyt/sport', self::SPORT), $moved(self::SOUTH, '/landsdaekkende', self::MOUNT)]);
         $superuser->table('mount_overrides')->insert(StorageTables::mountOverride(['mount_node_id' => self::MOUNT, 'source_node_id' => self::SECTION, 'entry_id' => self::ENTRY]));
         $superuser->table($this->releasedType()->name->table())->insert([
             ...TypeTableColumns::encode($this->releasedType(), self::released()),

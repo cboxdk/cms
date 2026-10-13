@@ -76,6 +76,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/AddSiteLocaleCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/ArchiveNodeCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/AssignGrantCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/ChangeNodeRouteCodecV2.php',
         'packages/core/src/Codecs/Boundary/Generated/CreateEntryCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/CreateEntryCodecV2.php',
         'packages/core/src/Codecs/Boundary/Generated/CreateMountCodecV1.php',
@@ -126,6 +127,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         'packages/core/src/Codecs/Boundary/Generated/SetMountOverrideCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/SetNodeLabelCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/SetNodeRouteCodecV1.php',
+        'packages/core/src/Codecs/Boundary/Generated/SetPlacementSlugCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/SetPlacementWindowCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/SetRolePermissionsCodecV1.php',
         'packages/core/src/Codecs/Boundary/Generated/TypeDescriptionCodecV1.php',
@@ -139,7 +141,7 @@ it('writes exactly the committed codecs of the receipt, problem details, envelop
         expect(file_get_contents(kernelRoot().'/'.$file->path))->toBe($file->contents, $file->path.' is not what composer generate:protocol writes.');
     }
 
-    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(64);
+    expect(glob(kernelRoot().'/'.ProtocolSchemas::PHP_DIRECTORY.'/*'))->toHaveCount(66);
 });
 
 it('gives each command\'s codec the command\'s name and version from its #[Command] and its schema, and lists each in KernelCommandCodecs', function (SchemaBinding $binding): void {
@@ -236,7 +238,7 @@ it('sorts the codecs by path, owns their directory and refuses two schemas with 
 
     expect(array_map(static fn (GeneratedFile $file): string => $file->path, $result->files))->toBe(['Generated/AParcelCodecV1.php', 'Generated/ParcelCodecV1.php'])
         ->and($result->directories)->toBe(['Generated'])
-        ->and($receipt)->toHaveCount(64);
+        ->and($receipt)->toHaveCount(66);
 
     try {
         ProtocolSchemas::result([$parcel, $parcel], $location);
