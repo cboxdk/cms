@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldValues;
@@ -336,26 +337,29 @@ trait RouteReaderBehaviour
     public function it_reads_the_fields_of_the_released_row_of_an_entry_and_none_without_one(): void
     {
         $reader = $this->routeReader();
-        $fields = $reader->released($this->releasedType(), EntryId::fromString(self::ENTRY), new Locale('da'));
-        Assert::assertInstanceOf(FieldValues::class, $fields);
-        $read = FieldReader::of($fields->own);
+        $rows = $reader->released($this->releasedType(), EntryId::fromString(self::ENTRY), [new Locale('da')]);
+        Assert::assertCount(1, $rows);
+        Assert::assertTrue($rows[0]->variant->isShared());
+        $read = FieldReader::of($rows[0]->fields->own);
 
         Assert::assertSame(['harbour-1', 3, false, 'fixture_celsius'], [$read->text('fixture_station'), $read->integer('fixture_samples'), $read->boolean('fixture_calibrated'), $read->text('fixture_scale')]);
         Assert::assertSame('S-7', $read->group('fixture_sensor')->text('fixture_sensor_code'));
-        Assert::assertNull($reader->released($this->releasedType(), EntryId::fromString(self::DRAFT), new Locale('da')));
-        Assert::assertEquals($fields, $reader->released($this->releasedType(), EntryId::fromString(self::ENTRY), new Locale('en')));
+        Assert::assertSame([], $reader->released($this->releasedType(), EntryId::fromString(self::DRAFT), [new Locale('da')]));
+        Assert::assertEquals($rows, $reader->released($this->releasedType(), EntryId::fromString(self::ENTRY), [new Locale('en'), new Locale('de')]));
     }
 
     #[Test]
-    public function it_reads_the_released_row_of_the_locale_for_a_type_with_localization_variants(): void
+    public function it_reads_the_released_rows_of_the_locales_given_for_a_type_with_localization_variants(): void
     {
         $reader = $this->routeReader();
         $entry = EntryId::fromString(self::ENTRY);
-        $fields = $reader->released($this->localizedType(), $entry, new Locale('da'));
-        Assert::assertInstanceOf(FieldValues::class, $fields);
-        $read = FieldReader::of($fields->own);
+        $rows = $reader->released($this->localizedType(), $entry, [new Locale('en'), new Locale('da'), new Locale('de')]);
+        Assert::assertCount(1, $rows);
+        Assert::assertTrue($rows[0]->variant->equals(VariantKey::of(new Locale('da'))));
+        $read = FieldReader::of($rows[0]->fields->own);
 
         Assert::assertSame(['Havnen', 3], [$read->text('title'), $read->integer('rank')]);
-        Assert::assertNull($reader->released($this->localizedType(), $entry, new Locale('en')));
+        Assert::assertEquals($rows, $reader->released($this->localizedType(), $entry, [new Locale('da')]));
+        Assert::assertSame([], $reader->released($this->localizedType(), $entry, [new Locale('en')]));
     }
 }

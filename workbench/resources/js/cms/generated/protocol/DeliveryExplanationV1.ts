@@ -45,8 +45,9 @@ export interface DeliveryExplanationV1 {
 }
 
 /**
- * What the record is: its type, the locale, the canonical URL and the version of the record
- * contract.
+ * What the record is: its type, the locale requested and the locale its variant is in, whether and
+ * which fields fell back along the site's fallback chain (PRD 10.3), the canonical URL and the
+ * version of the record contract.
  */
 export interface DeliveryMetaV1 {
   /**
@@ -56,8 +57,26 @@ export interface DeliveryMetaV1 {
   canonical_url: string | null;
   /** The version of the record contract the record is written in (RecordCodecs::VERSION), 1. */
   contract: number;
-  /** The locale of the record, a language tag such as da, en-GB or sr-Latn-RS. */
+  /**
+   * Whether the record is the variant of another locale than the one requested, the first locale
+   * after it in the site's fallback chain whose variant is released (PRD 10.3); false for a type
+   * without localization.
+   */
+  fallback: boolean;
+  /**
+   * The fields marked fallback: field that the record's variant leaves empty and that took their
+   * value from a later locale of the site's fallback chain, by their address, such as teaser or
+   * ext.reviews.summary, sorted; empty for a type without localization.
+   */
+  fallback_fields: readonly string[];
+  /** The locale requested, a language tag such as da, en-GB or sr-Latn-RS. */
   locale: string;
+  /**
+   * The locale of the record's variant, a language tag such as da, en-GB or sr-Latn-RS: the locale
+   * requested, or with fallback the locale it fell back to; the locale requested for a type without
+   * localization.
+   */
+  resolved_locale: string;
   /**
    * The name of the record's type, <owner>:<handle>, such as app:blog_post; the record is in that
    * type's record contract.
@@ -69,8 +88,29 @@ const deliveryMetaV1Rule: ObjectRule = {
   properties: [
     { key: 'canonical_url', presence: 'present', value: { kind: 'text' } },
     { key: 'contract', presence: 'required', value: { kind: 'integer', min: 1, max: 1 } },
+    { key: 'fallback', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'fallback_fields',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\]|\\[#[A-Za-z0-9_-]{1,64}\\])*$',
+        },
+      },
+    },
     {
       key: 'locale',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
+      },
+    },
+    {
+      key: 'resolved_locale',
       presence: 'required',
       value: {
         kind: 'string',

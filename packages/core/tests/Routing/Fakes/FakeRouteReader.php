@@ -19,6 +19,7 @@ use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\ReleasedRow;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
@@ -274,12 +275,23 @@ final class FakeRouteReader implements RouteReader
     }
 
     #[Override]
-    public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues
+    public function released(TypeDefinition $type, EntryId $entry, array $locales): array
     {
         $this->reads++;
-        $variant = $type->capabilities->localization === Localization::Variants ? VariantKey::of($locale) : VariantKey::shared();
+        $variants = $type->capabilities->localization === Localization::Variants
+            ? array_map(VariantKey::of(...), $locales)
+            : [VariantKey::shared()];
+        $rows = [];
 
-        return $this->released[$this->rowKey($type->id, $entry, $variant)] ?? null;
+        foreach ($variants as $variant) {
+            $fields = $this->released[$this->rowKey($type->id, $entry, $variant)] ?? null;
+
+            if ($fields instanceof FieldValues) {
+                $rows[] = new ReleasedRow($variant, $fields);
+            }
+        }
+
+        return $rows;
     }
 
     private function rowKey(TypeId $type, EntryId $entry, VariantKey $variant): string

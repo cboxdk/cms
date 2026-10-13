@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
@@ -17,6 +18,7 @@ use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Telemetry\Telemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
+use Cbox\Cms\Core\Tests\Entries\LocalizedEntries;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
 use Cbox\Cms\Core\Tests\Placements\PlacementStructure;
 use Cbox\Cms\Core\Tests\Placements\PlacementWorld;
@@ -26,6 +28,7 @@ use Cbox\Cms\Http\Delivery\Boundary\DeliveryOutput;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
 use Cbox\Cms\Testkit\FixtureWriters\Structure\Adapter\PostgresStructureFixtures;
+use Cbox\Cms\Testkit\FixtureWriters\Structure\Domain\Dto\StructureSite;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\RealPostgres;
@@ -64,6 +67,14 @@ final class DeliveryResolveTest extends TestCase
 
     /** South's own placement of the article below its section, with the slug "havnen". */
     private const string OWN_PLACEMENT = '0192a0c0-0000-7000-8000-0000000036ca';
+
+    /** A fixture notice, of the workbench's type with localization variants, on the site alpen. */
+    private const string NOTICE = '0192a0c0-0000-7000-8000-0000000037e9';
+
+    private const string NOTICE_PLACEMENT = '0192a0c0-0000-7000-8000-0000000037c9';
+
+    /** The id of alpen's section, set by alpine(). */
+    private string $alpineSection = '';
 
     /** The ciphertext written into the confidential embargo, 'A court order' in hex. */
     private const string EMBARGO = "'\\x4120636f757274206f72646572'::bytea";
@@ -108,7 +119,7 @@ final class DeliveryResolveTest extends TestCase
                 ->assertHeaderMissing('Set-Cookie')
                 ->assertHeaderMissing('Vary');
             self::assertSame(['max-age=0', 'public', 's-maxage=300', 'stale-if-error=3600', 'stale-while-revalidate=30'], $this->cacheControl($response));
-            self::assertEquals((object) ['canonical_url' => 'https://north.example/nyheder/harbour', 'contract' => 1, 'locale' => 'da', 'type' => 'app:fixture_article'], $this->at($document, 'meta'));
+            self::assertEquals((object) ['canonical_url' => 'https://north.example/nyheder/harbour', 'contract' => 1, 'fallback' => false, 'fallback_fields' => [], 'locale' => 'da', 'resolved_locale' => 'da', 'type' => 'app:fixture_article'], $this->at($document, 'meta'));
             self::assertSame(self::ENTRY, $this->at($document, 'data.cms_id'));
             self::assertSame('The harbour opens', $this->at($document, 'data.fixture_title'));
             self::assertSame(['fixture_science', 'fixture_culture'], $this->at($document, 'data.fixture_topics'));
@@ -315,6 +326,137 @@ final class DeliveryResolveTest extends TestCase
         $refused->assertForbidden();
         self::assertSame('unauthorized', $this->at($this->document($refused), 'code'));
         self::assertSame(['no-store', 'private'], $this->cacheControl($refused));
+    }
+
+    #[Test]
+    public function it_answers_a_locale_whose_variant_has_no_release_with_the_next_locale_of_the_sites_fallback_chain(): void
+    {
+        $this->alpine([
+            'de-AT' => [LocalizedEntries::translated('Hafen Wien', 'Kurz'), null],
+            'de' => [LocalizedEntries::translated('Der Hafen öffnet', 'Der Hafen'), LocalizedEntries::translated('Der Hafen öffnet', 'Der Hafen')],
+        ]);
+
+        $response = $this->resolve('alpen.example', '/news/hafen', ['locale' => 'de-AT']);
+        $document = $this->document($response);
+
+        $response->assertOk()->assertHeader(DeliveryOutput::SURROGATE_KEY, implode(' ', $this->alpineKeys()));
+        self::assertEquals((object) [
+            'canonical_url' => 'https://alpen.example/news/hafen',
+            'contract' => 1,
+            'fallback' => true,
+            'fallback_fields' => [],
+            'locale' => 'de-AT',
+            'resolved_locale' => 'de',
+            'type' => LocalizedEntries::NOTICE,
+        ], $this->at($document, 'meta'));
+        self::assertSame(self::NOTICE, $this->at($document, 'data.cms_id'));
+        self::assertSame('Der Hafen öffnet', $this->at($document, 'data.fixture_title'));
+        self::assertSame('Der Hafen', $this->at($document, 'data.fixture_teaser'));
+        self::assertSame('2026-03-10', $this->at($document, 'data.fixture_published_on'));
+    }
+
+    #[Test]
+    public function it_takes_a_field_marked_fallback_field_from_the_next_locale_when_the_variant_leaves_it_empty_and_lists_it_in_meta(): void
+    {
+        $this->alpine([
+            'de-AT' => [LocalizedEntries::translated('Hafen Wien'), LocalizedEntries::translated('Hafen Wien')],
+            'de' => [LocalizedEntries::translated('Der Hafen öffnet', 'Der Hafen'), LocalizedEntries::translated('Der Hafen öffnet', 'Der Hafen')],
+        ]);
+
+        $response = $this->resolve('alpen.example', '/news/hafen', ['locale' => 'de-AT']);
+        $document = $this->document($response);
+
+        $response->assertOk();
+        self::assertSame('de-AT', $this->at($document, 'meta.resolved_locale'));
+        self::assertFalse($this->at($document, 'meta.fallback'));
+        self::assertSame(['fixture_teaser'], $this->at($document, 'meta.fallback_fields'));
+        self::assertSame('Hafen Wien', $this->at($document, 'data.fixture_title'));
+        self::assertSame('Der Hafen', $this->at($document, 'data.fixture_teaser'));
+    }
+
+    #[Test]
+    public function it_answers_404_when_no_locale_of_the_chain_has_a_released_variant_and_explains_the_fallback(): void
+    {
+        $structure = $this->alpine([
+            'de-AT' => [LocalizedEntries::translated('Hafen Wien', 'Kurz'), null],
+            'de' => [LocalizedEntries::translated('Der Hafen öffnet', 'Der Hafen'), null],
+        ]);
+
+        $response = $this->resolve('alpen.example', '/news/hafen', ['locale' => 'de-AT']);
+
+        $response->assertNotFound()
+            ->assertHeader('Content-Type', 'application/problem+json')
+            ->assertHeader(DeliveryOutput::SURROGATE_KEY, implode(' ', $this->alpineKeys()));
+        self::assertSame('path_not_found', $this->at($this->document($response), 'code'));
+
+        $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+        $identity = PostgresIdentity::at($clock);
+        $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $clock, new FakeIdGenerator(seed: 3737, clock: $clock));
+        $actor = $identity->addActor(ActorClass::Service)->id;
+        $fixtures->grant($actor, $fixtures->role('editor', ClassificationAccess::Internal), $structure->root->id);
+        $credential = $identity->issue(new ServiceCredentialSpec($actor, IssuerKind::Service, ClassificationAccess::Internal, $clock->now()->add(new DateInterval('P1D'))));
+        $explained = $this->document($this->resolve('alpen.example', '/news/hafen', ['locale' => 'de-AT', 'debug' => '1'], ['Authorization' => 'Bearer '.$credential->reveal()]));
+
+        self::assertSame('not_visible', $this->at($explained, 'explanation.outcome'));
+        self::assertSame('no_released_revision', $this->at($explained, 'explanation.visibility.decision'));
+        self::assertEquals((object) ['fallback' => false, 'fields' => [], 'resolved' => null, 'tried' => ['de-AT', 'de', 'en']], $this->at($explained, 'explanation.fallback'));
+    }
+
+    /**
+     * The site alpen at alpen.example, publishing in de-AT, de and en with the fallback chain
+     * de-AT, de, en, and its section at /news in each; a fixture notice homed there, its shared
+     * variant released, with each language's draft and release given; and its placement below
+     * the section with the slug "hafen" in each language, live in de-AT from the publish on. The
+     * container's clock stands an hour after it.
+     *
+     * @param  array<string, array{FieldValues, ?FieldValues}>  $locales
+     */
+    private function alpine(array $locales): StructureSite
+    {
+        config()->set('cbox-cms.sites.alpen', ['origin' => 'https://alpen.example', 'locales' => ['de-AT', 'de', 'en'], 'fallback' => ['de-AT', 'de', 'en']]);
+        PlacementWorld::seed();
+        $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+        $fixtures = new PostgresStructureFixtures(app(ConnectionResolverInterface::class), $clock, new FakeIdGenerator(seed: 937, clock: $clock));
+        $alpen = $fixtures->site('alpen', [new Locale('de-AT'), new Locale('de'), new Locale('en')]);
+        $section = $fixtures->node($alpen->root);
+        $this->alpineSection = $section->id->toString();
+
+        foreach ($alpen->locales as $locale) {
+            $fixtures->route($alpen, $locale, '/news', $section);
+        }
+
+        $shared = LocalizedEntries::shared('2026-03-10', 2);
+        LocalizedEntries::notice()->write(EntryId::fromString(self::NOTICE), $section->id, $shared, $shared, $locales);
+
+        $world = new PlacementWorld([$alpen->root], seed: 938);
+        $placement = PlacementId::fromString(self::NOTICE_PLACEMENT);
+        $results = [
+            $world->place($placement, EntryId::fromString(self::NOTICE), $section, $alpen, ['de-AT' => 'hafen', 'de' => 'hafen', 'en' => 'hafen'], 'alpine-place'),
+            $world->setWindow($placement, 1, new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)), 'alpine-live', 'de-AT'),
+        ];
+
+        foreach ($results as $result) {
+            if ($result->outcome() !== Outcome::Committed) {
+                throw new LogicException('The notice to deliver was not placed: '.implode('; ', array_map(static fn (CatalogError $error): string => $error->message, $result->errors)));
+            }
+        }
+
+        app()->instance(Clock::class, new FakeClock(new DateTimeImmutable(EntryWorld::NOW)->modify('+1 hour')));
+
+        return $alpen;
+    }
+
+    /**
+     * The content keys of an answer at alpen's /news/hafen: the notice and the section, sorted.
+     *
+     * @return list<string>
+     */
+    private function alpineKeys(): array
+    {
+        $keys = ['e-'.self::NOTICE, 'n-'.$this->alpineSection];
+        sort($keys, SORT_STRING);
+
+        return $keys;
     }
 
     /**

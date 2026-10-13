@@ -20,13 +20,16 @@
   },
   "$defs": {
     "meta": {
-      "description": "What the record is: its type, the locale, the canonical URL and the version of the record contract.",
+      "description": "What the record is: its type, the locale requested and the locale its variant is in, whether and which fields fell back along the site's fallback chain (PRD 10.3), the canonical URL and the version of the record contract.",
       "type": "object",
       "additionalProperties": false,
       "required": [
         "canonical_url",
         "contract",
+        "fallback",
+        "fallback_fields",
         "locale",
+        "resolved_locale",
         "type"
       ],
       "properties": {
@@ -43,8 +46,25 @@
           "minimum": 1,
           "maximum": 1
         },
+        "fallback": {
+          "description": "Whether the record is the variant of another locale than the one requested, the first locale after it in the site's fallback chain whose variant is released (PRD 10.3); false for a type without localization.",
+          "type": "boolean"
+        },
+        "fallback_fields": {
+          "description": "The fields marked fallback: field that the record's variant leaves empty and that took their value from a later locale of the site's fallback chain, by their address, such as teaser or ext.reviews.summary, sorted; empty for a type without localization.",
+          "type": "array",
+          "items": {
+            "type": "string",
+            "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\]|\\[#[A-Za-z0-9_-]{1,64}\\])*$"
+          }
+        },
         "locale": {
-          "description": "The locale of the record, a language tag such as da, en-GB or sr-Latn-RS.",
+          "description": "The locale requested, a language tag such as da, en-GB or sr-Latn-RS.",
+          "type": "string",
+          "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+        },
+        "resolved_locale": {
+          "description": "The locale of the record's variant, a language tag such as da, en-GB or sr-Latn-RS: the locale requested, or with fallback the locale it fell back to; the locale requested for a type without localization.",
           "type": "string",
           "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
         },

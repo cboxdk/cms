@@ -156,6 +156,7 @@ use Cbox\Cms\Core\Registry\Domain\Queries\ListActions;
 use Cbox\Cms\Core\Registry\Domain\SignatureAlgorithm;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
@@ -292,7 +293,9 @@ final readonly class ProtocolSchemas
         $document = ValueBinding::document(JsonDocument::class);
         $id = static fn (string $class): ValueBinding => ValueBinding::id($class);
         $meta = [
+            '#/$defs/meta/properties/fallback_fields/items' => ValueBinding::id(FieldPath::class),
             '#/$defs/meta/properties/locale' => ValueBinding::value(Locale::class),
+            '#/$defs/meta/properties/resolved_locale' => ValueBinding::value(Locale::class),
             '#/$defs/meta/properties/type' => ValueBinding::value(TypeName::class),
         ];
 
@@ -991,6 +994,7 @@ final readonly class ProtocolSchemas
         return [
             $root => PathExplanation::class,
             $defs.'canonical_step' => CanonicalStep::class,
+            $defs.'fallback_step' => FallbackStep::class,
             $defs.'mount_step' => MountStep::class,
             $defs.'node_step' => NodeStep::class,
             $defs.'placement_step' => PlacementStep::class,
@@ -1015,6 +1019,9 @@ final readonly class ProtocolSchemas
         return [
             $root.'/properties/outcome' => ValueBinding::enum(ResolveOutcome::class),
             $defs.'canonical_step/properties/placement' => $id(PlacementId::class),
+            $defs.'fallback_step/properties/fields/items' => $id(FieldPath::class),
+            $defs.'fallback_step/properties/resolved' => ValueBinding::value(Locale::class),
+            $defs.'fallback_step/properties/tried/items' => ValueBinding::value(Locale::class),
             $defs.'mount_step/properties/mount' => $id(NodeId::class),
             $defs.'mount_step/properties/source' => $id(NodeId::class),
             $defs.'node_step/properties/kind' => ValueBinding::enum(NodeKind::class),

@@ -92,6 +92,11 @@ export interface PathExplanationV1 {
    */
   canonical: CanonicalStepV1 | null;
   /**
+   * The fallback along the site's fallback chain (PRD 10.3), or null when the resolution did not
+   * read the fields of an entry of a type with localization variants.
+   */
+  fallback: FallbackStepV1 | null;
+  /**
    * The mount the route reached (PRD 5.8), or null when the node is not a mount or the resolution
    * did not reach a node.
    */
@@ -142,6 +147,33 @@ export interface CanonicalStepV1 {
    * slug, or null when its node has no route or its site is not configured.
    */
   url: string | null;
+}
+
+/**
+ * The fallback of the resolution (PRD 10.3), for an entry of a type with localization variants: the
+ * locales it tried in order, the locale requested first and then those after it in the site's
+ * fallback chain, the first of them with a released variant, and the fields that fell back on their
+ * own.
+ */
+export interface FallbackStepV1 {
+  /** Whether the page shows another locale's variant than the one requested. */
+  fallback: boolean;
+  /**
+   * The fields marked fallback: field that the shown variant leaves empty and that took their value
+   * from a later locale of the chain, by their address, such as teaser or ext.reviews.summary,
+   * sorted.
+   */
+  fields: readonly string[];
+  /**
+   * The first locale tried whose variant is released, a language tag such as de or en-GB, whose
+   * variant the page shows; null when none is, and the placement is not shown.
+   */
+  resolved: string | null;
+  /**
+   * The locales tried in order, language tags such as de-AT or de: the locale requested, then the
+   * locales after it in the site's fallback chain.
+   */
+  tried: readonly string[];
 }
 
 /**
@@ -342,6 +374,44 @@ const canonicalStepV1Rule: ObjectRule = {
     },
     { key: 'url', presence: 'present', value: { kind: 'text' } },
     { key: 'here', presence: 'required', value: { kind: 'boolean' } },
+  ],
+};
+
+const fallbackStepV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'tried',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
+        },
+        minItems: 1,
+      },
+    },
+    {
+      key: 'resolved',
+      presence: 'present',
+      value: {
+        kind: 'string',
+        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
+      },
+    },
+    { key: 'fallback', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'fields',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\]|\\[#[A-Za-z0-9_-]{1,64}\\])*$',
+        },
+      },
+    },
   ],
 };
 
@@ -590,6 +660,7 @@ const pathExplanationV1Rule: ObjectRule = {
       value: { kind: 'object', object: canonicalStepV1Rule },
     },
     { key: 'redirect', presence: 'present', value: { kind: 'object', object: redirectStepV1Rule } },
+    { key: 'fallback', presence: 'present', value: { kind: 'object', object: fallbackStepV1Rule } },
   ],
 };
 

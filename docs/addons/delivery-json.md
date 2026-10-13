@@ -16,7 +16,7 @@ The delivery API's answers and the explanation of a resolution are contracts lik
 
 | Schema | What it is | PHP form | Codec |
 |---|---|---|---|
-| [`delivery.v1.json`](../../packages/contracts/resources/schemas/delivery.v1.json) | the body of a 200 answer of `GET /v1/resolve`: `data`, the record, and `meta`, its `canonical_url`, `contract`, `locale` and `type` | `Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument` | `DeliveryCodecV1` |
+| [`delivery.v1.json`](../../packages/contracts/resources/schemas/delivery.v1.json) | the body of a 200 answer of `GET /v1/resolve`: `data`, the record, and `meta`, its `canonical_url`, `contract`, `locale` (the locale requested), `resolved_locale` (the locale of the variant shown), `fallback`, `fallback_fields` and `type` | `Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument` | `DeliveryCodecV1` |
 | [`delivery-explanation.v1.json`](../../packages/contracts/resources/schemas/delivery-explanation.v1.json) | the body of an answer with `debug=1`: `data` and `meta`, or `problem`, or neither for a redirect, with `status` and `explanation` | `Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation` | `DeliveryExplanationCodecV1` |
 | [`path-explanation.v1.json`](../../packages/contracts/resources/schemas/path-explanation.v1.json) | why the page at a path looks as it does: the outcome and each step of the resolution, the redirect included | `Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation` | `PathExplanationCodecV1` |
 | [`explained-path.v1.json`](../../packages/contracts/resources/schemas/explained-path.v1.json) | what `cms:explain --json` prints: `content_keys`, `explanation` and `read_position` | `Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath` | `ExplainedPathCodecV1` |
@@ -38,6 +38,8 @@ In TypeScript such a member is a `JsonObject`, and its rule is `{ kind: 'documen
 
 The explanation holds ids, handles, the path and the decisions, never a field of the entry. A step the resolution did not reach is `null`, `mount` is `null` too for a node that is not a mount, and `redirect` is `null` unless the resolution ended in one: the outcome `redirect` (PRD 5.8, 5.9) with the absolute `url` the page lives at, the target `placement`, the `reason` (`own_placement`: the site has a placement of its own of the entry a mount shows) and `valid_until`, when the target placement's window next changes it. Such an explanation has no `visibility` and no `canonical` step. The delivery API answers it with 301 and the URL in `Location`, and a fragment of that answer keeps the URL in `location`. Two values are not in the document, because the document gives them already: the prefixes of the path a route was looked up as, the path itself, each shorter run of its leading segments and `/`, and the rung of the visibility decision, which `decision` names. `cms:explain` prints both without `--json`.
 
+`fallback` is `null` unless the resolution read the fields of an entry of a type with `localization: variants` (PRD 10.3). Then it names the locales `tried` in order, the locale requested first and then those after it in the site's fallback chain (`cbox-cms.sites.<handle>.fallback`), the first of them with a released variant as `resolved`, or `null` when none has one and the placement is not shown (`visibility.decision` is `no_released_revision`), whether that is another locale than the one requested as `fallback`, and as `fields` the fields marked `fallback: field` that the shown variant leaves empty and that took their value from a later locale of the chain, sorted. A 200 answer says the same in its `meta`: `resolved_locale`, `fallback` and `fallback_fields`; for a type without localization they are the locale requested, `false` and `[]`.
+
 ## The codecs are generated
 
 `composer check:generated` fails when a committed codec is not what its schema generates. `decode()` refuses a document with `Cbox\Cms\Core\Codecs\Domain\DecodingFailed`: `json_malformed` for a document that is not a JSON object, and `json_invalid` with the path of the value for a key that is missing or unknown, a value of the wrong kind, and a value its class refuses, such as a delivery explanation that holds both a record and a problem. A fragment the fragment codec does not read is rebuilt, never served.
@@ -53,6 +55,7 @@ declare(strict_types=1);
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DeliveryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
@@ -70,18 +73,20 @@ use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 // of a resolution, which cms:explain --json and debug=1 show, has a generated codec of its own.
 
 it('answers a path with the record embedded as its codec wrote it, and its meta', function (): void {
-    $record = '{"cms_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a31","title":"The harbour opens"}';
+    $record = '{"cms_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a31","teaser":"Der Hafen","title":"Der Hafen öffnet"}';
+    // Asked in de-AT, whose variant has no release, the record is de's, the next locale of the
+    // site's fallback chain, and its teaser, left empty in de, came from en after it.
     $answer = new DeliveryDocument(
         new JsonDocument($record),
-        new DeliveryMeta('https://north.example/nyheder/harbour', 1, new Locale('da'), new TypeName('app:article')),
+        new DeliveryMeta('https://alpen.example/news/hafen', 1, true, [FieldPath::fromString('teaser')], new Locale('de-AT'), new Locale('de'), new TypeName('app:notice')),
     );
     $codec = new DeliveryCodecV1;
 
     expect($codec->encode($answer, ClassificationAccess::Public))->toBe(
-        '{"data":'.$record.',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}}',
+        '{"data":'.$record.',"meta":{"canonical_url":"https://alpen.example/news/hafen","contract":1,"fallback":true,"fallback_fields":["teaser"],"locale":"de-AT","resolved_locale":"de","type":"app:notice"}}',
     )
         ->and($codec->decode($codec->encode($answer, ClassificationAccess::Public), ClassificationAccess::Public)->data->value)->toBe($record)
-        ->and(static fn (): DeliveryDocument => $codec->decode('{"data":[],"meta":{"canonical_url":null,"contract":1,"locale":"da","type":"app:article"}}', ClassificationAccess::Public))
+        ->and(static fn (): DeliveryDocument => $codec->decode('{"data":[],"meta":{"canonical_url":null,"contract":1,"fallback":false,"fallback_fields":[],"locale":"da","resolved_locale":"da","type":"app:article"}}', ClassificationAccess::Public))
         ->toThrow(DecodingFailed::class, '[json_invalid] data: is not an object');
 });
 
@@ -89,7 +94,7 @@ it('writes the explanation of a resolution that stopped at the host, every step 
     $explanation = new PathExplanation(ResolveOutcome::UnknownHost, new SiteStep(new Host('nowhere.example'), new Locale('da'), null, null, false));
 
     expect(new PathExplanationCodecV1()->encode($explanation, ClassificationAccess::Public))->toBe(
-        '{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,'
+        '{"canonical":null,"fallback":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,'
         .'"site":{"handle":null,"host":"nowhere.example","locale":"da","locale_published":false,"site":null},"visibility":null}',
     );
 });

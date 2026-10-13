@@ -17,7 +17,9 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * - MountHidden (rung 6): the site hides the entry on the mount the path reached (PRD 5.8), while
  *   the source keeps showing it.
  * - NoReleasedRevision (rung 8): a type with stages has no released revision of the variant the
- *   reader can read. A type without stages shows its current state and never stops here.
+ *   reader can read, or a type with localization variants has no released row the reader can
+ *   read in the locale or in a locale after it in the site's fallback chain (PRD 10.3). A type
+ *   without stages shows its current state and stops here only for the second.
  * - PlacementHidden (rung 9): the placement has no window.
  * - BeforeWindow and AfterWindow (rung 9): the window has not begun, or has ended, at the time.
  * - Visible (rung 11): live.

@@ -218,7 +218,11 @@ return [
      * 'https://example.dk', and hosts the other hosts that resolve to it, such as
      * ['www.example.dk']. The origin's host resolves to the site too, and a host belongs to one
      * site. Only a configured host resolves, and no URL is ever built from the host a request
-     * names.
+     * names. fallback is the site's fallback chain (PRD 10.3), locales of the site in order, such
+     * as ['de-AT', 'de', 'en'], default []: a page in a locale of the chain whose own variant has
+     * no release shows the first locale after it that has one, and a field marked fallback: field
+     * that its variant leaves empty takes its value from the locales after it. cms:doctor's
+     * doctor.config fails while a site's setting is invalid.
      */
     'sites' => [],
 

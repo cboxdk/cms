@@ -25,6 +25,7 @@ use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
@@ -140,6 +141,48 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                         }
                     }
                 },
+                "fallback_step": {
+                    "description": "The fallback of the resolution (PRD 10.3), for an entry of a type with localization variants: the locales it tried in order, the locale requested first and then those after it in the site's fallback chain, the first of them with a released variant, and the fields that fell back on their own.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "fallback",
+                        "fields",
+                        "resolved",
+                        "tried"
+                    ],
+                    "properties": {
+                        "fallback": {
+                            "description": "Whether the page shows another locale's variant than the one requested.",
+                            "type": "boolean"
+                        },
+                        "fields": {
+                            "description": "The fields marked fallback: field that the shown variant leaves empty and that took their value from a later locale of the chain, by their address, such as teaser or ext.reviews.summary, sorted.",
+                            "type": "array",
+                            "items": {
+                                "type": "string",
+                                "pattern": "^[A-Za-z_][A-Za-z0-9_]*(\\.[A-Za-z_][A-Za-z0-9_]*|\\[(0|[1-9][0-9]{0,17})\\]|\\[#[A-Za-z0-9_-]{1,64}\\])*$"
+                            }
+                        },
+                        "resolved": {
+                            "description": "The first locale tried whose variant is released, a language tag such as de or en-GB, whose variant the page shows; null when none is, and the placement is not shown.",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+                        },
+                        "tried": {
+                            "description": "The locales tried in order, language tags such as de-AT or de: the locale requested, then the locales after it in the site's fallback chain.",
+                            "type": "array",
+                            "minItems": 1,
+                            "items": {
+                                "type": "string",
+                                "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+                            }
+                        }
+                    }
+                },
                 "field_handle": {
                     "description": "A field's handle: lowercase snake_case of at most 63 characters without a double underscore, never ext and never starting with cms_.",
                     "type": "string",
@@ -249,6 +292,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                     "additionalProperties": false,
                     "required": [
                         "canonical",
+                        "fallback",
                         "mount",
                         "node",
                         "outcome",
@@ -264,6 +308,17 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                             "anyOf": [
                                 {
                                     "$ref": "#/$defs/canonical_step"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "fallback": {
+                            "description": "The fallback along the site's fallback chain (PRD 10.3), or null when the resolution did not read the fields of an entry of a type with localization variants.",
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/fallback_step"
                                 },
                                 {
                                     "type": "null"
@@ -761,6 +816,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->canonical = $object->canonical instanceof CanonicalStep ? $this->encodeCanonicalStep($object->canonical) : null;
+        $json->fallback = $object->fallback instanceof FallbackStep ? $this->encodeFallbackStep($object->fallback) : null;
         $json->mount = $object->mount instanceof MountStep ? $this->encodeMountStep($object->mount) : null;
         $json->node = $object->node instanceof NodeStep ? $this->encodeNodeStep($object->node) : null;
         $json->outcome = $object->outcome->value;
@@ -775,7 +831,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
 
     private function decodePathExplanation(mixed $value, FieldPath $path): PathExplanation
     {
-        $object = JsonValues::object($value, $path, ['canonical', 'mount', 'node', 'outcome', 'placement', 'redirect', 'route', 'site', 'visibility']);
+        $object = JsonValues::object($value, $path, ['canonical', 'fallback', 'mount', 'node', 'outcome', 'placement', 'redirect', 'route', 'site', 'visibility']);
 
         return JsonValues::build($path, fn (): PathExplanation => new PathExplanation(
             outcome: JsonValues::required($object, 'outcome', $path, static fn (mixed $value, FieldPath $at): ResolveOutcome => JsonValues::enum($value, $at, ResolveOutcome::class)),
@@ -787,6 +843,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
             visibility: JsonValues::present($object, 'visibility', $path, $this->decodeVisibilityStep(...)),
             canonical: JsonValues::present($object, 'canonical', $path, $this->decodeCanonicalStep(...)),
             redirect: JsonValues::present($object, 'redirect', $path, $this->decodeRedirectStep(...)),
+            fallback: JsonValues::present($object, 'fallback', $path, $this->decodeFallbackStep(...)),
         ));
     }
 
@@ -808,6 +865,29 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
             placement: JsonValues::present($object, 'placement', $path, static fn (mixed $value, FieldPath $at): PlacementId => JsonValues::id($value, $at, PlacementId::fromString(...))),
             url: JsonValues::present($object, 'url', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
             here: JsonValues::required($object, 'here', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodeFallbackStep(FallbackStep $object): stdClass
+    {
+        $json = new stdClass;
+        $json->fallback = $object->fallback;
+        $json->fields = array_map(static fn (FieldPath $item): mixed => $item->toString(), $object->fields);
+        $json->resolved = $object->resolved instanceof Locale ? $object->resolved->value : null;
+        $json->tried = array_map(static fn (Locale $item): mixed => $item->value, $object->tried);
+
+        return $json;
+    }
+
+    private function decodeFallbackStep(mixed $value, FieldPath $path): FallbackStep
+    {
+        $object = JsonValues::object($value, $path, ['fallback', 'fields', 'resolved', 'tried']);
+
+        return JsonValues::build($path, static fn (): FallbackStep => new FallbackStep(
+            tried: JsonValues::required($object, 'tried', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): Locale => JsonValues::value($item, $itemAt, static fn (string $text): Locale => new Locale($text)), minItems: 1)),
+            resolved: JsonValues::present($object, 'resolved', $path, static fn (mixed $value, FieldPath $at): Locale => JsonValues::value($value, $at, static fn (string $text): Locale => new Locale($text))),
+            fallback: JsonValues::required($object, 'fallback', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            fields: JsonValues::required($object, 'fields', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): FieldPath => JsonValues::id($item, $itemAt, FieldPath::fromString(...)))),
         ));
     }
 

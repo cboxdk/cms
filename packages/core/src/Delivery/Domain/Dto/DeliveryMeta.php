@@ -7,29 +7,42 @@ namespace Cbox\Cms\Core\Delivery\Domain\Dto;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Codecs\RecordCodecs;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use InvalidArgumentException;
 
 /**
- * What the record of a delivery answer is (PRD 8.9), the meta of delivery.v1.json and
+ * What the record of a delivery answer is (PRD 8.9, 10.3), the meta of delivery.v1.json and
  * delivery-explanation.v1.json: the canonical URL of the entry in the locale, or null when the
  * reader can read no canonical placement with a URL; the version of the record contract the record
- * is written in, RecordCodecs::VERSION; the locale; and the record's type.
+ * is written in, RecordCodecs::VERSION; whether the record is the variant of another locale than
+ * the one requested, along the site's fallback chain; the fields marked `fallback: field` that took
+ * their value from a later locale of the chain, by their address and sorted; the locale requested;
+ * the locale of the record's variant; and the record's type.
  */
 #[Experimental]
 final readonly class DeliveryMeta
 {
     /**
-     * @throws InvalidArgumentException for another record contract than RecordCodecs::VERSION
+     * @param  list<FieldPath>  $fallbackFields
+     *
+     * @throws InvalidArgumentException for another record contract than RecordCodecs::VERSION, or a fallback that does not say whether the record's locale is another than the one requested
      */
     public function __construct(
         public ?string $canonicalUrl,
         public int $contract,
+        public bool $fallback,
+        public array $fallbackFields,
         public Locale $locale,
+        public Locale $resolvedLocale,
         public TypeName $type,
     ) {
         if ($contract !== RecordCodecs::VERSION) {
             throw new InvalidArgumentException(sprintf('A delivery answer holds a record of contract version %d, got %d.', RecordCodecs::VERSION, $contract));
+        }
+
+        if ($fallback === $locale->equals($resolvedLocale)) {
+            throw new InvalidArgumentException(sprintf('A record in %s for a request in %s falls back exactly when the two differ.', $resolvedLocale->value, $locale->value));
         }
     }
 }

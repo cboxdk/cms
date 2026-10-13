@@ -85,7 +85,10 @@ final readonly class DeliveryCodecV1 implements JsonCodec
         $json = new stdClass;
         $json->canonical_url = $object->canonicalUrl;
         $json->contract = $object->contract;
+        $json->fallback = $object->fallback;
+        $json->fallback_fields = array_map(static fn (FieldPath $item): mixed => $item->toString(), $object->fallbackFields);
         $json->locale = $object->locale->value;
+        $json->resolved_locale = $object->resolvedLocale->value;
         $json->type = $object->type->value;
 
         return $json;
@@ -93,12 +96,15 @@ final readonly class DeliveryCodecV1 implements JsonCodec
 
     private function decodeDeliveryMeta(mixed $value, FieldPath $path): DeliveryMeta
     {
-        $object = JsonValues::object($value, $path, ['canonical_url', 'contract', 'locale', 'type']);
+        $object = JsonValues::object($value, $path, ['canonical_url', 'contract', 'fallback', 'fallback_fields', 'locale', 'resolved_locale', 'type']);
 
         return JsonValues::build($path, static fn (): DeliveryMeta => new DeliveryMeta(
             canonicalUrl: JsonValues::present($object, 'canonical_url', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
             contract: JsonValues::required($object, 'contract', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1, max: 1)),
+            fallback: JsonValues::required($object, 'fallback', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            fallbackFields: JsonValues::required($object, 'fallback_fields', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): FieldPath => JsonValues::id($item, $itemAt, FieldPath::fromString(...)))),
             locale: JsonValues::required($object, 'locale', $path, static fn (mixed $value, FieldPath $at): Locale => JsonValues::value($value, $at, static fn (string $text): Locale => new Locale($text))),
+            resolvedLocale: JsonValues::required($object, 'resolved_locale', $path, static fn (mixed $value, FieldPath $at): Locale => JsonValues::value($value, $at, static fn (string $text): Locale => new Locale($text))),
             type: JsonValues::required($object, 'type', $path, static fn (mixed $value, FieldPath $at): TypeName => JsonValues::value($value, $at, static fn (string $text): TypeName => new TypeName($text))),
         ));
     }

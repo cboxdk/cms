@@ -228,6 +228,26 @@ it('gives the one failing check doctor.config when cbox-cms.doctor is invalid', 
         ->and($runtime[0]->run()->cause)->toContain('partition_runway_days');
 });
 
+it('gives the one failing check doctor.config when a site\'s fallback chain is invalid', function (array $fallback, string $cause): void {
+    config(['cbox-cms.sites' => ['alpen' => ['origin' => 'https://alpen.example', 'locales' => ['de-AT', 'de'], 'fallback' => $fallback]]]);
+
+    $result = app(DoctorChecks::class)->for(new DoctorRunOptions)[0]->run();
+
+    expect(configurationFailure())->toContain($cause)
+        ->and($result->code)->toBe(InvalidConfigurationCheck::CODE)
+        ->and($result->explanation)->toBe('The configured sites are invalid, so no site can be served.');
+})->with([
+    'a locale the site does not publish in' => [['de-AT', 'de', 'en'], 'cbox-cms.sites.alpen is invalid: The fallback chain of the site "alpen" names the locale en'],
+    'a locale twice' => [['de-AT', 'de', 'de-at'], 'names the locale de-AT twice'],
+    'a value that is no locale' => [['de-AT', 4], 'cbox-cms.sites.alpen.fallback must be a list of locales of the site'],
+]);
+
+it('runs every check with a valid fallback chain', function (): void {
+    config(['cbox-cms.sites' => ['alpen' => ['origin' => 'https://alpen.example', 'locales' => ['de-AT', 'de'], 'fallback' => ['de-AT', 'de']]]]);
+
+    expect(configuredCheckIds(false))->not->toContain(InvalidConfigurationCheck::ID);
+});
+
 /**
  * The ids of the checks of one run.
  *

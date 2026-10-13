@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Errors\HttpStatus;
 use Cbox\Cms\Contracts\Errors\Problem;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Delivery\Domain\AnswerFormat;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use InvalidArgumentException;
@@ -17,7 +18,8 @@ use InvalidArgumentException;
 /**
  * What an answer of the delivery API says, before its body is written (PRD 8.8, 8.9): a record, the
  * JSON the type's generated codec wrote at the public classification access, with its type, the
- * locale and the canonical URL; a problem of the error catalog; or a redirect (PRD 5.8), the step
+ * locale, the canonical URL and, for a type with localization variants, the fallback that chose
+ * its variant and fields (PRD 10.3); a problem of the error catalog; or a redirect (PRD 5.8), the step
  * of the explanation with the URL the page lives at, which is sent in Location with no body; and
  * for an authorized actor who asked for it, the explanation of the resolution next to any of them.
  */
@@ -36,6 +38,7 @@ final readonly class DeliveryAnswer
         public ?Problem $problem = null,
         public ?PathExplanation $explanation = null,
         public ?RedirectStep $redirect = null,
+        public ?FallbackStep $fallback = null,
     ) {
         $record = $record !== null && $type instanceof TypeName && $locale instanceof Locale;
         $held = count(array_filter([$record, $problem instanceof Problem, $redirect instanceof RedirectStep]));

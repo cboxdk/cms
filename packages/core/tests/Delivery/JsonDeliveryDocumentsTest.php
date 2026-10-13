@@ -72,9 +72,9 @@ it('writes a record as the record as its codec wrote it, with the meta, keys sor
     $documents = new JsonDeliveryDocuments;
 
     expect($documents->body(new DeliveryAnswer(HttpStatus::Ok, DOCUMENT_RECORD, new TypeName('app:article'), new Locale('da'), 'https://north.example/nyheder/harbour')))
-        ->toBe('{"data":'.DOCUMENT_RECORD.',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}}')
+        ->toBe('{"data":'.DOCUMENT_RECORD.',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"fallback":false,"fallback_fields":[],"locale":"da","resolved_locale":"da","type":"app:article"}}')
         ->and($documents->body(new DeliveryAnswer(HttpStatus::Ok, DOCUMENT_RECORD, new TypeName('app:article'), new Locale('da'))))
-        ->toBe('{"data":'.DOCUMENT_RECORD.',"meta":{"canonical_url":null,"contract":1,"locale":"da","type":"app:article"}}');
+        ->toBe('{"data":'.DOCUMENT_RECORD.',"meta":{"canonical_url":null,"contract":1,"fallback":false,"fallback_fields":[],"locale":"da","resolved_locale":"da","type":"app:article"}}');
 });
 
 it('writes a problem as the generated problem codec writes it', function (): void {
@@ -88,6 +88,7 @@ it('writes an explanation with every step, ids in their canonical form and insta
 
     expect($body)->toBe('{"data":'.DOCUMENT_RECORD
         .',"explanation":{"canonical":{"here":false,"placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","url":"https://north.example/nyheder/harbour"}'
+        .',"fallback":null'
         .',"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"}'
         .',"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"}'
         .',"outcome":"resolved"'
@@ -95,7 +96,7 @@ it('writes an explanation with every step, ids in their canonical form and insta
         .',"redirect":null,"route":{"path":"/national/harbour","rest":"harbour","route":"/national"}'
         .',"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"}'
         .',"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}'
-        .',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}'
+        .',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"fallback":false,"fallback_fields":[],"locale":"da","resolved_locale":"da","type":"app:article"}'
         .',"problem":null,"status":200}');
 });
 
@@ -110,7 +111,7 @@ it('writes the explanation of a problem with the problem and without a record, a
     $explanation = new PathExplanation(ResolveOutcome::LocaleNotPublished, new SiteStep(new Host('north.example'), new Locale('en'), null, null, false));
 
     expect(new JsonDeliveryDocuments()->body(DeliveryAnswer::problem($problem, $explanation)))->toBe('{"data":null'
-        .',"explanation":{"canonical":null,"mount":null,"node":null,"outcome":"locale_not_published","placement":null,"redirect":null,"route":null'
+        .',"explanation":{"canonical":null,"fallback":null,"mount":null,"node":null,"outcome":"locale_not_published","placement":null,"redirect":null,"route":null'
         .',"site":{"handle":null,"host":"north.example","locale":"en","locale_published":false,"site":null},"visibility":null}'
         .',"meta":null,"problem":'.new ProblemCodecV1()->encode($problem, ClassificationAccess::Public).',"status":404}');
 });
@@ -144,7 +145,7 @@ it('writes a redirect without a body, and its explanation with the status 301, t
 
     expect($documents->body(DeliveryAnswer::redirect($redirect)))->toBe('')
         ->and($documents->body(DeliveryAnswer::redirect($redirect, $explanation)))->toBe('{"data":null'
-            .',"explanation":{"canonical":null,"mount":null,"node":null,"outcome":"redirect","placement":null'
+            .',"explanation":{"canonical":null,"fallback":null,"mount":null,"node":null,"outcome":"redirect","placement":null'
             .',"redirect":{"placement":"01936f5e-8a2b-7c3d-9e4f-000000003642","reason":"own_placement","url":"https://south.example/lokalt/havnen","valid_until":"2026-03-10T14:00:00.000000Z"}'
             .',"route":null,"site":{"handle":null,"host":"south.example","locale":"da","locale_published":true,"site":null},"visibility":null}'
             .',"meta":null,"problem":null,"status":301}');

@@ -12,8 +12,9 @@ use Cbox\Cms\Contracts\Doctor\FailureKind;
 use Override;
 
 /**
- * Stands in for every other check when `cbox-cms.doctor` itself is invalid, so cms:doctor still prints
- * its document and exits with the violation code instead of stopping with an exception.
+ * Stands in for every other check when `cbox-cms.doctor` itself is invalid, or `cbox-cms.sites`,
+ * which every read of a site serves from (sites()), so cms:doctor still prints its document and
+ * exits with the violation code instead of stopping with an exception.
  */
 #[Internal]
 final readonly class InvalidConfigurationCheck implements DoctorCheck
@@ -22,7 +23,18 @@ final readonly class InvalidConfigurationCheck implements DoctorCheck
 
     public const string CODE = 'doctor_config_invalid';
 
-    public function __construct(private string $cause) {}
+    public function __construct(
+        private string $cause,
+        private string $summary = 'The settings of cms:doctor are invalid, so it cannot check the installation.',
+    ) {}
+
+    /**
+     * The check for an invalid `cbox-cms.sites` (PRD 5.9, 10.3): no site could be served while it is.
+     */
+    public static function sites(string $cause): self
+    {
+        return new self($cause, 'The configured sites are invalid, so no site can be served.');
+    }
 
     #[Override]
     public function id(): CheckId
@@ -50,7 +62,7 @@ final readonly class InvalidConfigurationCheck implements DoctorCheck
             true,
             FailureKind::Violation,
             self::CODE,
-            'The settings of cms:doctor are invalid, so it cannot check the installation.',
+            $this->summary,
             $this->cause,
             'Fix the setting in config/cbox-cms.php, or remove it to use the default.',
         );

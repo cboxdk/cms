@@ -104,10 +104,15 @@ final readonly class JsonDeliveryDocuments implements DeliveryDocuments
 
     private function meta(DeliveryAnswer $answer): DeliveryMeta
     {
+        $locale = $answer->locale ?? throw new LogicException('A record answer holds its locale.');
+
         return new DeliveryMeta(
             canonicalUrl: $answer->canonicalUrl,
             contract: RecordCodecs::VERSION,
-            locale: $answer->locale ?? throw new LogicException('A record answer holds its locale.'),
+            fallback: $answer->fallback->fallback ?? false,
+            fallbackFields: $answer->fallback->fields ?? [],
+            locale: $locale,
+            resolvedLocale: $answer->fallback->resolved ?? $locale,
             type: $answer->type ?? throw new LogicException('A record answer holds its type.'),
         );
     }

@@ -17,12 +17,14 @@ use Cbox\Cms\Contracts\Pipeline\Query;
 use Cbox\Cms\Contracts\Pipeline\QueryAction;
 use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Cbox\Cms\Contracts\Results\ReadContent;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackResolution;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
@@ -36,6 +38,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
+use Cbox\Cms\Core\Routing\Domain\LocaleFallback;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
 use Cbox\Cms\Core\Routing\Domain\RedirectReason;
@@ -77,7 +80,11 @@ use Override;
  * 6. For a visible placement, the fields of the entry's released row in its type's table, and the
  *    canonical placement of the entry in the locale and its URL, the origin of its configured site
  *    with its node's route and its slug; a mount's placement is the source's, so its canonical URL
- *    is on the source's site.
+ *    is on the source's site. For a type with localization variants, the fields fall back along
+ *    the site's fallback chain (PRD 10.3, LocaleFallback): the first locale from the requested one
+ *    on that has a released row, with the fields marked `fallback: field` it leaves empty taken
+ *    from the locales after it, explained by the fallback step; with no released row in any of
+ *    them the placement is not shown (rung 8, NoReleasedRevision).
  *
  * The answer is ResolvedPath: the entry whenever its placement and entry were read, with the fields
  * of its released row when the placement is visible and without fields otherwise, and the
@@ -195,12 +202,42 @@ final readonly class ResolvePathAction implements QueryAction
             return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Redirect, $site, $route, $node, $mount, $step, redirect: $redirect));
         }
 
-        $canonical = $this->canonical($query, $placement, $mount);
-        $content = $type instanceof TypeDefinition && $content instanceof ReadContent
-            ? $content->withFields($this->routes->released($type, $placement->entry, $query->locale) ?? new FieldValues)
-            : $content;
+        $fallback = null;
 
-        return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Resolved, $site, $route, $node, $mount, $step, $visibility, $canonical));
+        if ($type instanceof TypeDefinition && $content instanceof ReadContent) {
+            $read = $this->fields($type, $configured, $query, $placement);
+            $fallback = $read instanceof FallbackResolution ? $read->step : null;
+            $fields = $read instanceof FallbackResolution ? $read->fields : $read;
+
+            if (! $fields instanceof FieldValues) {
+                $visibility = VisibilityPrecedence::noReleasedVariant($placement, $now);
+
+                return new ResolvedPath($content, new PathExplanation(ResolveOutcome::NotVisible, $site, $route, $node, $mount, $step, $visibility, fallback: $fallback));
+            }
+
+            $content = $content->withFields($fields);
+        }
+
+        $canonical = $this->canonical($query, $placement, $mount);
+
+        return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Resolved, $site, $route, $node, $mount, $step, $visibility, $canonical, fallback: $fallback));
+    }
+
+    /**
+     * Step 6's fields (PRD 10.3, 11.6): the shared variant's released row for a type without
+     * localization, with no fallback; for a type with localization variants, what the fallback
+     * gives over the released rows of the locale and those after it in the site's fallback chain,
+     * read at once.
+     */
+    private function fields(TypeDefinition $type, ConfiguredSite $configured, ResolvePath $query, PlacementMatch $placement): FieldValues|FallbackResolution
+    {
+        if ($type->capabilities->localization !== Localization::Variants) {
+            return $this->routes->released($type, $placement->entry, [$query->locale])[0]->fields ?? new FieldValues;
+        }
+
+        $tried = $configured->fallback->from($query->locale);
+
+        return LocaleFallback::resolve($type, $tried, $this->routes->released($type, $placement->entry, $tried));
     }
 
     /**

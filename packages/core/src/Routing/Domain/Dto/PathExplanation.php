@@ -10,9 +10,10 @@ use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 /**
  * The typed explanation of one resolution (PRD 5.9, GUARDRAILS 5 "Forklaringer fra dag ét"): each
  * step it took, in order, and the outcome, named by the step that stopped it. A step it did not
- * reach is null; mount is null too when the node is not a mount, and redirect is null unless the
- * resolution ended in one (PRD 5.8). cms:explain, the developer bar and spans read this
- * explanation; there is no other explain code.
+ * reach is null; mount is null too when the node is not a mount, redirect is null unless the
+ * resolution ended in one (PRD 5.8), and fallback is null unless it read the fields of an entry of
+ * a type with localization variants (PRD 10.3). cms:explain, the developer bar and spans read
+ * this explanation; there is no other explain code.
  */
 #[Experimental]
 final readonly class PathExplanation
@@ -27,5 +28,6 @@ final readonly class PathExplanation
         public ?VisibilityStep $visibility = null,
         public ?CanonicalStep $canonical = null,
         public ?RedirectStep $redirect = null,
+        public ?FallbackStep $fallback = null,
     ) {}
 }

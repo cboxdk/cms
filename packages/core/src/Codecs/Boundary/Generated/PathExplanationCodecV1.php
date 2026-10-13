@@ -23,6 +23,7 @@ use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
@@ -88,6 +89,7 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->canonical = $object->canonical instanceof CanonicalStep ? $this->encodeCanonicalStep($object->canonical) : null;
+        $json->fallback = $object->fallback instanceof FallbackStep ? $this->encodeFallbackStep($object->fallback) : null;
         $json->mount = $object->mount instanceof MountStep ? $this->encodeMountStep($object->mount) : null;
         $json->node = $object->node instanceof NodeStep ? $this->encodeNodeStep($object->node) : null;
         $json->outcome = $object->outcome->value;
@@ -102,7 +104,7 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
 
     private function decodePathExplanation(stdClass $value): PathExplanation
     {
-        $object = JsonValues::object($value, null, ['canonical', 'mount', 'node', 'outcome', 'placement', 'redirect', 'route', 'site', 'visibility']);
+        $object = JsonValues::object($value, null, ['canonical', 'fallback', 'mount', 'node', 'outcome', 'placement', 'redirect', 'route', 'site', 'visibility']);
 
         return JsonValues::build(null, fn (): PathExplanation => new PathExplanation(
             outcome: JsonValues::required($object, 'outcome', null, static fn (mixed $value, FieldPath $at): ResolveOutcome => JsonValues::enum($value, $at, ResolveOutcome::class)),
@@ -114,6 +116,7 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
             visibility: JsonValues::present($object, 'visibility', null, $this->decodeVisibilityStep(...)),
             canonical: JsonValues::present($object, 'canonical', null, $this->decodeCanonicalStep(...)),
             redirect: JsonValues::present($object, 'redirect', null, $this->decodeRedirectStep(...)),
+            fallback: JsonValues::present($object, 'fallback', null, $this->decodeFallbackStep(...)),
         ));
     }
 
@@ -135,6 +138,29 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
             placement: JsonValues::present($object, 'placement', $path, static fn (mixed $value, FieldPath $at): PlacementId => JsonValues::id($value, $at, PlacementId::fromString(...))),
             url: JsonValues::present($object, 'url', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
             here: JsonValues::required($object, 'here', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodeFallbackStep(FallbackStep $object): stdClass
+    {
+        $json = new stdClass;
+        $json->fallback = $object->fallback;
+        $json->fields = array_map(static fn (FieldPath $item): mixed => $item->toString(), $object->fields);
+        $json->resolved = $object->resolved instanceof Locale ? $object->resolved->value : null;
+        $json->tried = array_map(static fn (Locale $item): mixed => $item->value, $object->tried);
+
+        return $json;
+    }
+
+    private function decodeFallbackStep(mixed $value, FieldPath $path): FallbackStep
+    {
+        $object = JsonValues::object($value, $path, ['fallback', 'fields', 'resolved', 'tried']);
+
+        return JsonValues::build($path, static fn (): FallbackStep => new FallbackStep(
+            tried: JsonValues::required($object, 'tried', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): Locale => JsonValues::value($item, $itemAt, static fn (string $text): Locale => new Locale($text)), minItems: 1)),
+            resolved: JsonValues::present($object, 'resolved', $path, static fn (mixed $value, FieldPath $at): Locale => JsonValues::value($value, $at, static fn (string $text): Locale => new Locale($text))),
+            fallback: JsonValues::required($object, 'fallback', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            fields: JsonValues::required($object, 'fields', $path, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): FieldPath => JsonValues::id($item, $itemAt, FieldPath::fromString(...)))),
         ));
     }
 

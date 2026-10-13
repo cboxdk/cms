@@ -7,7 +7,6 @@ namespace Cbox\Cms\Core\Routing\Domain;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\Slug;
-use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\SiteId;
@@ -15,6 +14,7 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\ReleasedRow;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 
@@ -66,10 +66,14 @@ interface RouteReader
     public function own(SiteId $site, EntryId $entry, Locale $locale): ?OwnPlacement;
 
     /**
-     * The fields of the entry's released row in its type's table, the delivery projection of what
-     * the public sees (PRD 4.1, 8.9): the shared variant's row for a type without localization, and
-     * the locale's row, which holds the shared fields too, for a type with localization variants
-     * (PRD 10.1, 11.6); null when the reader can read no such row.
+     * The entry's released rows in its type's table, the delivery projection of what the public
+     * sees (PRD 4.1, 8.9), in one statement: the shared variant's row for a type without
+     * localization, and for a type with localization variants the row of each of the locales that
+     * has one, which holds the shared fields too (PRD 10.1, 11.6), in any order; only the rows the
+     * reader can read.
+     *
+     * @param  non-empty-list<Locale>  $locales  the locales whose rows a type with localization variants reads
+     * @return list<ReleasedRow>
      */
-    public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues;
+    public function released(TypeDefinition $type, EntryId $entry, array $locales): array;
 }

@@ -20,11 +20,13 @@ use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Results\CatalogError;
+use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ProblemCodecV1;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
@@ -203,6 +205,23 @@ it('prints a node without a mount and a placement without the steps after it', f
         '  read at      4711, the read saw every changeset below it',
     ]);
 });
+
+it('prints the fallback along the site\'s chain: the locales tried, the one shown and the fields that fell back, or that none was released', function (?string $resolved, bool $fallback, array $fields, string $line): void {
+    /** @var list<string> $fields */
+    $tried = [new Locale('de-AT'), new Locale('de'), new Locale('en')];
+    $lines = explainLines(new PathExplanation(
+        ResolveOutcome::Resolved,
+        explainSite(),
+        fallback: new FallbackStep($tried, $resolved === null ? null : new Locale($resolved), $fallback, array_map(FieldPath::fromString(...), $fields)),
+    ));
+
+    expect($lines[2])->toBe($line);
+})->with([
+    'its own variant' => ['de-AT', false, [], '  fallback     tried de-AT, de, en: shows de-AT'],
+    'a later locale' => ['de', true, [], '  fallback     tried de-AT, de, en: shows de, a fallback'],
+    'fields that fell back' => ['de-AT', false, ['ext.reviews.summary', 'teaser'], '  fallback     tried de-AT, de, en: shows de-AT; fields from later locales: ext.reviews.summary, teaser'],
+    'none released' => [null, false, [], '  fallback     tried de-AT, de, en: no released variant in any of them'],
+]);
 
 it('prints a placement as unreadable unless both the placement and its entry were read', function (?string $placement, ?string $entry): void {
     $step = new PlacementStep(

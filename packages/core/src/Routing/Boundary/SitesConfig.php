@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\InvalidContentValue;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackChain;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\InvalidRoutingValue;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -18,20 +19,23 @@ use InvalidArgumentException;
 
 /**
  * Reads the configured sites from `cbox-cms.sites` (PRD 5.9 step 1, 8.10 point 7, 11.14, 17): a map
- * from a site's handle, as the sites table holds it, to where it is served and the locales it
- * publishes in:
+ * from a site's handle, as the sites table holds it, to where it is served, the locales it
+ * publishes in and the chain a page falls back along (PRD 10.3):
  *
  *     'sites' => [
  *         'north' => [
  *             'origin' => 'https://north.example',   // the scheme and host of its canonical URLs
  *             'locales' => ['da', 'en'],             // the locales it publishes in, at least one
  *             'hosts' => ['www.north.example'],      // other hosts that resolve to it, default []
+ *             'fallback' => ['da', 'en'],            // the fallback chain, locales of the site, default []
  *         ],
  *     ],
  *
  * The origin's host resolves to the site too. A host belongs to one site. Only a configured host
- * resolves, and a canonical URL is built from its site's origin, never from a request's host.
- * cms:sites:sync registers each configured site the database lacks with its locales.
+ * resolves, and a canonical URL is built from its site's origin, never from a request's host. A
+ * read in a locale of the fallback chain falls back along the locales after it (FallbackChain).
+ * cms:sites:sync registers each configured site the database lacks with its locales, and
+ * cms:doctor's doctor.config fails while the setting is invalid.
  */
 #[Internal]
 final readonly class SitesConfig
@@ -40,8 +44,9 @@ final readonly class SitesConfig
 
     /**
      * @throws InvalidArgumentException when the setting is not a map of handles to an origin, a list
-     *                                  of locales and a list of hosts, or a host is configured for two
-     *                                  sites
+     *                                  of locales, a list of hosts and a fallback chain, a host is
+     *                                  configured for two sites, or a fallback chain names a locale
+     *                                  twice or one the site does not publish in
      */
     public static function read(Repository $config): SiteHosts
     {
@@ -75,6 +80,7 @@ final readonly class SitesConfig
         $origin = $site['origin'] ?? null;
         $locales = $site['locales'] ?? null;
         $hosts = $site['hosts'] ?? [];
+        $fallback = $site['fallback'] ?? [];
 
         if (! is_string($origin)) {
             throw self::invalid($key.'.origin', 'a string such as "https://example.dk"', $origin);
@@ -100,12 +106,23 @@ final readonly class SitesConfig
             $names[] = is_string($host) ? $host : throw self::invalid($key.'.hosts', 'a list of host names', $host);
         }
 
+        if (! is_array($fallback) || ! array_is_list($fallback)) {
+            throw self::invalid($key.'.fallback', 'a list of locales of the site such as ["de-AT", "de", "en"]', $fallback);
+        }
+
+        $chain = [];
+
+        foreach ($fallback as $locale) {
+            $chain[] = is_string($locale) ? $locale : throw self::invalid($key.'.fallback', 'a list of locales of the site such as ["de-AT", "de", "en"]', $locale);
+        }
+
         try {
             return new ConfiguredSite(
                 new SiteHandle($handle),
                 new SiteOrigin($origin),
                 array_map(static fn (string $tag): Locale => new Locale($tag), $tags),
                 array_map(static fn (string $host): Host => new Host($host), $names),
+                new FallbackChain(array_map(static fn (string $tag): Locale => new Locale($tag), $chain)),
             );
         } catch (InvalidRoutingValue|InvalidContentValue $invalid) {
             throw new InvalidArgumentException(sprintf('The setting %s is invalid: %s', $key, $invalid->getMessage()), $invalid->getCode(), previous: $invalid);

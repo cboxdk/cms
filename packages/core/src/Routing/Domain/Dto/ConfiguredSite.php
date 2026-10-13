@@ -14,8 +14,8 @@ use Cbox\Cms\Core\Routing\Domain\SiteOrigin;
 /**
  * A site as the configuration serves it (PRD 5.9, 8.10 point 7, 11.14): its handle, the origin its
  * canonical URLs are built from, the locales it publishes in, at least one and each once, which
- * cms:sites:sync registers it with, and every host that resolves to it, the origin's host first and
- * each once.
+ * cms:sites:sync registers it with, every host that resolves to it, the origin's host first and
+ * each once, and its fallback chain (PRD 10.3), of locales the site publishes in.
  */
 #[Experimental]
 final readonly class ConfiguredSite
@@ -27,13 +27,14 @@ final readonly class ConfiguredSite
      * @param  list<Locale>  $locales  the locales the site publishes in, in the configured order
      * @param  list<Host>  $aliases  other hosts that resolve to the site
      *
-     * @throws InvalidRoutingValue for no locale, or a locale named twice
+     * @throws InvalidRoutingValue for no locale, a locale named twice, or a fallback locale the site does not publish in
      */
     public function __construct(
         public SiteHandle $handle,
         public SiteOrigin $origin,
         public array $locales,
         array $aliases = [],
+        public FallbackChain $fallback = new FallbackChain,
     ) {
         if ($locales === []) {
             throw InvalidRoutingValue::siteWithoutLocales($handle);
@@ -47,6 +48,12 @@ final readonly class ConfiguredSite
             }
 
             $seen[$locale->value] = true;
+        }
+
+        foreach ($fallback->locales as $locale) {
+            if (! isset($seen[$locale->value])) {
+                throw InvalidRoutingValue::fallbackLocaleNotPublished($handle, $locale);
+            }
         }
 
         $hosts = [$origin->host->value => $origin->host];

@@ -69,6 +69,16 @@ final readonly class VisibilityPrecedence
             && ($stages === Stages::None || $placement->release === ReleaseState::Released);
     }
 
+    /**
+     * The decision for a placement the precedence showed whose entry, of a type with localization
+     * variants, has no released row in the locale or along the site's fallback chain (PRD 6.6 rung
+     * 8, 10.3): not shown, and no window changes that.
+     */
+    public static function noReleasedVariant(PlacementMatch $placement, DateTimeImmutable $at): VisibilityStep
+    {
+        return new VisibilityStep(VisibilityDecision::NoReleasedRevision, $at, $placement->lifecycle, $placement->release, $placement->visibility, $placement->window, null);
+    }
+
     private static function window(PlacementMatch $placement, DateTimeImmutable $at): VisibilityDecision
     {
         if ($placement->visibility === Visibility::Hidden || ! $placement->window instanceof TimeWindow) {

@@ -30,7 +30,7 @@ it('reads path.resolve from JSON and writes it back as canonical JSON', function
 
 it('reads and writes the result of path.resolve, and lists the codecs of each kernel query', function (): void {
     $codec = new ResolvedPathCodecV1;
-    $json = '{"content":null,"explanation":{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,'
+    $json = '{"content":null,"explanation":{"canonical":null,"fallback":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,'
         .'"site":{"handle":null,"host":"nowhere.example","locale":"da","locale_published":false,"site":null},"visibility":null}}';
     $result = $codec->decode($json, ClassificationAccess::Public);
     $queries = array_map(static fn (QueryCodec $each): string => $each->name->value.' v'.$each->version, KernelQueryCodecs::all());

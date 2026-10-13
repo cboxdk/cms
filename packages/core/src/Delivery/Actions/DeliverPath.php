@@ -60,8 +60,10 @@ use LogicException;
  * 3. Otherwise path.resolve runs through the query pipeline as the anonymous principal (invariant
  *    25), whose classification access is public. A resolved path is answered with the record of its
  *    entry, written by the type's generated codec at the public classification access, so no field
- *    above public is in the body (invariant 10); a redirect with 301 and the URL the page lives at
- *    in Location, with no body (PRD 5.8); every other outcome with a problem (PathAnswers).
+ *    above public is in the body (invariant 10), and its meta says the locale of the variant it
+ *    shows and which fields fell back along the site's fallback chain (PRD 10.3); a redirect with
+ *    301 and the URL the page lives at in Location, with no body (PRD 5.8); every other outcome
+ *    with a problem (PathAnswers).
  * 4. The answer is stored as a fragment with its content keys, built at the read's position and
  *    kept until the lower of now plus the configured max age and its valid_until (invariant 17).
  *    The store refuses it when a dependency was purged at or above that position, and the answer is
@@ -212,6 +214,7 @@ final readonly class DeliverPath
             $query->locale,
             $resolved->explanation->canonical?->url,
             explanation: $explanation,
+            fallback: $resolved->explanation->fallback,
         );
     }
 

@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Errors\ExitCode;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -17,11 +18,13 @@ use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ExplainedPathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\PathExplanationCodecV1;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath;
+use Cbox\Cms\Core\Routing\Domain\Dto\FallbackStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
@@ -134,6 +137,10 @@ final readonly class ExplainOutput
             $lines[] = $this->visibility($explanation->visibility);
         }
 
+        if ($explanation->fallback instanceof FallbackStep) {
+            $lines[] = $this->fallback($explanation->fallback);
+        }
+
         if ($explanation->canonical instanceof CanonicalStep) {
             $lines[] = $this->canonical($explanation->canonical);
         }
@@ -196,6 +203,24 @@ final readonly class ExplainOutput
             $visibility->stored->value,
             $visibility->window instanceof TimeWindow ? $this->window($visibility->window) : 'none',
             $visibility->validUntil instanceof DateTimeImmutable ? '; valid until '.$this->time($visibility->validUntil) : '',
+        );
+    }
+
+    private function fallback(FallbackStep $fallback): string
+    {
+        $tried = implode(', ', array_map(static fn (Locale $locale): string => $locale->toString(), $fallback->tried));
+
+        if (! $fallback->resolved instanceof Locale) {
+            return sprintf('  %-12s tried %s: no released variant in any of them', 'fallback', $tried);
+        }
+
+        return sprintf(
+            '  %-12s tried %s: shows %s%s%s',
+            'fallback',
+            $tried,
+            $fallback->resolved->toString(),
+            $fallback->fallback ? ', a fallback' : '',
+            $fallback->fields === [] ? '' : '; fields from later locales: '.implode(', ', array_map(static fn (FieldPath $field): string => $field->toString(), $fallback->fields)),
         );
     }
 

@@ -9,7 +9,6 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\VariantKey;
-use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
@@ -21,6 +20,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementRows;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\ReleasedRow;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteRedirect;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
@@ -66,10 +66,10 @@ use UnexpectedValueException;
  *   not withdrawn below a node with a route of the site in the locale, the canonical one first and
  *   then the lowest id, with the route, the slug, the stored visibility and the window; a route of
  *   the site belongs to a node of its tree, and a mount holds no placement.
- * - released(): the entry's released row in its type's table, the shared variant's or, for a type
- *   with localization variants, the locale's, by the table's primary key, through the query
- *   builder, decoded by TypeTableColumns. The anonymous context
- *   reads it only while the entry has a live placement (`<table>_released`).
+ * - released(): the entry's released rows in its type's table, the shared variant's or, for a
+ *   type with localization variants, those of the locales given, by the table's primary key, in
+ *   one statement through the query builder, decoded by TypeTableColumns. The anonymous context
+ *   reads them only while the entry has a live placement (`<table>_released`), in any locale.
  */
 #[Internal]
 final readonly class PostgresRouteReader implements RouteReader
@@ -280,17 +280,31 @@ final readonly class PostgresRouteReader implements RouteReader
     }
 
     #[Override]
-    public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues
+    public function released(TypeDefinition $type, EntryId $entry, array $locales): array
     {
-        $variant = $type->capabilities->localization === Localization::Variants ? VariantKey::of($locale) : VariantKey::shared();
-        $row = $this->db()->table($type->name->table())
+        $variants = $type->capabilities->localization === Localization::Variants
+            ? array_map(static fn (Locale $locale): string => VariantKey::of($locale)->value, $locales)
+            : [VariantKey::shared()->value];
+        $rows = $this->db()->table($type->name->table())
             ->useWritePdo()
             ->where('cms_entry_id', '=', $entry->toString())
-            ->where('cms_locale', '=', $variant->value)
+            ->whereIn('cms_locale', $variants)
             ->where('cms_stage', '=', 'released')
-            ->first();
+            ->get();
+        $released = [];
 
-        return $row === null ? null : TypeTableColumns::decode($type, (array) $row);
+        foreach ($rows as $row) {
+            $row = (array) $row;
+            $variant = $row['cms_locale'] ?? null;
+
+            if (! is_string($variant)) {
+                throw new UnexpectedValueException(sprintf('A row of %s has no variant in cms_locale.', $type->name->table()));
+            }
+
+            $released[] = new ReleasedRow(VariantKey::fromString($variant), TypeTableColumns::decode($type, $row));
+        }
+
+        return $released;
     }
 
     /**

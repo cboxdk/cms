@@ -304,6 +304,7 @@ use Illuminate\Database\DatabaseManager;
 use Illuminate\Database\Eloquent\Model;
 use Illuminate\Database\LazyLoadingViolationException;
 use Illuminate\Support\ServiceProvider;
+use InvalidArgumentException;
 use LogicException;
 use Override;
 use Psr\Log\LoggerInterface;
@@ -1036,8 +1037,8 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
      * follow the configuration; the Postgres probes share one scoped connection. The checks that
      * an application or addon names in `cbox-cms.doctor.checks` run after the core's runtime checks, and
      * those in `cbox-cms.doctor.dev_checks` after the core's development checks. An invalid
-     * `cbox-cms.doctor`, or a named check that cannot be used, gives the one failing check doctor.config
-     * instead of an exception.
+     * `cbox-cms.doctor`, an invalid `cbox-cms.sites`, or a named check that cannot be used, gives the
+     * one failing check doctor.config instead of an exception.
      */
     private function registerDoctor(): void
     {
@@ -1089,6 +1090,13 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
                 $settings = DoctorConfig::read($app->make(Repository::class), $app->basePath());
             } catch (InvalidDoctorConfig $invalid) {
                 return new OrderedDoctorChecks([new InvalidConfigurationCheck($invalid->getMessage())], []);
+            }
+
+            // The sites every read serves from, their fallback chains included (PRD 10.3).
+            try {
+                SitesConfig::read($app->make(Repository::class));
+            } catch (InvalidArgumentException $invalid) {
+                return new OrderedDoctorChecks([InvalidConfigurationCheck::sites($invalid->getMessage())], []);
             }
 
             $runtime = $app->make(RuntimeProbe::class);

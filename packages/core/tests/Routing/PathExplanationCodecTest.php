@@ -50,6 +50,7 @@ it('writes every step of a resolved placement with every key, sorted', function 
 
     expect($document)->toBe([
         'canonical' => ['here' => true, 'placement' => World::PLACEMENT, 'url' => 'https://north.example/nyheder/harbour'],
+        'fallback' => null,
         'mount' => null,
         'node' => ['kind' => 'section', 'node' => World::SECTION],
         'outcome' => 'resolved',
@@ -111,6 +112,7 @@ it('writes null for every step a resolution did not reach', function (): void {
 
     expect($document)->toBe([
         'canonical' => null,
+        'fallback' => null,
         'mount' => null,
         'node' => null,
         'outcome' => 'unknown_host',

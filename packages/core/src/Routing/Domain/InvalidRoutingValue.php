@@ -75,6 +75,16 @@ final class InvalidRoutingValue extends InvalidArgumentException
         return new self(sprintf('The site "%s" names the locale %s twice.', $site->value, $locale->value));
     }
 
+    public static function repeatedFallbackLocale(Locale $locale): self
+    {
+        return new self(sprintf('The fallback chain names the locale %s twice; a chain names each locale once.', $locale->value));
+    }
+
+    public static function fallbackLocaleNotPublished(SiteHandle $site, Locale $locale): self
+    {
+        return new self(sprintf('The fallback chain of the site "%s" names the locale %s, which the site does not publish in; a chain names only locales of the site.', $site->value, $locale->value));
+    }
+
     /**
      * The value as a message shows it: at most 100 characters of valid UTF-8.
      */
