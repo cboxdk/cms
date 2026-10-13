@@ -59,7 +59,7 @@ it('prints the hook map of a command of the workbench in run order with its budg
             ."  1. validate   priority 10  budget 2 ms  Workbench\\FixtureAddon\\RequireSlugOnRelease (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n"
             ."variant.release v2: no hooks run.\n",
         )
-        ->and($publishOutput)->toBe("entry.publish v1: no hooks run.\n");
+        ->and($publishOutput)->toBe("entry.publish v1: no hooks run.\nentry.publish v2: no hooks run.\n");
 });
 
 it('prints the hook map as one JSON document with the hooks the command pipeline binds, in its order', function (): void {

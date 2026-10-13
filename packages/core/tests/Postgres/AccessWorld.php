@@ -108,7 +108,7 @@ final class AccessWorld
      * @var list<string>
      */
     public const array TABLES = [
-        'actor_profiles', 'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'entries',
+        'actor_profiles', 'actors', 'audit', 'changeset_principals', 'changeset_reason_texts', 'changeset_register', 'changesets', 'derivations', 'entries',
         'grants', 'head_snapshots', 'installation', 'mount_overrides', 'node_labels', 'node_route_history', 'node_routes', 'nodes', 'placement_generations', 'placement_locales',
         'placements', 'read_audit', 'release_log', 'revision_payloads', 'revisions', 'role_permissions', 'roles',
         'service_credential_delegations', 'service_credentials', 'site_locales', 'sites', 'slug_history', 'variant_heads',
@@ -269,6 +269,13 @@ final class AccessWorld
                 'created_at' => self::CREATED_AT,
             ]);
         }
+
+        // A translation: the de variant of the public entry from revision 1 of its da variant.
+        foreach (['da', 'de'] as $variant) {
+            $superuser->table('variant_heads')->insert(['entry_id' => self::ENTRY_PUBLIC, 'variant' => $variant, 'schema_version' => 1, 'release_state' => 'unreleased', 'version' => 1, 'created_at' => self::CREATED_AT]);
+        }
+
+        $superuser->table('derivations')->insert(['changeset_id' => self::CHANGESET_BOB, 'entry_id' => self::ENTRY_PUBLIC, 'variant' => 'de', 'rev_no' => 1, 'kind' => 'translated_from', 'source_variant' => 'da', 'source_rev_no' => 1, 'created_at' => self::CREATED_AT]);
 
         foreach ([self::ENTRY_NEWS, self::ENTRY_PUBLIC] as $entry) {
             $superuser->table('head_snapshots')->insert(['entry_id' => $entry, 'variant' => 'shared', 'rev_no' => 1, 'schema_version' => 1, 'format_version' => 1, 'content' => '{}', 'updated_at' => self::CREATED_AT]);

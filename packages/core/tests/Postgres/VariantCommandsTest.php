@@ -8,11 +8,15 @@ use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
 use Cbox\Cms\Core\Tests\Entries\LocalizedEntries;
+use Cbox\Cms\Core\Tests\Placements\PlacementStructure;
+use Cbox\Cms\Core\Tests\Placements\PlacementWorld;
+use Cbox\Cms\Core\Tests\Publishing\PublishingWorld;
 use Cbox\Cms\Testkit\Postgres\IndependentConnections;
 use Illuminate\Support\Facades\DB;
 
@@ -25,6 +29,12 @@ use Illuminate\Support\Facades\DB;
  * released row exists once both it and the shared variant are released. A translator granted one
  * language alone writes that language alone, an agent's release stays refused, and two concurrent
  * saves of several variants give one commit, one version_conflict and one changeset.
+ *
+ * entry.publish version 2 releases what a locale needs, the language's variant and the shared one,
+ * and puts the home placement live, in one changeset, and an agent may not publish (invariant 18).
+ * variant.create_from creates a language's variant from another's revision and records the
+ * derivation translated_from, which a later release of the source with other content marks stale
+ * (PRD 10.3).
  */
 
 const VARIANT_TABLE = 'app__fixture_notice';
@@ -276,4 +286,202 @@ it('revises one language with the same statements whether the entry has 2 or 6 l
     expect($counts[2][0])->toBe(Outcome::Committed)
         ->and($counts[6][0])->toBe(Outcome::Committed)
         ->and($counts[6][1])->toBe($counts[2][1]);
+});
+
+const VARIANT_PLACEMENT = '0192a0c0-0000-7000-8000-0000000007c1';
+
+/**
+ * The derivations of the entry as "<variant> <rev_no> <kind> <source variant> <source rev_no> <stale or current>", sorted by variant.
+ *
+ * @return list<string>
+ */
+function variantDerivations(string $entry = EntryWorld::ENTRY): array
+{
+    $derivations = [];
+
+    foreach (StorageTables::superuser()->table('derivations')->where('entry_id', $entry)->orderBy('variant')->get() as $row) {
+        $derivations[] = implode(' ', [
+            ...array_map(variantText(...), [$row->variant, $row->rev_no, $row->kind, $row->source_variant, $row->source_rev_no]),
+            $row->stale_changeset_id === null ? 'current' : 'stale',
+        ]);
+    }
+
+    return $derivations;
+}
+
+/**
+ * The placement structure, a publishing world whose actor reaches north, and the notice created
+ * in da and en homed on north's section and placed there in da, each through the pipeline.
+ *
+ * @return array{PublishingWorld, PlacementStructure}
+ */
+function publishingVariantWorld(): array
+{
+    $structure = PlacementWorld::seed();
+    $world = new PublishingWorld([$structure->northSection], seed: 7);
+    $entry = EntryWorld::entry();
+
+    $created = $world->createLocalized($entry, LocalizedEntries::NOTICE, LocalizedEntries::shared('2026-03-09', 3), [
+        'da' => LocalizedEntries::translated('Havnen åbner'),
+        'en' => LocalizedEntries::translated('The harbour opens'),
+    ], $structure->northSection, 'create-notice');
+    $placed = $world->place(PlacementId::fromString(VARIANT_PLACEMENT), $entry, $structure->northSection, $structure->north, 'havnen', 'place-notice');
+
+    expect([$created->outcome(), $placed->outcome()])->toBe([Outcome::Committed, Outcome::Committed]);
+
+    return [$world, $structure];
+}
+
+/**
+ * The visibility of the notice's placement in da.
+ */
+function variantPlacementVisibility(): string
+{
+    return variantText(StorageTables::superuser()->table('placement_locales')->where('placement_id', VARIANT_PLACEMENT)->where('locale', 'da')->where('stage', 'released')->value('visibility'));
+}
+
+it('publishes a language and the shared variant with the home placement live in one changeset (entry.publish version 2)', function (): void {
+    [$world] = publishingVariantWorld();
+
+    $result = $world->publishVariants(EntryWorld::entry(), ['shared' => [1, 1], 'da' => [1, 1]], PlacementId::fromString(VARIANT_PLACEMENT), 1, 'publish-v2');
+    $superuser = StorageTables::superuser();
+    $changeset = $result->receipt->changesetId?->toString();
+
+    expect($result->outcome())->toBe(Outcome::Committed)
+        ->and(variantChangesets('entry.publish'))->toBe(1)
+        ->and(variantHeads())->toBe(['da released 2', 'en unreleased 1', 'shared released 2'])
+        ->and(variantRows())->toBe(['da released Havnen åbner 2026-03-09 3', 'en draft The harbour opens 2026-03-09 3'])
+        ->and(variantPlacementVisibility())->toBe('live')
+        ->and($superuser->table('release_log')->where('entry_id', EntryWorld::ENTRY)->orderBy('variant')->pluck('changeset_id')->all())->toBe([$changeset, $changeset])
+        ->and($superuser->table('events')->where('type', 'variant.released')->count())->toBe(2)
+        ->and($superuser->table('events')->where('type', 'placement.visibility_changed')->count())->toBe(1);
+});
+
+it('releases only what the locale still needs: a language beside a shared variant released before', function (): void {
+    [$world] = publishingVariantWorld();
+    $shared = $world->releaseVariant(EntryWorld::entry(), 'shared', 1, 1, 'release-shared');
+
+    // The shared variant's released revision is its published copy, number 2, which entry.get gives.
+    $result = $world->publishVariants(EntryWorld::entry(), ['shared' => [2, 2], 'en' => [1, 1]], PlacementId::fromString(VARIANT_PLACEMENT), 1, 'publish-en', 'en');
+    $da = $world->publishVariants(EntryWorld::entry(), ['shared' => [2, 2], 'da' => [1, 1]], PlacementId::fromString(VARIANT_PLACEMENT), 1, 'publish-da');
+    $superuser = StorageTables::superuser();
+
+    expect($shared->outcome())->toBe(Outcome::Committed)
+        ->and(variantErrorCodes($result))->toBe(['validation_failed'])
+        ->and($result->errors[0]->path?->toString())->toBe('locale')
+        ->and($da->outcome())->toBe(Outcome::Committed)
+        ->and(variantHeads())->toBe(['da released 2', 'en unreleased 1', 'shared released 2'])
+        ->and($superuser->table('release_log')->where('entry_id', EntryWorld::ENTRY)->orderBy('variant')->pluck('variant')->all())->toBe(['da', 'shared'])
+        ->and(variantPlacementVisibility())->toBe('live');
+});
+
+it('refuses a publish of version 2 without the locale\'s variant, or with another language\'s', function (): void {
+    [$world] = publishingVariantWorld();
+
+    $withoutDa = $world->publishVariants(EntryWorld::entry(), ['shared' => [1, 1]], PlacementId::fromString(VARIANT_PLACEMENT), 1, 'publish-no-da');
+    $withEn = $world->publishVariants(EntryWorld::entry(), ['shared' => [1, 1], 'da' => [1, 1], 'en' => [1, 1]], PlacementId::fromString(VARIANT_PLACEMENT), 1, 'publish-with-en');
+
+    expect(variantErrorCodes($withoutDa))->toBe(['validation_failed'])
+        ->and($withoutDa->errors[0]->path?->toString())->toBe('variants')
+        ->and(variantErrorCodes($withEn))->toBe(['validation_failed'])
+        ->and($withEn->errors[0]->path?->toString())->toBe('variants[2].variant')
+        ->and(variantChangesets('entry.publish'))->toBe(0)
+        ->and(variantHeads())->toBe(['da unreleased 1', 'en unreleased 1', 'shared unreleased 1']);
+});
+
+it('refuses a publish of version 2 to an agent with agent_visibility_forbidden (invariant 18)', function (): void {
+    [$world] = publishingVariantWorld();
+
+    $result = $world->publishVariants(EntryWorld::entry(), ['shared' => [1, 1], 'da' => [1, 1]], PlacementId::fromString(VARIANT_PLACEMENT), 1, 'publish-agent', agent: true);
+
+    expect(variantErrorCodes($result))->toBe(['agent_visibility_forbidden'])
+        ->and(variantChangesets('entry.publish'))->toBe(0)
+        ->and(variantHeads())->toBe(['da unreleased 1', 'en unreleased 1', 'shared unreleased 1'])
+        ->and(variantPlacementVisibility())->toBe('hidden')
+        ->and(StorageTables::superuser()->table('release_log')->count())->toBe(0);
+});
+
+it('creates a language\'s variant from another\'s revision and records translated_from (PRD 10.3)', function (): void {
+    $world = variantWorld();
+
+    $result = $world->createFrom('de', 'da', 1, 1);
+    $superuser = StorageTables::superuser();
+
+    expect($result->outcome())->toBe(Outcome::Committed)
+        ->and(variantChangesets('variant.create_from'))->toBe(1)
+        ->and(variantHeads())->toBe(['da unreleased 1', 'de unreleased 1', 'en unreleased 1', 'shared unreleased 1'])
+        ->and(variantRows())->toBe(['da draft Havnen åbner 2026-03-09 3', 'de draft Havnen åbner 2026-03-09 3', 'en draft The harbour opens 2026-03-09 3'])
+        ->and(variantDerivations())->toBe(['de 1 translated_from da 1 current'])
+        ->and($superuser->table('derivations')->value('changeset_id'))->toBe($result->receipt->changesetId?->toString())
+        ->and($superuser->table('events')->where('type', 'variant.revised')->where('aggregate_id', 'like', '%:de')->count())->toBe(1);
+});
+
+it('refuses a variant the entry has, a revision the source does not have, and the shared variant as either side', function (): void {
+    $world = variantWorld();
+
+    $existing = $world->createFrom('en', 'da', 1, 1, 'create-existing');
+    $missing = $world->createFrom('de', 'da', 4, 1, 'create-missing');
+    $fromShared = $world->createFrom('de', 'shared', 1, 1, 'create-from-shared');
+    $toShared = $world->createFrom('shared', 'da', 1, 1, 'create-shared');
+
+    expect(variantErrorCodes($existing))->toBe(['version_conflict'])
+        ->and(variantErrorCodes($missing))->toBe(['validation_failed'])
+        ->and($missing->errors[0]->path?->toString())->toBe('revision')
+        ->and(variantErrorCodes($fromShared))->toBe(['validation_failed'])
+        ->and($fromShared->errors[0]->path?->toString())->toBe('source')
+        ->and(variantErrorCodes($toShared))->toBe(['version_conflict'])
+        ->and(variantChangesets('variant.create_from'))->toBe(0)
+        ->and(variantDerivations())->toBe([]);
+});
+
+it('lets a translator granted de alone create de from da, and not fr', function (): void {
+    variantWorld();
+    $translator = new EntryWorld(seed: 2)->granted('translator', ['variant.create_from'], ['de']);
+
+    $de = $translator->createFrom('de', 'da', 1, 1, 'translate-de');
+    $fr = $translator->createFrom('fr', 'da', 1, 1, 'translate-fr');
+
+    expect($de->outcome())->toBe(Outcome::Committed)
+        ->and(variantErrorCodes($fr))->toBe(['unauthorized'])
+        ->and(variantDerivations())->toBe(['de 1 translated_from da 1 current']);
+});
+
+it('marks a translation stale once its source is released with other content, and not by the release of what it was made from', function (): void {
+    $world = variantWorld();
+    $world->createFrom('de', 'da', 1, 1);
+
+    $first = $world->releaseVariant('da', 1, 1, 'release-da');
+    $afterFirst = variantDerivations();
+    $revised = $world->reviseVariants(['da' => [2, LocalizedEntries::translated('Havnen åbner fredag')]], 'revise-da');
+    $again = $world->releaseVariant('da', 3, 3, 'release-da-again');
+    $staleBy = StorageTables::superuser()->table('derivations')->where('variant', 'de')->value('stale_changeset_id');
+
+    expect([$first->outcome(), $revised->outcome(), $again->outcome()])->toBe(array_fill(0, 3, Outcome::Committed))
+        ->and($afterFirst)->toBe(['de 1 translated_from da 1 current'])
+        ->and(variantDerivations())->toBe(['de 1 translated_from da 1 stale'])
+        ->and($staleBy)->toBe($again->receipt->changesetId?->toString());
+});
+
+it('forces row level security on the derivations and every partition of them, and lets the app role update only stale_changeset_id', function (): void {
+    $world = variantWorld();
+    $world->createFrom('de', 'da', 1, 1);
+    $owner = DB::connection('pgsql_owner');
+    $app = DB::connection();
+    $tables = StorageTables::texts($owner, "select c.relname::text as value from pg_class c where c.relname = 'derivations' or c.oid in (select inhrelid from pg_inherits where inhparent = 'derivations'::regclass) order by 1");
+
+    expect($tables)->toContain('derivations', 'derivations_p202603')
+        ->and(StorageTables::texts($owner, "select relname::text || ' ' || relrowsecurity::text || ' ' || relforcerowsecurity::text as value from pg_class where relname = any (?::text[]) order by 1", ['{'.implode(',', $tables).'}']))
+        ->toBe(array_map(static fn (string $table): string => $table.' true true', $tables))
+        ->and(StorageTables::texts($owner, "select policyname::text as value from pg_policies where tablename = 'derivations'"))->toBe(['derivations_actor'])
+        ->and($app->table('derivations')->count())->toBe(0);
+
+    foreach ($tables as $table) {
+        foreach (['SELECT' => true, 'INSERT' => true, 'UPDATE' => false, 'DELETE' => false, 'TRUNCATE' => false] as $privilege => $held) {
+            expect($app->scalar('select has_table_privilege(current_user, ?::regclass, ?)', [$table, $privilege]))->toBe($held, "{$privilege} on {$table}");
+        }
+
+        foreach (['stale_changeset_id' => true, 'source_rev_no' => false, 'variant' => false] as $column => $held) {
+            expect($app->scalar("select has_column_privilege(current_user, ?::regclass, ?, 'UPDATE')", [$table, $column]))->toBe($held, "UPDATE of {$column} on {$table}");
+        }
+    }
 });

@@ -1,13 +1,14 @@
 ---
 title: Publish commands
 weight: 46
-description: "The kernel's composite commands entry.publish and entry.unpublish: the release and the home placement going live in one changeset, what a dry run shows, how unpublishing takes it all back, their events and how they are rejected."
+description: "The kernel's composite commands entry.publish, in version 1 for the shared variant and version 2 for an entry's languages, and entry.unpublish: the release and the home placement going live in one changeset, what a dry run shows, how unpublishing takes it all back, their events and how they are rejected."
 ---
 
 # Publish commands
 
 <!-- extension-point: Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry -->
 <!-- extension-point: Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry -->
+<!-- extension-point: Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry -->
 
 Publishing is one action for an editor (PRD 6.4): the panel's primary button releases the content and puts its home placement live, now or at a time. The kernel's command `entry.publish`, version 1, does both in one changeset, and `entry.unpublish`, version 1, takes both back. They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI. The single commands [`variant.release`](release-command.md) and [`placement.set_window`](placement-commands.md) stay for the advanced cases. Both work for any type from its schema; the kernel names no type (GUARDRAILS 2.4). The commands and the event `variant.unreleased` are `#[Experimental]`.
 
@@ -62,24 +63,67 @@ it('unpublishes the entry at the version of its shared variant the caller read',
 });
 ```
 
+## Version 2: the languages of an entry
+
+`entry.publish` version 2, `Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry`, publishes an entry in one locale for a type of any localization (PRD 10.3). It takes the entry, a list of `Cbox\Cms\Core\Publishing\Domain\Dto\VariantRelease`s, each a variant with the `AggregateVersion` of it the caller read and the `RevisionNumber` to release, the home placement with the version of it the caller read, the `Locale` and an optional `TimeWindow`. The list names the shared variant, and for a type with `localization: variants` the variant of the locale (`localeVariant()`), and no other; each variant once. Its plan releases each variant the shared one first, then sets the home placement's window, all in one changeset, so the Danish text, the shared fields and the placement go live together. A variant whose released revision is the one named is left out of the plan, so a language goes live beside a shared variant released before; the released revision is the published copy a release writes, the number `entry.get` gives as `released`. A type with `stages: none` names no revision. Version 1 stays the single-variant contract and refuses a type with `localization: variants` with `validation_failed` naming version 2.
+
+Each release is authorized as `variant.release` authorizes it: a language's at the entry's home in its locale, the shared variant's in every locale. A release of a language marks every translation made from it stale unless the translation was made from the revision released (see [entry commands](entry-commands.md#translations)).
+
+<!-- example: examples/Unit/Publishing/LocalizedPublishTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Content\VariantRef;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
+use Cbox\Cms\Core\Publishing\Domain\Dto\VariantRelease;
+
+// Version 2 of entry.publish publishes an entry in one locale: it names the shared variant and the
+// variant of the locale, each at the version the caller read with the revision to release, and the
+// home placement, so the Danish text, the shared fields and the placement go live in one changeset.
+
+it('publishes the Danish variant and the shared variant with the home placement', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000111');
+    $placement = PlacementId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000121');
+
+    $publish = new PublishLocalizedEntry($entry, [
+        new VariantRelease(VariantKey::shared(), new AggregateVersion(2), new RevisionNumber(2)),
+        new VariantRelease(VariantKey::of(new Locale('da')), new AggregateVersion(3), new RevisionNumber(3)),
+    ], $placement, new AggregateVersion(1), new Locale('da'));
+    $da = new VariantRef($entry, $publish->localeVariant());
+
+    expect($publish->localeVariant()->value)->toBe('da')
+        ->and($publish->expectedVersions()->of($da))->toEqual(ReadVersion::at($da, new AggregateVersion(3)))
+        ->and($publish->expectedVersions()->of($placement))->toEqual(ReadVersion::at($placement, new AggregateVersion(1)));
+});
+```
+
 ## Composition
 
 Each command is composite (PRD 6.2): its plan is made of the plans of the kernel's planners, and the whole is authorized, validated and committed as one changeset. No action calls another write action.
 
-- `entry.publish` is the release planner's `VariantReleased` of the revision, followed by the placement planner's `PlacementWindowSet` of the home placement in the locale, with the moves of the canonical flag the window causes (invariant 14). A step that would change nothing is left out: the release of the revision that is released already, and a window when the placement is live already and the call asks for now, or has the window asked for. A call where both are left out changes nothing and is rejected.
+- `entry.publish` is the release planner's `VariantReleased` of the revision, in version 2 of each variant it names, followed by the placement planner's `PlacementWindowSet` of the home placement in the locale, with the moves of the canonical flag the window causes (invariant 14). A step that would change nothing is left out: the release of the revision that is released already, and a window when the placement is live already and the call asks for now, or has the window asked for. A call where both are left out changes nothing and is rejected.
 - `entry.unpublish` is the release planner's `VariantUnreleased` of the revision released until now, followed by the placement planner's `PlacementClosed` of every placement of the entry that is visible now or later, in every locale and on every site. A closed placement is hidden and loses its window, so publishing the content again shows it only where a window is set again. Withdrawn placements stay withdrawn (invariant 7), and a hidden placement or one whose window has ended is left as it is. For a type with `stages: none` it only closes the placements.
 
 Publishing and unpublishing content is decided on the entry's home (PRD 5.10). `entry.publish` needs the home and the home placement's node in the command's locale for the window, and, when its plan releases a revision, the home in every locale, as `variant.release` does: the release changes the shared variant that every locale and site serves, so a grant limited to some locales, or a deny in one, does not allow it. `entry.unpublish` therefore closes placements below nodes the caller's grants do not reach too; the kernel writes those through an owner function that runs only in the transaction of an `entry.unpublish` changeset. Unpublishing needs no legal basis and can be reversed: the entry can be published again. Withdrawal is something else, for legal takedowns only.
 
 ## The dry run
 
-A dry run of `entry.publish` lists every placement that becomes visible in its `DryRunReport` (`visible`, a list of `BecomesVisible`): the placement, the locale and the time it becomes visible, the time the command read at for now and the window's start for later. Releasing the content also shows every placement of the entry whose window was open already, on every site, so they are listed too, although the plan does not change them. A placement that was visible before and stays visible from the same time is not listed. The action gives the list because it implements `ReportsVisibility` (see [commands](commands.md#the-write-action)).
+A dry run of `entry.publish`, in either version, lists every placement that becomes visible in its `DryRunReport` (`visible`, a list of `BecomesVisible`): the placement, the locale and the time it becomes visible, the time the command read at for now and the window's start for later. Releasing the content also shows every placement of the entry whose window was open already, on every site, so they are listed too, although the plan does not change them. A placement that was visible before and stays visible from the same time is not listed. In version 2 the release of the shared variant decides it, as invariant 6 has it. The action gives the list because it implements `ReportsVisibility` (see [commands](commands.md#the-write-action)).
 
 ## What one changeset writes
 
 | What | Where |
 |---|---|
-| a publish: the published revision, the head, the release and the released row of the type's table, as `variant.release` writes them | `revisions`, `revision_payloads`, `variant_heads`, `release_log`, `<owner>__<handle>` |
+| a publish: the published revision, the head, the release and the released row of the type's table, as `variant.release` writes them, for each variant released; a language's release marks the translations made from it stale | `revisions`, `revision_payloads`, `variant_heads`, `release_log`, `derivations`, `<owner>__<handle>` |
 | a publish: the home placement's window and state, and the canonical flag | `placement_locales`, `placements` |
 | an unpublish: the head points at no published revision and is `unreleased`; the release log records the action `unreleased`; the type table's released row is removed and its values stay as the draft row where the variant had none | `variant_heads`, `release_log`, `<owner>__<handle>` |
 | an unpublish: each closed placement is `hidden` without a window or a next transition | `placement_locales`, `placements` |
@@ -94,7 +138,7 @@ The events are those of both sub-plans: `variant.released` and `placement.visibi
 | `unauthorized` | the caller's grants do not reach the home placement's node in the command's locale, or the plan releases a revision and they do not reach the entry's home in every locale |
 | `agent_visibility_forbidden` | an agent or a token publishes (invariant 18) |
 | `type_not_releasable` | the entry's type has stages but a history that keeps no revisions |
-| `validation_failed` | the placement is not a placement of the entry below its home node, it has no such locale or is withdrawn there, the revision is missing for a type with stages or given for one with `stages: none`, the revision breaks the type's rules at the release stage, or the call changes nothing |
-| `version_conflict` | the variant or the placement is not at the version the caller read, the entry does not exist or the caller cannot reach its home, or something the command read changed before the commit |
+| `validation_failed` | the placement is not a placement of the entry below its home node, it has no such locale or is withdrawn there, the revision is missing for a type with stages or given for one with `stages: none`, the revision breaks the type's rules at the release stage, or the call changes nothing; in version 2 also a list without the shared variant, a list without the locale's variant for a type with `localization: variants`, or a variant that is neither; in version 1 a type with `localization: variants` |
+| `version_conflict` | a variant or the placement is not at the version the caller read, the entry does not exist or the caller cannot reach its home, or something the command read changed before the commit |
 
 Nothing of a rejected call is kept. See the [error catalog](errors.md) for each code on every surface.

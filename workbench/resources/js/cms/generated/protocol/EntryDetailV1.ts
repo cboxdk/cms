@@ -19,8 +19,9 @@ export type Visibility = 'hidden' | 'scheduled' | 'live' | 'expired' | 'withdraw
 /**
  * The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every
  * variant head in the order of the variants, the shared variant first, each with the fields of its
- * draft revision as the reader may read them, and every placement of the entry the reader reaches
- * in the order of their ids, each with its locales. The PHP form is
+ * draft revision as the reader may read them and the variant and revision it was translated from
+ * with whether that translation is stale, and every placement of the entry the reader reaches in
+ * the order of their ids, each with its locales. The PHP form is
  * Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail, and the generated codec writes its canonical JSON:
  * keys sorted, no whitespace.
  */
@@ -60,12 +61,33 @@ export interface EntryHeadV1 {
    * it is the type's current version.
    */
   schema_version: number;
+  /**
+   * Whether the variant's translation is stale: the variant it was translated from has been
+   * released with other content since (PRD 10.3). False for a head that is no translation.
+   */
+  stale: boolean;
   /** The head's release state (PRD 5.6, 6.4). */
   state: ReleaseState;
+  /**
+   * The variant and revision the variant was translated from by variant.create_from (PRD 9.2,
+   * 10.3), or null when it is no translation.
+   */
+  translated_from: TranslatedFromV1 | null;
   /** The variant: shared, or a locale. */
   variant: string;
   /** The variant's version, which a command that revises it expects. */
   version: number;
+}
+
+/**
+ * The derivation translated_from of a language's variant (PRD 9.2): the variant of the same entry
+ * and the number of its revision the variant was translated from.
+ */
+export interface TranslatedFromV1 {
+  /** The number of the source variant's revision. */
+  revision: number;
+  /** The source variant, a locale. */
+  variant: string;
 }
 
 /** A placement of the entry (PRD 5.7). */
@@ -192,6 +214,50 @@ const entryPlacementV1Rule: ObjectRule = {
       presence: 'required',
       value: { kind: 'list', item: { kind: 'object', object: entryPlacementLocaleV1Rule } },
     },
+  ],
+};
+
+const translatedFromV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'variant',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
+      },
+    },
+    { key: 'revision', presence: 'required', value: { kind: 'integer', min: 1 } },
+  ],
+};
+
+const entryHeadV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'variant',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$',
+      },
+    },
+    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'revision', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'latest', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'released', presence: 'present', value: { kind: 'integer', min: 1 } },
+    {
+      key: 'state',
+      presence: 'required',
+      value: { kind: 'enum', values: ['unreleased', 'released', 'withdrawn'] },
+    },
+    { key: 'schema_version', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'fields', presence: 'required', value: { kind: 'fields' } },
+    {
+      key: 'translated_from',
+      presence: 'present',
+      value: { kind: 'object', object: translatedFromV1Rule },
+    },
+    { key: 'stale', presence: 'required', value: { kind: 'boolean' } },
   ],
 };
 

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Content\TimeWindow;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -33,6 +34,9 @@ use Cbox\Cms\Contracts\Pipeline\WriteAction;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
@@ -43,11 +47,16 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantDerivedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
@@ -84,9 +93,12 @@ use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
+use Cbox\Cms\Core\Publishing\Actions\PublishLocalizedEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Dto\VariantRelease;
 use Cbox\Cms\Core\ReceiptStore\Adapter\PostgresReceiptStore;
 use Cbox\Cms\Core\Structure\Adapter\PostgresNodeVersionLock;
 use Cbox\Cms\Core\Structure\Adapter\PostgresSiteVersionLock;
@@ -112,8 +124,10 @@ use Illuminate\Database\DatabaseManager;
 use LogicException;
 
 /**
- * The real command pipeline on Postgres for entry.publish and entry.unpublish (PRD 6.2, 6.4), with
- * entry.create, placement.create and placement.set_window to make what they publish: the command
+ * The real command pipeline on Postgres for entry.publish, in version 1 and version 2, and
+ * entry.unpublish (PRD 6.2, 6.4, 10.3), with entry.create in both versions, variant.release
+ * version 2, variant.create_from, placement.create and placement.set_window to make what they
+ * publish: the command
  * transaction, the Postgres stores, the actor directory, the entry and placement readers, the
  * revision contents a release is validated against, and the PostgresChangesetCommitter with the
  * locks and writers of entries, releases and placements. The authorizer is a fake that allows,
@@ -129,7 +143,7 @@ use LogicException;
 final readonly class PublishingWorld
 {
     /** @var list<string> the commands the world runs, which a granted world's role may run */
-    public const array COMMANDS = ['entry.create', 'entry.revise', 'placement.create', 'placement.set_window', 'entry.publish', 'entry.unpublish'];
+    public const array COMMANDS = ['entry.create', 'entry.revise', 'placement.create', 'placement.set_window', 'entry.publish', 'entry.unpublish', 'variant.release', 'variant.create_from'];
 
     public FakeClock $clock;
 
@@ -185,6 +199,57 @@ final readonly class PublishingWorld
     public function createEntry(EntryId $entry, string $type, FieldValues $fields, StructureNode $home, string $key): WriteResult
     {
         return $this->run(new CreateEntry($entry, EntryWorld::type($type)->id, $home->id, $fields), $key);
+    }
+
+    /**
+     * entry.create version 2 of an entry of the workbench's type with localization variants, homed
+     * on the node: the shared variant and a language's variant per locale.
+     *
+     * @param  array<string, FieldValues>  $locales  each language's fields by locale
+     */
+    public function createLocalized(EntryId $entry, string $type, FieldValues $shared, array $locales, StructureNode $home, string $key): WriteResult
+    {
+        $languages = [];
+
+        foreach ($locales as $locale => $fields) {
+            $languages[] = new LocaleFields(new Locale($locale), $fields);
+        }
+
+        return $this->run(new CreateLocalizedEntry($entry, EntryWorld::type($type)->id, $home->id, $shared, $languages), $key);
+    }
+
+    /**
+     * variant.release version 2 of the variant of the entry, read at the version given.
+     */
+    public function releaseVariant(EntryId $entry, string $variant, int $version, int $revision, string $key): WriteResult
+    {
+        return $this->run(new ReleaseEntryVariant($entry, VariantKey::fromString($variant), new RevisionNumber($revision), new AggregateVersion($version)), $key);
+    }
+
+    /**
+     * variant.create_from of the language's variant $variant from revision $revision of $source.
+     */
+    public function createFrom(EntryId $entry, string $variant, string $source, int $revision, int $version, string $key): WriteResult
+    {
+        return $this->run(new CreateVariantFrom($entry, VariantKey::fromString($variant), VariantKey::fromString($source), new RevisionNumber($revision), new AggregateVersion($version)), $key);
+    }
+
+    /**
+     * entry.publish version 2 in the locale: each variant at the version the caller saw with the
+     * revision to release, by the world's actor as a person or, with $agent, through an agent's
+     * credential and an envelope that records an agent.
+     *
+     * @param  array<string, array{int, int|null}>  $variants  by variant key: the version and the revision
+     */
+    public function publishVariants(EntryId $entry, array $variants, PlacementId $placement, int $placementVersion, string $key, string $locale = 'da', ?TimeWindow $window = null, bool $dryRun = false, bool $agent = false): WriteResult
+    {
+        $releases = [];
+
+        foreach ($variants as $variant => [$version, $revision]) {
+            $releases[] = new VariantRelease(VariantKey::fromString($variant), new AggregateVersion($version), $revision === null ? null : new RevisionNumber($revision));
+        }
+
+        return $this->run(new PublishLocalizedEntry($entry, $releases, $placement, new AggregateVersion($placementVersion), new Locale($locale), $window), $key, $dryRun, agent: $agent);
     }
 
     /**
@@ -259,6 +324,7 @@ final readonly class PublishingWorld
         $types = app(TypeCatalog::class);
         $entries = new PostgresEntryReader($connections);
         $placements = new PostgresPlacementReader($connections);
+        $revisions = new PostgresRevisionContents($connections);
 
         return new CommandPipeline(
             new FakeWriteActions([
@@ -269,12 +335,16 @@ final readonly class PublishingWorld
                 SetPlacementWindow::class => $this->binding('placement.set_window', new SetPlacementWindowAction($placements, $types, $this->clock)),
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($entries, $placements, $types, $this->clock)),
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($entries, $placements, $types, $this->clock)),
+                CreateLocalizedEntry::class => $this->binding('entry.create', new CreateLocalizedEntryAction($entries, $types), 2),
+                ReleaseEntryVariant::class => $this->binding('variant.release', new ReleaseEntryVariantAction($entries, $types, new VariantReleasePlanner), 2),
+                CreateVariantFrom::class => $this->binding('variant.create_from', new CreateVariantFromAction($entries, $types, $revisions)),
+                PublishLocalizedEntry::class => $this->binding('entry.publish', new PublishLocalizedEntryAction($entries, $placements, $types, $this->clock), 2),
             ]),
             new PostgresActorDirectory($connections),
             $this->granted ? app(CommandAuthorizer::class) : new FakeCommandAuthorizer,
             $types,
             app(FieldValidation::class),
-            new PostgresRevisionContents($connections),
+            $revisions,
             new ReaderPublicPlacements(new PostgresPlacementReader($connections), $this->clock),
             new PostgresChangesetCommitter(
                 $connections,
@@ -296,6 +366,7 @@ final readonly class PublishingWorld
                     new RevisionCreatedWriter($connections, $types),
                     new HeadMovedWriter($connections),
                     new VariantReleasedWriter($connections, $types),
+                    new VariantDerivedWriter($connections),
                     new VariantUnreleasedWriter($connections, $types),
                     new PlacementCreatedWriter($connections),
                     new PlacementLocaleAddedWriter($connections),
@@ -326,12 +397,12 @@ final readonly class PublishingWorld
         return array_map(static fn (string $name): Locale => new Locale($name), $names);
     }
 
-    private function binding(string $command, object $action): ActionBinding
+    private function binding(string $command, object $action, int $version = 1): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName($command), 1, $action);
+        return new ActionBinding(new CommandName($command), $version, $action);
     }
 }

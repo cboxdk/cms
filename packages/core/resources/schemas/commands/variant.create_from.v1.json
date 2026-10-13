@@ -1,0 +1,64 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "variant.create_from, contract version 1",
+  "description": "Creates a language's variant of an entry from a revision of another language's variant (PRD 9.2, 10.3): the entry, the new variant, the source variant, the number of the source's revision and the version of the source variant the caller read. The new variant's first revision is a copy of the source revision's fields, and the kernel records the derivation translated_from, which a later release of the source with other content marks stale. A new variant the entry has already, or a source at another version, is version_conflict, and the command is authorized in the new variant's locale. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Commands\\CreateVariantFrom, and the generated codec CreateVariantFromCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry",
+    "revision",
+    "source",
+    "variant",
+    "version"
+  ],
+  "properties": {
+    "entry": {
+      "description": "The entry's id.",
+      "$ref": "#/$defs/id"
+    },
+    "revision": {
+      "description": "The number of the source variant's revision to copy.",
+      "$ref": "#/$defs/revision"
+    },
+    "source": {
+      "description": "The locale of the variant the new variant is translated from.",
+      "$ref": "#/$defs/locale"
+    },
+    "variant": {
+      "description": "The locale of the new variant, which the entry does not have yet.",
+      "$ref": "#/$defs/locale"
+    },
+    "version": {
+      "description": "The version of the source variant the caller read.",
+      "$ref": "#/$defs/version"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "locale": {
+      "description": "A language tag of a language, an optional script and an optional region, such as da, en-GB or sr-Latn-RS; the kernel writes the language in lowercase, the script in title case and the region in uppercase.",
+      "type": "string",
+      "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$",
+      "examples": [
+        "en"
+      ]
+    },
+    "revision": {
+      "description": "The number of a revision of a variant, an integer of 1 or more.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

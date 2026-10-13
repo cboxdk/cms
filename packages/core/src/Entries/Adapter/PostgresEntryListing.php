@@ -24,6 +24,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
+use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Placements\Adapter\PlacementRows;
@@ -61,19 +62,30 @@ final readonly class PostgresEntryListing implements EntryListing
         where e.id = ?::uuid and cms_access_home(e.home_node_id, e.owner_actor_id)
         SQL;
 
-    /** Every head of the entry, the shared variant first, each with its numbers and its draft's payload. */
+    /**
+     * Every head of the entry, the shared variant first, each with its numbers, its draft's payload
+     * and its latest translated_from derivation with whether a release of its source made it stale.
+     */
     public const string HEADS = <<<'SQL'
         select
             h.variant, h.version, h.release_state,
             r.rev_no as draft_number, s.rev_no as snapshot_number, p.rev_no as released_number,
             (select max(l.rev_no) from revisions as l where l.entry_id = h.entry_id and l.variant = h.variant) as latest_number,
             coalesce(r.schema_version, s.schema_version) as content_schema_version,
-            coalesce(rp.content, s.content)::text as content
+            coalesce(rp.content, s.content)::text as content,
+            d.source_variant, d.source_rev_no, d.stale_changeset_id is not null as stale
         from variant_heads as h
         left join revisions as r on r.revision_id = h.draft_revision_id
         left join revision_payloads as rp on rp.revision_id = r.revision_id and rp.kind = r.kind
         left join revisions as p on p.revision_id = h.published_revision_id and h.release_state = 'released'
         left join head_snapshots as s on s.entry_id = h.entry_id and s.variant = h.variant
+        left join lateral (
+            select x.source_variant, x.source_rev_no, x.stale_changeset_id
+            from derivations as x
+            where x.entry_id = h.entry_id and x.variant = h.variant and x.kind = 'translated_from'
+            order by x.changeset_id desc
+            limit 1
+        ) as d on true
         where h.entry_id = ?::uuid
         order by (h.variant <> 'shared'), h.variant
         SQL;
@@ -217,10 +229,22 @@ final readonly class PostgresEntryListing implements EntryListing
                 $type instanceof TypeDefinition && $content !== null && $schemaVersion === $type->version
                     ? StoredContent::fields($type, $content)
                     : new FieldValues,
+                $this->translatedFrom($row),
+                PlacementRows::boolean($row, 'stale'),
             );
         }
 
         return $heads;
+    }
+
+    /**
+     * The head's translation source, or null when it has none.
+     */
+    private function translatedFrom(object $row): ?TranslatedFrom
+    {
+        $source = PlacementRows::textOrNull($row, 'source_variant');
+
+        return $source === null ? null : new TranslatedFrom(VariantKey::fromString($source), new RevisionNumber(PlacementRows::integer($row, 'source_rev_no')));
     }
 
     /**

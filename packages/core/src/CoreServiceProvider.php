@@ -128,6 +128,7 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantDerivedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
@@ -569,6 +570,9 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         $this->app->bind(EntryListing::class, PostgresEntryListing::class);
         $this->app->bind(PublicPlacements::class, ReaderPublicPlacements::class);
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class, VariantReleasedWriter::class], MutationWriters::TAG);
+        // variant.create_from (PRD 9.2, 10.3): the writer of the derivation translated_from, which
+        // a later release of the source marks stale (VariantReleasedWriter).
+        $this->app->tag([VariantDerivedWriter::class], MutationWriters::TAG);
 
         // The placement commands, placement.create and placement.set_window (PRD 5.7, 5.9, 6.4): their
         // reads, the locks of placements, sites, slugs, the canonical placement of an entry and

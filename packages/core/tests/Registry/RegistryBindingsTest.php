@@ -20,6 +20,7 @@ use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
 use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
@@ -28,6 +29,7 @@ use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -50,8 +52,10 @@ use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
+use Cbox\Cms\Core\Publishing\Actions\PublishLocalizedEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Actions\BuildRegistry;
 use Cbox\Cms\Core\Registry\Actions\ListActionsAction;
@@ -171,6 +175,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.create@1 '.CreateEntry::class,
             'entry.create@2 '.CreateLocalizedEntry::class,
             'entry.publish@1 '.PublishEntry::class,
+            'entry.publish@2 '.PublishLocalizedEntry::class,
             'entry.revise@1 '.ReviseEntry::class,
             'entry.revise@2 '.ReviseVariants::class,
             'entry.unpublish@1 '.UnpublishEntry::class,
@@ -193,6 +198,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'site.add_locale@1 '.AddSiteLocale::class,
             'site.register@1 '.RegisterSite::class,
             'site.remove_locale@1 '.RemoveSiteLocale::class,
+            'variant.create_from@1 '.CreateVariantFrom::class,
             'variant.release@1 '.ReleaseVariant::class,
             'variant.release@2 '.ReleaseEntryVariant::class,
         ])
@@ -210,6 +216,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.get@1 '.GetEntryAction::class.' query',
             'entry.list@1 '.ListEntriesAction::class.' query',
             'entry.publish@1 '.PublishEntryAction::class.' write',
+            'entry.publish@2 '.PublishLocalizedEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
             'entry.revise@2 '.ReviseVariantsAction::class.' write',
             'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
@@ -238,6 +245,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'site.remove_locale@1 '.RemoveSiteLocaleAction::class.' write',
             'type.describe@1 '.DescribeTypeAction::class.' query',
             'type.list@1 '.ListTypesAction::class.' query',
+            'variant.create_from@1 '.CreateVariantFromAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
             'variant.release@2 '.ReleaseEntryVariantAction::class.' write',
         ])

@@ -20,7 +20,7 @@ use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 // caller sends each as JSON, read by the generated codec of its schema, and the surface writes the
 // result with the codec of the result's schema, at the reader's classification access.
 
-const EXAMPLE_DETAIL = '{"heads":[{"fields":{"title":"Harbour"},"latest":2,"released":2,"revision":1,"schema_version":1,"state":"released","variant":"shared","version":3}],'
+const EXAMPLE_DETAIL = '{"heads":[{"fields":{"title":"Harbour"},"latest":2,"released":2,"revision":1,"schema_version":1,"stale":false,"state":"released","translated_from":null,"variant":"shared","version":3}],'
     .'"home":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","lifecycle":"active",'
     .'"placements":[{"id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a44","locales":[{"canonical":true,"locale":"da","slug":"havnen","visibility":"live",'
     .'"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}}],"node":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a42","version":1}],'

@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
 use Cbox\Cms\Contracts\Envelope\IssuingSurface;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Idempotency\IdempotencyKey;
 use Cbox\Cms\Contracts\Idempotency\WaitBudget;
 use Cbox\Cms\Contracts\Identity\AccessContext;
@@ -56,9 +57,12 @@ use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacement;
 use Cbox\Cms\Core\Placements\Domain\Dto\StoredPlacementLocale;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Actions\PublishEntryAction;
+use Cbox\Cms\Core\Publishing\Actions\PublishLocalizedEntryAction;
 use Cbox\Cms\Core\Publishing\Actions\UnpublishEntryAction;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Dto\VariantRelease;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
 use Cbox\Cms\Core\Tests\Entries\EntryActionWorld;
@@ -89,7 +93,7 @@ use DateTimeImmutable;
 use LogicException;
 
 /**
- * The composite actions entry.publish and entry.unpublish in the command pipeline with the fakes of
+ * The composite actions entry.publish, in version 1 and version 2, and entry.unpublish in the command pipeline with the fakes of
  * its ports and of the contracts they read (GUARDRAILS 9): an active editor, the test type NoteType
  * with stages, and READING, a test type with stages none, in the catalog, a FakeEntryReader, a
  * FakePlacementReader, the revisions of a FakeRevisionContents, and a committer that records what
@@ -174,6 +178,24 @@ final class PublishingActionWorld
     public static function unstaged(): self
     {
         return new self(new StoredHead(new AggregateVersion(3), new RevisionNumber(1), new RevisionNumber(1), null), TypeId::fromString(self::READING));
+    }
+
+    /**
+     * A world whose entry is of the localized probe type, with localization variants: its shared
+     * variant at version 6 on draft revision 4 and its da variant at version 5 on draft revision 2,
+     * nothing released, each revision valid.
+     */
+    public static function localized(): self
+    {
+        $world = new self(type: TypeId::fromString(LocalizedProbeType::ID));
+        $da = VariantKey::of(new Locale('da'));
+        $version = LocalizedProbeType::definition()->version;
+        $world->entries->withHead(self::entry(), $da, new StoredHead(new AggregateVersion(5), new RevisionNumber(2), new RevisionNumber(2), null));
+        $world->revisions
+            ->with(self::entry(), VariantKey::shared(), new RevisionNumber(4), $version, new FieldValues)
+            ->with(self::entry(), $da, new RevisionNumber(2), $version, EntryActionWorld::fields('Havnen'));
+
+        return $world;
     }
 
     public static function entry(string $id = self::ENTRY): EntryId
@@ -280,6 +302,23 @@ final class PublishingActionWorld
         ), $agent, $dryRun);
     }
 
+    /**
+     * entry.publish version 2 of HOME_PLACEMENT in the locale: each variant at the version the
+     * caller saw with the revision to release.
+     *
+     * @param  array<string, array{int, int|null}>  $variants  by variant key: the version and the revision
+     */
+    public function publishVariants(array $variants, string $locale = 'da', ?TimeWindow $window = null, int $placementVersion = 1, bool $agent = false, bool $dryRun = false): WriteResult
+    {
+        $releases = [];
+
+        foreach ($variants as $variant => [$version, $revision]) {
+            $releases[] = new VariantRelease(VariantKey::fromString($variant), new AggregateVersion($version), $revision === null ? null : new RevisionNumber($revision));
+        }
+
+        return $this->run(new PublishLocalizedEntry(self::entry(), $releases, self::placement(), new AggregateVersion($placementVersion), new Locale($locale), $window), $agent, $dryRun);
+    }
+
     public function unpublish(int $version = 6, bool $agent = false, bool $dryRun = false): WriteResult
     {
         return $this->run(new UnpublishEntry(self::entry(), new AggregateVersion($version)), $agent, $dryRun);
@@ -303,6 +342,7 @@ final class PublishingActionWorld
             new FakeWriteActions([
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($this->entries, $this->placements, $types, $this->clock)),
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($this->entries, $this->placements, $types, $this->clock)),
+                PublishLocalizedEntry::class => $this->binding('entry.publish', new PublishLocalizedEntryAction($this->entries, $this->placements, $types, $this->clock), 2),
             ]),
             $this->identity,
             $this->permissions instanceof FakePermissions ? FakeCommandAuthorizer::granting($this->permissions) : new FakeCommandAuthorizer,
@@ -347,12 +387,12 @@ final class PublishingActionWorld
     /**
      * The binding of a command, version 1, as the registry gives it: it takes any write action.
      */
-    private function binding(string $command, object $action): ActionBinding
+    private function binding(string $command, object $action, int $version = 1): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName($command), 1, $action);
+        return new ActionBinding(new CommandName($command), $version, $action);
     }
 }

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Postgres;
 
+use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ActorClass;
@@ -22,6 +23,7 @@ use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
@@ -37,6 +39,8 @@ use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryListingWorld;
+use Cbox\Cms\Core\Tests\Entries\EntryWorld;
+use Cbox\Cms\Core\Tests\Entries\LocalizedEntries;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
@@ -59,7 +63,9 @@ use Illuminate\Support\Facades\DB;
  * SOUTH, so each sees only the entries whose home its regions reach, in the list and in the
  * detail, with every head's fields, every placement and its window; an entry out of reach is
  * entry_not_found, and the anonymous principal is unauthorized. A page and a detail cost the same
- * statements with 20 and with 200 entries below the node (GUARDRAILS 4.1).
+ * statements with 20 and with 200 entries below the node (GUARDRAILS 4.1). entry.get gives each
+ * head of a type with localization variants the variant and revision it was translated from and
+ * whether that translation is stale (PRD 10.3).
  */
 
 afterEach(function (): void {
@@ -102,6 +108,48 @@ function entryReadsWorld(): array
     );
 
     return [$pipeline, $credentials[0], $credentials[1]];
+}
+
+/**
+ * The query pipeline of entry.get, with the credential of a reader granted on EntryWorld's root.
+ *
+ * @return array{QueryPipeline, TransportCredential}
+ */
+function entryReadsOfEntryWorld(): array
+{
+    $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+    $identity = PostgresIdentity::at($clock);
+    $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $clock, new FakeIdGenerator(seed: 3232, clock: $clock));
+    $actor = $identity->addActor(ActorClass::Service)->id;
+    $fixtures->grant($actor, $fixtures->role('translations', ClassificationAccess::Internal), NodeId::fromString(EntryWorld::ROOT));
+
+    $pipeline = new QueryPipeline(
+        new FakeQueryActions([GetEntry::class => ProbeQueryBinding::of(new GetEntryAction(app(EntryListing::class)), 'entry.get', 1)]),
+        $identity->verifier(),
+        app(AccessResolver::class),
+        app(QueryAuthorizer::class),
+        new QuerySettings(new QueryCost(200), new QueryCost(1000)),
+        new ReadableFields(app(TypeCatalog::class)),
+        app(ReadAudit::class),
+        app(QueryTransaction::class),
+        new PipelineTelemetry(new FakeTelemetry, new FakeClock, new FakeStopwatch),
+    );
+
+    return [$pipeline, $identity->issue(new ServiceCredentialSpec($actor, IssuerKind::Service, ClassificationAccess::Internal, $clock->now()->add(new DateInterval('P1D'))))];
+}
+
+/**
+ * Each head of the entry.get answer as "<variant> <translated from variant>@<revision> <stale or current>", or "<variant> -" for a head that is no translation.
+ *
+ * @return list<string>
+ */
+function translationsOf(QueryResult $answer): array
+{
+    $result = $answer->result;
+
+    return $result instanceof EntryDetail ? array_map(static fn (EntryHead $head): string => $head->translatedFrom === null
+        ? $head->variant->value.' -'
+        : sprintf('%s %s@%d %s', $head->variant->value, $head->translatedFrom->variant->value, $head->translatedFrom->revision->value, $head->stale ? 'stale' : 'current'), $result->heads) : [];
 }
 
 /**
@@ -203,4 +251,22 @@ it('costs the same statements to list a page and to read an entry with 20 and wi
         ->and($counts[200][0])->toBe(100)
         ->and($counts[200][1])->toBe($counts[20][1])
         ->and($counts[200][2])->toBe($counts[20][2]);
+});
+
+it('gives each head the variant and revision it was translated from and whether the translation is stale', function (): void {
+    EntryWorld::seed();
+    $world = new EntryWorld;
+    $world->createLocalized(EntryWorld::type(LocalizedEntries::NOTICE)->id, LocalizedEntries::shared('2026-03-09', 3), ['da' => LocalizedEntries::translated('Havnen åbner')]);
+    $created = $world->createFrom('de', 'da', 1, 1);
+    [$pipeline, $credential] = entryReadsOfEntryWorld();
+    $query = new GetEntry(EntryWorld::entry());
+
+    $current = $pipeline->run(new QueryCall($query, $credential));
+    $world->reviseVariants(['da' => [1, LocalizedEntries::translated('Havnen åbner fredag')]], 'revise-da');
+    $released = $world->releaseVariant('da', 2, 2, 'release-da');
+    $stale = $pipeline->run(new QueryCall($query, $credential));
+
+    expect([$created->outcome(), $released->outcome()])->toBe([Outcome::Committed, Outcome::Committed])
+        ->and(translationsOf($current))->toBe(['shared -', 'da -', 'de da@1 current'])
+        ->and(translationsOf($stale))->toBe(['shared -', 'da -', 'de da@1 stale']);
 });

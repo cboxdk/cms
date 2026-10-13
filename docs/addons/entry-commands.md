@@ -1,7 +1,7 @@
 ---
 title: Entry commands
 weight: 43
-description: "The kernel's commands entry.create and entry.revise, in version 1 for one variant and version 2 for an entry's shared variant and its languages: what a caller sends, how the kernel stores the revisions and the type table's rows for any type as its capabilities say, the events they emit, and how they are rejected."
+description: "The kernel's commands entry.create and entry.revise, in version 1 for one variant and version 2 for an entry's shared variant and its languages, and variant.create_from for a translation: what a caller sends, how the kernel stores the revisions and the type table's rows for any type as its capabilities say, the events they emit, and how they are rejected."
 ---
 
 # Entry commands
@@ -10,6 +10,7 @@ description: "The kernel's commands entry.create and entry.revise, in version 1 
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry -->
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry -->
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants -->
+<!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom -->
 
 Content is written with two commands of the kernel, `entry.create` and `entry.revise`, each in version 1, which writes one variant, and version 2, which writes an entry's shared variant and its languages (PRD 5.4, 6.4, 10.1). They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI, and jobs, seeds and subscribers call them too. Both work for any type from its schema; the kernel names no type and reads what it needs from the `TypeCatalog` the generated code binds (GUARDRAILS 2.4). Both commands and their events are `#[Experimental]`.
 
@@ -102,6 +103,41 @@ it('releases a revision of the Danish variant alone', function (): void {
 
     expect($release->ref())->toEqual(new VariantRef($entry, VariantKey::of(new Locale('da'))))
         ->and($release->expectedVersions()->of($release->ref()))->toEqual(ReadVersion::at($release->ref(), new AggregateVersion(4)));
+});
+```
+
+## Translations
+
+`Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom`, `variant.create_from` version 1, creates a language's variant of an entry from a revision of another language's variant (PRD 9.2, 10.3): the entry, the new variant's `VariantKey`, the source's, the `RevisionNumber` of the source revision and the `AggregateVersion` of the source variant the caller read. The new variant's first revision is a copy of the source revision's fields, the starting point a translator works from, validated at the write stage against the fields a language's variant holds. The command expects the new variant to be absent, so two creates of one variant commit once, and is authorized at the entry's home in the new variant's locale, so a translator granted `de` creates `de` alone. It changes no public visibility: the new variant is released with `variant.release` version 2 or `entry.publish` version 2.
+
+In the same changeset the kernel records the derivation `translated_from` (source variant, source revision) in `derivations`, partitioned per month and kept (PRD 4, 9.6). A later release of the source variant whose content is neither the source revision nor its published copy marks the derivation stale, in the release's changeset, so the translator sees that the text the translation was made from has changed. A release of the revision the translation was made from leaves it current. `entry.get` gives each head its `translated_from`, the variant and revision, or null for a head that is no translation, and `stale`.
+
+<!-- example: examples/Unit/Entries/TranslationCommandsTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+
+// A translator starts the German variant of an entry from revision 3 of the Danish one: the new
+// variant is expected absent and the Danish variant at the version the translator read. The
+// kernel records the derivation translated_from (da, 3), and entry.get shows it as stale once the
+// Danish variant is released with other content.
+
+it('creates the German variant from a revision of the Danish one', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000111');
+
+    $create = new CreateVariantFrom($entry, VariantKey::of(new Locale('de')), VariantKey::of(new Locale('da')), new RevisionNumber(3), new AggregateVersion(4));
+
+    expect($create->expectedVersions()->of($create->target()))->toEqual(ReadVersion::absent($create->target()))
+        ->and($create->expectedVersions()->of($create->origin()))->toEqual(ReadVersion::at($create->origin(), new AggregateVersion(4)));
 });
 ```
 
@@ -198,8 +234,8 @@ A changeset of `entry.create` emits `entry.created` about the entry and `variant
 
 | Code | When |
 |---|---|
-| `version_conflict` | a create of an entry that exists; a revise of a variant at another version than the command gives, or of an entry that does not exist or the caller cannot reach; and either when another call changed what it read before it committed |
-| `validation_failed` | the fields break the type's rules, the type is not a type of the installation, the home node does not exist or is outside the caller's regions, a variant the type does not hold is written, or version 2 gives a language for a type without localization or none for a type with localization variants |
+| `version_conflict` | a create of an entry that exists, or of a variant the entry has; a `variant.create_from` whose source is at another version than the command gives; a revise of a variant at another version than the command gives, or of an entry that does not exist or the caller cannot reach; and either when another call changed what it read before it committed |
+| `validation_failed` | the fields break the type's rules, the type is not a type of the installation, the home node does not exist or is outside the caller's regions, a variant the type does not hold is written, or version 2 gives a language for a type without localization or none for a type with localization variants; for `variant.create_from` a type without localization, the shared variant as the new variant or the source, a variant from itself, a source revision the variant does not have, or one written under another schema version than the type's |
 | `unauthorized` | no role of the caller with the command's permission reaches the entry's home in the locale of a language's variant, or in every locale for the shared variant |
 | `field_encryption_unavailable` | a value for a field classified confidential or above, which is stored only as ciphertext (PRD 12.2); until key management exists (PRD 12.3), such a field can only be left out or null |
 

@@ -106,6 +106,7 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryMeta;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -117,6 +118,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
+use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
@@ -138,7 +140,9 @@ use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Placements\Domain\Dto\LocaleSlug;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Dto\VariantRelease;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCodec;
 use Cbox\Cms\Core\Registry\Domain\BundleFileKind;
 use Cbox\Cms\Core\Registry\Domain\BundleIntegrity;
@@ -609,6 +613,7 @@ final readonly class ProtocolSchemas
                 [
                     '#' => EntryDetail::class,
                     '#/$defs/head' => EntryHead::class,
+                    '#/$defs/translated_from' => TranslatedFrom::class,
                     '#/$defs/placement' => EntryPlacement::class,
                     '#/$defs/placement_locale' => EntryPlacementLocale::class,
                     '#/$defs/time_window' => TimeWindow::class,
@@ -626,6 +631,8 @@ final readonly class ProtocolSchemas
                     '#/$defs/head/properties/state' => ValueBinding::enum(ReleaseState::class),
                     '#/$defs/head/properties/variant' => ValueBinding::value(VariantKey::class),
                     '#/$defs/head/properties/version' => $version,
+                    '#/$defs/translated_from/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                    '#/$defs/translated_from/properties/variant' => ValueBinding::value(VariantKey::class),
                     '#/$defs/placement/properties/id' => $id(PlacementId::class),
                     '#/$defs/placement/properties/node' => $id(NodeId::class),
                     '#/$defs/placement/properties/version' => $version,
@@ -810,6 +817,15 @@ final readonly class ProtocolSchemas
                 '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
                 '#/properties/version' => $version,
             ], ['#/$defs/time_window' => TimeWindow::class], self::WINDOW_NAMES),
+            self::command('entry.publish.v2.json', 'PublishEntryCodecV2', PublishLocalizedEntry::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/locale' => ValueBinding::value(Locale::class),
+                '#/properties/placement' => $id(PlacementId::class),
+                '#/properties/placement_version' => $version,
+                '#/$defs/variant_release/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                '#/$defs/variant_release/properties/variant' => ValueBinding::value(VariantKey::class),
+                '#/$defs/variant_release/properties/version' => $version,
+            ], ['#/$defs/time_window' => TimeWindow::class, '#/$defs/variant_release' => VariantRelease::class], self::WINDOW_NAMES, version: 2),
             self::command('entry.revise.v1.json', 'ReviseEntryCodecV1', ReviseEntry::class, [
                 '#/properties/entry' => $id(EntryId::class),
                 '#/properties/fields' => ValueBinding::fields(FieldValues::class),
@@ -925,6 +941,13 @@ final readonly class ProtocolSchemas
             self::command('site.remove_locale.v1.json', 'RemoveSiteLocaleCodecV1', RemoveSiteLocale::class, [
                 '#/properties/locale' => ValueBinding::value(Locale::class),
                 '#/properties/site' => $id(SiteId::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('variant.create_from.v1.json', 'CreateVariantFromCodecV1', CreateVariantFrom::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                '#/properties/source' => ValueBinding::value(VariantKey::class),
+                '#/properties/variant' => ValueBinding::value(VariantKey::class),
                 '#/properties/version' => $version,
             ]),
             self::command('variant.release.v1.json', 'ReleaseVariantCodecV1', ReleaseVariant::class, [

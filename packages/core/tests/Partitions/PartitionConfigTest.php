@@ -37,6 +37,7 @@ it('reads the package defaults: the pgsql_owner connection, a 14-day runway, the
             'changeset_principals uuid7 day keep',
             'audit uuid7 day keep',
             'read_audit uuid7 day keep',
+            'derivations uuid7 month keep',
         ]);
 });
 

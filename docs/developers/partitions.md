@@ -29,8 +29,9 @@ The core lists its own tables, and an application adds its tables next to them:
 | `idempotency_keys` | `timestamp` | day | 7 days |
 | `changesets` | `uuid7` | day | kept |
 | `changeset_principals` | `uuid7` | day | kept |
+| `derivations` | `uuid7` | month | kept |
 
-The receipt tables are partitioned by retention class first, and each class is managed as a table of its own. Changesets and their on-behalf-of chains are kept like revisions (PRD 4), so their partitions are never dropped.
+The receipt tables are partitioned by retention class first, and each class is managed as a table of its own. Changesets and their on-behalf-of chains are kept like revisions (PRD 4), so their partitions are never dropped. The derivations of `variant.create_from`, the translations, are historical and partitioned per month on their changeset, and kept until a retention policy comes (PRD 4, 9.6).
 
 Partitions are named `<table>_p<YYYYMMDD>` for a day and `<table>_p<YYYYMM>` for a month, and the manager touches only partitions with those names.
 

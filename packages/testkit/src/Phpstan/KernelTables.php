@@ -27,6 +27,7 @@ final class KernelTables
         'changeset_reason_texts',
         'changeset_register',
         'changesets',
+        'derivations',
         'entries',
         'event_cursors',
         'event_parked_aggregates',

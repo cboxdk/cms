@@ -116,6 +116,7 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/CreateEntryV1.ts',
         $directory.'/protocol/CreateEntryV2.ts',
         $directory.'/protocol/PublishEntryV1.ts',
+        $directory.'/protocol/PublishEntryV2.ts',
         $directory.'/protocol/ReviseEntryV1.ts',
         $directory.'/protocol/ReviseEntryV2.ts',
         $directory.'/protocol/UnpublishEntryV1.ts',
@@ -137,6 +138,7 @@ it('writes the runtime module unchanged, a module per record and a module per ke
         $directory.'/protocol/AddSiteLocaleV1.ts',
         $directory.'/protocol/RegisterSiteV1.ts',
         $directory.'/protocol/RemoveSiteLocaleV1.ts',
+        $directory.'/protocol/CreateVariantFromV1.ts',
         $directory.'/protocol/ReleaseVariantV1.ts',
         $directory.'/protocol/ReleaseVariantV2.ts',
         $directory.'/protocol/ListActionsV1.ts',
@@ -198,6 +200,7 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'CreateEntryCodecV1',
         'CreateEntryCodecV2',
         'PublishEntryCodecV1',
+        'PublishEntryCodecV2',
         'ReviseEntryCodecV1',
         'ReviseEntryCodecV2',
         'UnpublishEntryCodecV1',
@@ -219,6 +222,7 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         'AddSiteLocaleCodecV1',
         'RegisterSiteCodecV1',
         'RemoveSiteLocaleCodecV1',
+        'CreateVariantFromCodecV1',
         'ReleaseVariantCodecV1',
         'ReleaseVariantCodecV2',
         'ListActionsCodecV1',
@@ -258,7 +262,7 @@ it('reads the kernel\'s contracts in the order of their schemas, and names every
         ->and($problems[7]->message)->toContain('receipt.v1.json')
         ->and($problems[8]->message)->toContain('type-editor.v1.json')
         ->and($problems[13]->message)->toContain('packages/core/resources/schemas/commands/entry.create.v1.json')
-        ->and($problems[21]->message)->toContain('packages/core/resources/schemas/commands/mount.create.v1.json')
+        ->and($problems[22]->message)->toContain('packages/core/resources/schemas/commands/mount.create.v1.json')
         ->and($problems[39]->message)->toContain('packages/core/resources/schemas/delivery-fragment.v1.json')
         ->and($problems[40]->message)->toContain('packages/core/resources/schemas/panel-bundle-signature.v1.json')
         ->and($problems[41]->message)->toContain('packages/core/resources/schemas/panel-bundle.v1.json')

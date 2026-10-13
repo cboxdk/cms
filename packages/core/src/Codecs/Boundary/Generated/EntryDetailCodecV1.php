@@ -28,6 +28,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
+use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use DateTimeImmutable;
@@ -56,7 +57,7 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
         {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "entry.get result, contract version 1",
-            "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+            "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them and the variant and revision it was translated from with whether that translation is stale, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
             "type": "object",
             "additionalProperties": false,
             "required": [
@@ -196,7 +197,9 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
                         "released",
                         "revision",
                         "schema_version",
+                        "stale",
                         "state",
+                        "translated_from",
                         "variant",
                         "version"
                     ],
@@ -228,12 +231,27 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
                             "type": "integer",
                             "minimum": 1
                         },
+                        "stale": {
+                            "description": "Whether the variant's translation is stale: the variant it was translated from has been released with other content since (PRD 10.3). False for a head that is no translation.",
+                            "type": "boolean"
+                        },
                         "state": {
                             "description": "The head's release state (PRD 5.6, 6.4).",
                             "enum": [
                                 "unreleased",
                                 "released",
                                 "withdrawn"
+                            ]
+                        },
+                        "translated_from": {
+                            "description": "The variant and revision the variant was translated from by variant.create_from (PRD 9.2, 10.3), or null when it is no translation.",
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/translated_from"
+                                },
+                                {
+                                    "type": "null"
+                                }
                             ]
                         },
                         "variant": {
@@ -358,6 +376,27 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
                             "format": "date-time"
                         }
                     }
+                },
+                "translated_from": {
+                    "description": "The derivation translated_from of a language's variant (PRD 9.2): the variant of the same entry and the number of its revision the variant was translated from.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "revision",
+                        "variant"
+                    ],
+                    "properties": {
+                        "revision": {
+                            "description": "The number of the source variant's revision.",
+                            "type": "integer",
+                            "minimum": 1
+                        },
+                        "variant": {
+                            "description": "The source variant, a locale.",
+                            "type": "string",
+                            "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
+                        }
+                    }
                 }
             }
         }
@@ -427,7 +466,9 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
         $json->released = $object->released instanceof RevisionNumber ? $object->released->value : null;
         $json->revision = $object->revision->value;
         $json->schema_version = $object->schemaVersion;
+        $json->stale = $object->stale;
         $json->state = $object->state->value;
+        $json->translated_from = $object->translatedFrom instanceof TranslatedFrom ? $this->encodeTranslatedFrom($object->translatedFrom) : null;
         $json->variant = $object->variant->value;
         $json->version = $object->version->value;
 
@@ -436,9 +477,9 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
 
     private function decodeEntryHead(mixed $value, FieldPath $path): EntryHead
     {
-        $object = JsonValues::object($value, $path, ['fields', 'latest', 'released', 'revision', 'schema_version', 'state', 'variant', 'version']);
+        $object = JsonValues::object($value, $path, ['fields', 'latest', 'released', 'revision', 'schema_version', 'stale', 'state', 'translated_from', 'variant', 'version']);
 
-        return JsonValues::build($path, static fn (): EntryHead => new EntryHead(
+        return JsonValues::build($path, fn (): EntryHead => new EntryHead(
             variant: JsonValues::required($object, 'variant', $path, static fn (mixed $value, FieldPath $at): VariantKey => JsonValues::value($value, $at, static fn (string $text): VariantKey => new VariantKey($text))),
             version: JsonValues::required($object, 'version', $path, static fn (mixed $value, FieldPath $at): AggregateVersion => JsonValues::integerValue($value, $at, static fn (int $number): AggregateVersion => new AggregateVersion($number), min: 1)),
             revision: JsonValues::required($object, 'revision', $path, static fn (mixed $value, FieldPath $at): RevisionNumber => JsonValues::integerValue($value, $at, static fn (int $number): RevisionNumber => new RevisionNumber($number), min: 1)),
@@ -447,6 +488,27 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
             state: JsonValues::required($object, 'state', $path, static fn (mixed $value, FieldPath $at): ReleaseState => JsonValues::enum($value, $at, ReleaseState::class)),
             schemaVersion: JsonValues::required($object, 'schema_version', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1)),
             fields: JsonValues::required($object, 'fields', $path, static fn (mixed $value, FieldPath $at): FieldValues => JsonValues::fieldValues($value, $at)),
+            translatedFrom: JsonValues::present($object, 'translated_from', $path, $this->decodeTranslatedFrom(...)),
+            stale: JsonValues::required($object, 'stale', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodeTranslatedFrom(TranslatedFrom $object): stdClass
+    {
+        $json = new stdClass;
+        $json->revision = $object->revision->value;
+        $json->variant = $object->variant->value;
+
+        return $json;
+    }
+
+    private function decodeTranslatedFrom(mixed $value, FieldPath $path): TranslatedFrom
+    {
+        $object = JsonValues::object($value, $path, ['revision', 'variant']);
+
+        return JsonValues::build($path, static fn (): TranslatedFrom => new TranslatedFrom(
+            variant: JsonValues::required($object, 'variant', $path, static fn (mixed $value, FieldPath $at): VariantKey => JsonValues::value($value, $at, static fn (string $text): VariantKey => new VariantKey($text))),
+            revision: JsonValues::required($object, 'revision', $path, static fn (mixed $value, FieldPath $at): RevisionNumber => JsonValues::integerValue($value, $at, static fn (int $number): RevisionNumber => new RevisionNumber($number), min: 1)),
         ));
     }
 

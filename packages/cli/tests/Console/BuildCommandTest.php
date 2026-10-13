@@ -12,6 +12,7 @@ use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -24,6 +25,7 @@ use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Registry\Domain\OpenApiDocuments;
 use Cbox\Cms\Core\Registry\Domain\RegistryCache;
@@ -194,6 +196,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [
+            'class' => PublishLocalizedEntry::class,
+            'name' => 'entry.publish',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 2,
+        ], [
             'class' => ReviseEntry::class,
             'name' => 'entry.revise',
             'package' => CoreServiceProvider::PACKAGE,
@@ -311,6 +318,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => RemoveSiteLocale::class,
             'name' => 'site.remove_locale',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => CreateVariantFrom::class,
+            'name' => 'variant.create_from',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

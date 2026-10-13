@@ -28,6 +28,7 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `HeadMoved(entry, variant, from, to)` | the variant | the variant's head moves from a revision, or from none, to another revision |
 | `VariantReleased(entry, type, variant, revision)` | the variant | the revision becomes the variant's released revision |
 | `VariantUnreleased(entry, variant, revision)` | the variant | the variant has no released revision any more; `revision` is the one it had |
+| `VariantDerived(entry, variant, revision, source, sourceRevision)` | the variant | the revision of a language's variant is a translation of revision `sourceRevision` of the language's variant `source`, the derivation `translated_from` |
 | `PlacementCreated(placement, entry, node, site)` | the placement | the entry is placed below the node of the site |
 | `PlacementLocaleAdded(placement, locale, slug, canonical)` | the placement | the placement gets the `Locale` with its `Slug`, hidden, canonical as the kernel decides |
 | `PlacementWindowSet(placement, locale, window)` | the placement | the `TimeWindow` in which the placement is live in the `Locale`; null hides it there |

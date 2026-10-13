@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "entry.get result, contract version 1",
-  "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them and the variant and revision it was translated from with whether that translation is stale, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -141,7 +141,9 @@
         "released",
         "revision",
         "schema_version",
+        "stale",
         "state",
+        "translated_from",
         "variant",
         "version"
       ],
@@ -173,12 +175,27 @@
           "type": "integer",
           "minimum": 1
         },
+        "stale": {
+          "description": "Whether the variant's translation is stale: the variant it was translated from has been released with other content since (PRD 10.3). False for a head that is no translation.",
+          "type": "boolean"
+        },
         "state": {
           "description": "The head's release state (PRD 5.6, 6.4).",
           "enum": [
             "unreleased",
             "released",
             "withdrawn"
+          ]
+        },
+        "translated_from": {
+          "description": "The variant and revision the variant was translated from by variant.create_from (PRD 9.2, 10.3), or null when it is no translation.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/translated_from"
+            },
+            {
+              "type": "null"
+            }
           ]
         },
         "variant": {
@@ -301,6 +318,27 @@
             "null"
           ],
           "format": "date-time"
+        }
+      }
+    },
+    "translated_from": {
+      "description": "The derivation translated_from of a language's variant (PRD 9.2): the variant of the same entry and the number of its revision the variant was translated from.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "revision",
+        "variant"
+      ],
+      "properties": {
+        "revision": {
+          "description": "The number of the source variant's revision.",
+          "type": "integer",
+          "minimum": 1
+        },
+        "variant": {
+          "description": "The source variant, a locale.",
+          "type": "string",
+          "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
         }
       }
     }

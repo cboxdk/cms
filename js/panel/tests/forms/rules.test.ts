@@ -28,6 +28,7 @@ import { validateRegisterActorV1 } from '../../../../workbench/resources/js/cms/
 import { validateCreateEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateEntryV1';
 import { validateCreateEntryV2 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateEntryV2';
 import { validatePublishEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/PublishEntryV1';
+import { validatePublishEntryV2 } from '../../../../workbench/resources/js/cms/generated/protocol/PublishEntryV2';
 import { validateReviseEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ReviseEntryV1';
 import { validateReviseEntryV2 } from '../../../../workbench/resources/js/cms/generated/protocol/ReviseEntryV2';
 import { validateUnpublishEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/UnpublishEntryV1';
@@ -49,6 +50,7 @@ import { validateSetRolePermissionsV1 } from '../../../../workbench/resources/js
 import { validateAddSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/AddSiteLocaleV1';
 import { validateRegisterSiteV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RegisterSiteV1';
 import { validateRemoveSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RemoveSiteLocaleV1';
+import { validateCreateVariantFromV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateVariantFromV1';
 import { validateReleaseVariantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV1';
 import { validateReleaseVariantV2 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV2';
 
@@ -69,6 +71,7 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'entry.create.v1.json': validateCreateEntryV1,
   'entry.create.v2.json': validateCreateEntryV2,
   'entry.publish.v1.json': validatePublishEntryV1,
+  'entry.publish.v2.json': validatePublishEntryV2,
   'entry.revise.v1.json': validateReviseEntryV1,
   'entry.revise.v2.json': validateReviseEntryV2,
   'entry.unpublish.v1.json': validateUnpublishEntryV1,
@@ -90,6 +93,7 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'site.add_locale.v1.json': validateAddSiteLocaleV1,
   'site.register.v1.json': validateRegisterSiteV1,
   'site.remove_locale.v1.json': validateRemoveSiteLocaleV1,
+  'variant.create_from.v1.json': validateCreateVariantFromV1,
   'variant.release.v1.json': validateReleaseVariantV1,
   'variant.release.v2.json': validateReleaseVariantV2,
 };

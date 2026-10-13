@@ -16,6 +16,7 @@ use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -30,6 +31,7 @@ use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementSlug;
 use Cbox\Cms\Core\Placements\Domain\Commands\SetPlacementWindow;
 use Cbox\Cms\Core\Publishing\Domain\Commands\PublishEntry;
+use Cbox\Cms\Core\Publishing\Domain\Commands\PublishLocalizedEntry;
 use Cbox\Cms\Core\Publishing\Domain\Commands\UnpublishEntry;
 use Cbox\Cms\Core\Structure\Domain\Commands\AddSiteLocale;
 use Cbox\Cms\Core\Structure\Domain\Commands\ArchiveNode;
@@ -67,6 +69,7 @@ function kernelCommandClasses(): array
         'entry.create@1' => CreateEntry::class,
         'entry.create@2' => CreateLocalizedEntry::class,
         'entry.publish@1' => PublishEntry::class,
+        'entry.publish@2' => PublishLocalizedEntry::class,
         'entry.revise@1' => ReviseEntry::class,
         'entry.revise@2' => ReviseVariants::class,
         'entry.unpublish@1' => UnpublishEntry::class,
@@ -88,6 +91,7 @@ function kernelCommandClasses(): array
         'site.add_locale@1' => AddSiteLocale::class,
         'site.register@1' => RegisterSite::class,
         'site.remove_locale@1' => RemoveSiteLocale::class,
+        'variant.create_from@1' => CreateVariantFrom::class,
         'variant.release@1' => ReleaseVariant::class,
         'variant.release@2' => ReleaseEntryVariant::class,
     ];

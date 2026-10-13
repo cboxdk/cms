@@ -726,16 +726,17 @@ final class SurfaceContractTest extends TestCase
     private const array EXPOSED = [
         'entry.create', 'entry.publish', 'entry.revise', 'entry.unpublish', 'mount.create', 'mount.set_override', 'node.archive', 'node.create',
         'node.move', 'node.set_label', 'node.set_route', 'placement.create', 'placement.set_slug', 'placement.set_window', 'site.add_locale', 'site.remove_locale',
-        'variant.release',
+        'variant.create_from', 'variant.release',
     ];
 
     /**
      * The commands exposed in more than one version, each with its versions (B2 point 2): the
-     * entry commands of version 2 write an entry's shared variant and its languages, and
-     * node.set_route version 2 moves a route a node has (PRD 5.9).
+     * entry commands of version 2 write, release and publish an entry's shared variant and its
+     * languages, and node.set_route version 2 moves a route a node has (PRD 5.9).
      */
     private const array VERSIONS = [
         'entry.create' => [1, 2],
+        'entry.publish' => [1, 2],
         'entry.revise' => [1, 2],
         'node.set_route' => [1, 2],
         'variant.release' => [1, 2],

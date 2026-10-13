@@ -31,6 +31,7 @@ final readonly class KernelCommandCodecs
             CreateEntryCodecV1::commandCodec(),
             CreateEntryCodecV2::commandCodec(),
             PublishEntryCodecV1::commandCodec(),
+            PublishEntryCodecV2::commandCodec(),
             ReviseEntryCodecV1::commandCodec(),
             ReviseEntryCodecV2::commandCodec(),
             UnpublishEntryCodecV1::commandCodec(),
@@ -52,6 +53,7 @@ final readonly class KernelCommandCodecs
             AddSiteLocaleCodecV1::commandCodec(),
             RegisterSiteCodecV1::commandCodec(),
             RemoveSiteLocaleCodecV1::commandCodec(),
+            CreateVariantFromCodecV1::commandCodec(),
             ReleaseVariantCodecV1::commandCodec(),
             ReleaseVariantCodecV2::commandCodec(),
         ];

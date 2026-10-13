@@ -52,6 +52,12 @@ use UnexpectedValueException;
  *    shared variant is released (LocaleRow), so a release of the shared variant writes the rows of
  *    the languages released before it, and a release of a language before the shared one writes no
  *    row yet.
+ * 5. The derivations. In a type with localization variants a language's variant can be a
+ *    translation of another's revision (variant.create_from, PRD 10.3): a release of a variant
+ *    marks every translation made from it stale, unless the translation's source revision is the
+ *    revision released or its published copy, so the content the translation was made from is
+ *    what is released. A translation is made from a language's variant, never the shared one, so
+ *    it is one statement for the run's languages, and none for a run without one.
  *
  * It returns variant.released. Every statement is by key, so a release costs the same however many
  * revisions the variant has, and a run of releases costs one statement per step (GUARDRAILS 4.1). It runs as the app role under the call's actor
@@ -80,6 +86,18 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
         set published_revision_id = m.published, release_state = 'released', version = m.version
         from unnest(?::uuid[], ?::text[], ?::bigint[], ?::bigint[]) as m(entry_id, variant, published, version)
         where h.entry_id = m.entry_id and h.variant = m.variant and h.release_state in ('unreleased', 'released')
+        SQL;
+
+    /**
+     * Marks stale, in the release's changeset, every current derivation from a variant a run
+     * releases whose source revision is neither the revision released nor its published copy.
+     */
+    public const string MARK_STALE = <<<'SQL'
+        update derivations as d
+        set stale_changeset_id = m.changeset_id
+        from unnest(?::uuid[], ?::text[], ?::integer[], ?::integer[], ?::uuid[]) as m(entry_id, variant, released, published, changeset_id)
+        where d.entry_id = m.entry_id and d.source_variant = m.variant and d.stale_changeset_id is null
+            and d.source_rev_no <> m.released and d.source_rev_no <> m.published
         SQL;
 
     /** The kind of a revision a release keeps (PRD 4.1). */
@@ -186,6 +204,7 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
 
         $published = $this->publish($db, $drafts, $sources);
         $heads = [[], [], [], []];
+        $stale = [[], [], [], [], []];
         $log = [];
         $rows = [];
         $types = [];
@@ -210,6 +229,15 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
             ];
             $types[$type->id->toString()] = $type;
             $rows[$type->id->toString()][] = new VariantFields($mutation->entry, $mutation->variant, StoredContent::fields($type, $this->text($source, 'content')));
+
+            if ($type->capabilities->localization === Localization::Variants && ! $mutation->variant->isShared()) {
+                $stale[0][] = $mutation->entry->toString();
+                $stale[1][] = '"'.$mutation->variant->value.'"';
+                $stale[2][] = $mutation->revision->value;
+                $stale[3][] = $number;
+                $stale[4][] = $context->changesetId->toString();
+            }
+
             $events[] = new VariantReleasedEvent($context->version->value, new VariantReleasedV1(
                 $mutation->entry,
                 new VariantRef($mutation->entry, $mutation->variant),
@@ -226,6 +254,11 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
         }
 
         $db->table('release_log')->insert($log);
+
+        if ($stale[0] !== []) {
+            $db->update(self::MARK_STALE, array_map(static fn (array $column): string => '{'.implode(',', $column).'}', $stale));
+        }
+
         $typeRows = new TypeRows($db);
         $payloads = new VariantPayloads($db);
 

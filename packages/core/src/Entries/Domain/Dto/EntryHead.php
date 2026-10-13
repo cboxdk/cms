@@ -17,7 +17,10 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
  * revision or null, its release state, the schema version the draft revision was written under,
  * and the fields of the draft revision, read as the type is now and stripped to the reader's
  * classification access, and empty when the revision was written under another schema version
- * than the type's, whose fields the type cannot read (upcasters come with B3).
+ * than the type's, whose fields the type cannot read (upcasters come with B3). A language's variant
+ * made by variant.create_from has the variant and revision it was translated from, and is stale
+ * once that variant was released with other content since (PRD 10.3); every other head has no
+ * translation source and is never stale.
  */
 #[Experimental]
 final readonly class EntryHead
@@ -31,10 +34,12 @@ final readonly class EntryHead
         public ReleaseState $state,
         public int $schemaVersion,
         public FieldValues $fields,
+        public ?TranslatedFrom $translatedFrom = null,
+        public bool $stale = false,
     ) {}
 
     public function withFields(FieldValues $fields): self
     {
-        return new self($this->variant, $this->version, $this->revision, $this->latest, $this->released, $this->state, $this->schemaVersion, $fields);
+        return new self($this->variant, $this->version, $this->revision, $this->latest, $this->released, $this->state, $this->schemaVersion, $fields, $this->translatedFrom, $this->stale);
     }
 }

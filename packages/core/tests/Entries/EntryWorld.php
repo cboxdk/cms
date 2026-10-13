@@ -41,6 +41,7 @@ use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
 use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
@@ -53,9 +54,11 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresRevisionContents;
 use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantDerivedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -111,10 +114,10 @@ use LogicException;
 
 /**
  * The real command pipeline on Postgres for entry.create, entry.revise and variant.release, each in
- * version 1 and version 2 (PRD 5.4, 5.6, 6.2, 10.3), on the default connection or the one named: the command transaction, the
+ * version 1 and version 2, and variant.create_from (PRD 5.4, 5.6, 6.2, 9.2, 10.3), on the default connection or the one named: the command transaction, the
  * Postgres idempotency and receipt stores, the actor directory, the entry reader, the revision
  * contents a release is validated against, and the PostgresChangesetCommitter with the locks of
- * actors, entries, variants and nodes and the writers of the entry mutations, all on
+ * actors, entries, variants and nodes and the writers of the entry mutations and derivations, all on
  * that connection. The types and their validators are the workbench's generated ones. Fakes, so a test decides
  * what they answer: the authorizer, which allows, unless a test grants the actor roles with
  * granted(), which switches to the PostgresCommandAuthorizer over them, and the content
@@ -271,6 +274,15 @@ final class EntryWorld
     }
 
     /**
+     * variant.create_from: the language's variant $variant from revision $revision of $source, read
+     * at the version given.
+     */
+    public function createFrom(string $variant, string $source, int $revision, int $version, string $key = 'create-from-1', ?EntryId $entry = null): WriteResult
+    {
+        return $this->run(new CreateVariantFrom($entry ?? self::entry(), VariantKey::fromString($variant), VariantKey::fromString($source), new RevisionNumber($revision), new AggregateVersion($version)), $key);
+    }
+
+    /**
      * Gives the actor a role with the permissions, granted on ROOT in the locales, or in every
      * locale for null, written as the owner role, and has the world's calls authorized by the
      * PostgresCommandAuthorizer over the actor's grants from then on (PRD 5.10).
@@ -316,6 +328,7 @@ final class EntryWorld
         $connections = app(ConnectionResolverInterface::class);
         $types = app(TypeCatalog::class);
         $reader = new PostgresEntryReader($connections, $this->connection);
+        $revisions = new PostgresRevisionContents($connections, $this->connection);
 
         return new CommandPipeline(
             new FakeWriteActions([
@@ -325,12 +338,13 @@ final class EntryWorld
                 CreateLocalizedEntry::class => $this->binding('entry.create', $this->interleaved(new CreateLocalizedEntryAction($reader, $types)), 2),
                 ReviseVariants::class => $this->binding('entry.revise', $this->interleaved(new ReviseVariantsAction($reader, $types)), 2),
                 ReleaseEntryVariant::class => $this->binding('variant.release', $this->interleaved(new ReleaseEntryVariantAction($reader, $types, new VariantReleasePlanner)), 2),
+                CreateVariantFrom::class => $this->binding('variant.create_from', $this->interleaved(new CreateVariantFromAction($reader, $types, $revisions))),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
             $this->authorizer ?? new FakeCommandAuthorizer,
             $types,
             app(FieldValidation::class),
-            new PostgresRevisionContents($connections, $this->connection),
+            $revisions,
             new ReaderPublicPlacements(new PostgresPlacementReader($connections, $this->connection), $this->clock),
             new PostgresChangesetCommitter(
                 $connections,
@@ -347,6 +361,7 @@ final class EntryWorld
                     new RevisionCreatedWriter($connections, $types, $this->connection),
                     new HeadMovedWriter($connections, $this->connection),
                     new VariantReleasedWriter($connections, $types, $this->connection),
+                    new VariantDerivedWriter($connections, $this->connection),
                 ),
                 app(AffectedProjections::class),
                 new PostgresReceiptStore($connections, $this->clock, $this->connection),

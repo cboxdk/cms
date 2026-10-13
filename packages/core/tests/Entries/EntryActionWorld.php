@@ -37,6 +37,7 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
@@ -44,6 +45,7 @@ use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -86,7 +88,7 @@ use LogicException;
 
 /**
  * The entry actions, entry.create, entry.revise and variant.release, each in version 1 and in
- * version 2, in the command pipeline with
+ * version 2, and variant.create_from, in the command pipeline with
  * the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an active editor, the test
  * type NoteType in the catalog and its validator, beside any other types a test adds, the entries
  * and nodes of a FakeEntryReader, which knows the node HOME at version 1, the revisions of a
@@ -249,6 +251,14 @@ final class EntryActionWorld
         return $this->run(new ReleaseEntryVariant(self::entry(), VariantKey::fromString($variant), new RevisionNumber($revision), new AggregateVersion($version)));
     }
 
+    /**
+     * variant.create_from of the language's variant $variant from revision $revision of $source.
+     */
+    public function createFrom(string $variant, string $source, int $revision, int $version): WriteResult
+    {
+        return $this->run(new CreateVariantFrom(self::entry(), VariantKey::fromString($variant), VariantKey::fromString($source), new RevisionNumber($revision), new AggregateVersion($version)));
+    }
+
     public function run(Command $command): WriteResult
     {
         $clock = new FakeClock;
@@ -264,6 +274,7 @@ final class EntryActionWorld
                 CreateLocalizedEntry::class => $this->binding('entry.create', new CreateLocalizedEntryAction($this->entries, $types), 2),
                 ReviseVariants::class => $this->binding('entry.revise', new ReviseVariantsAction($this->entries, $types), 2),
                 ReleaseEntryVariant::class => $this->binding('variant.release', new ReleaseEntryVariantAction($this->entries, $types, new VariantReleasePlanner), 2),
+                CreateVariantFrom::class => $this->binding('variant.create_from', new CreateVariantFromAction($this->entries, $types, $this->revisions)),
             ]),
             $this->identity,
             $this->authorizer ?? new FakeCommandAuthorizer,

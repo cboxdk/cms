@@ -189,7 +189,7 @@ function queryFixtures(): array
             }
 
             expect(new EntryDetailCodecV1()->encode(EntryListingWorld::detail(EntryListingWorld::SECOND), ClassificationAccess::Sensitive))
-                ->toContain('"heads":[{"fields":{', '"released":2,"revision":1,"schema_version":2,"state":"released","variant":"shared","version":3}', '"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}');
+                ->toContain('"heads":[{"fields":{', '"released":2,"revision":1,"schema_version":2,"stale":false,"state":"released","translated_from":null,"variant":"shared","version":3}', '"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}');
         },
         'entry.list v1' => static function (QueryCodec $codec): void {
             expect($codec->query)->toBeInstanceOf(ListEntriesCodecV1::class)
