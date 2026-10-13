@@ -2,7 +2,7 @@
 
 // The form rendered from a type editor descriptor (PRD 11.12, 14.1; gap G3): the layout's tabs,
 // sections and sidebar with each field at its width; labels in the reader's locale; an input per
-// base of a field, each through the EntryFieldInput contract a caller can swap; a conditional
+// base of a field, relations included, each through the EntryFieldInput contract a caller can swap; a conditional
 // field shown while its condition holds and cleared when hidden under clear; the ui's hidden and
 // read-only fields; and the client's errors, from the generated validation runtime, at paths with
 // the keys of the items of repeated groups, which follow an item the editor moves.
@@ -322,6 +322,36 @@ describe('the inputs', () => {
 
     fireEvent.change(body, { target: { value: JSON.stringify(block) } });
     expect(fields(container)['body']).toEqual(block);
+  });
+
+  test('relation: the id of one entry, or the ids of several one a line', async () => {
+    const { container, user } = renderKit(<Holder />);
+    await showTab(user, 'Details');
+    const one = '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01';
+    const two = '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02';
+
+    expect(control(container, 'successor').tagName).toBe('INPUT');
+    await user.type(control(container, 'successor'), ` ${one} `);
+    expect(fields(container)['successor']).toBe(one);
+
+    const accessories = control(container, 'accessories');
+    expect(accessories.tagName).toBe('TEXTAREA');
+    await user.type(accessories, `${one}{Enter}{Enter}`);
+    expect((accessories as HTMLTextAreaElement).value).toBe(`${one}\n\n`);
+    expect(fields(container)['accessories']).toEqual([one]);
+    await user.type(accessories, two);
+    expect(fields(container)['accessories']).toEqual([one, two]);
+    await user.clear(accessories);
+    expect(Object.hasOwn(fields(container), 'accessories')).toBe(false);
+  });
+
+  test('relation: the client refuses an id that is not an entry id', async () => {
+    const { container, user } = renderKit(<Holder />);
+    await showTab(user, 'Details');
+
+    await user.type(control(container, 'successor'), 'not-an-id');
+    await user.tab();
+    expect(control(container, 'successor').getAttribute('aria-invalid')).toBe('true');
   });
 
   test('plug into the EntryFieldInput contract by base', () => {

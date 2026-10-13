@@ -139,12 +139,19 @@ export interface ListRule {
   readonly distinct?: boolean;
 }
 
-/** A string of an id or a value object, in the pattern and lengths its JSON Schema gives. */
+/**
+ * A string of an id or a value object, in the pattern and lengths its JSON Schema gives. A string
+ * that is not in that form is not a value of the kind, validation_wrong_type, as the kernel's
+ * InputValidator refuses a relation's target that is not an entry's id. With caseless, upper and
+ * lower case letters write one value, as for an entry's id, which the kernel holds in lower case,
+ * so a distinct list compares such items in lower case.
+ */
 export interface StringRule {
   readonly kind: 'string';
   readonly pattern?: string;
   readonly minLength?: number;
   readonly maxLength?: number;
+  readonly caseless?: boolean;
 }
 
 /**
@@ -971,13 +978,16 @@ function checkList(value: unknown, at: Path, rule: ListRule, issues?: Invalid[])
   }
 
   const seen: unknown[] = [];
+  const caseless = rule.item.kind === 'string' && rule.item.caseless === true;
 
   items.forEach((item, index) => {
+    const compared = caseless && typeof item === 'string' ? item.toLowerCase() : item;
+
     collected(issues, () => {
       checkValue(item, [...at, index], rule.item, issues);
 
       // Objects are never equal to one another, as the kernel's codec compares what it reads.
-      if (rule.distinct === true && typeof item !== 'object' && seen.includes(item)) {
+      if (rule.distinct === true && typeof item !== 'object' && seen.includes(compared)) {
         throw new Invalid(
           'validation_duplicate_item',
           [...at, index],
@@ -986,7 +996,7 @@ function checkList(value: unknown, at: Path, rule: ListRule, issues?: Invalid[])
       }
     });
 
-    seen.push(item);
+    seen.push(compared);
   });
 }
 
@@ -1003,7 +1013,7 @@ function checkString(value: unknown, at: Path, rule: StringRule): void {
     (rule.maxLength !== undefined && length > rule.maxLength)
   ) {
     throw new Invalid(
-      'validation_invalid_format',
+      'validation_wrong_type',
       at,
       'is not valid: it is not in the form of its contract',
     );

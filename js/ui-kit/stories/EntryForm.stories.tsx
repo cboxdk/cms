@@ -294,6 +294,30 @@ export const RichText: Story = {
   },
 };
 
+/** Relations: the id of the event this one follows, and the ids of its speakers one a line. */
+export const Relation: Story = {
+  render: (_args, { globals }) => (
+    <Editor
+      globals={globals}
+      descriptor={only('follows', 'speakers')}
+      start={{ speakers: ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01'] }}
+    />
+  ),
+  play: async ({ canvasElement, userEvent }) => {
+    await userEvent.type(
+      single(canvasElement, '[id="event-speakers"]', HTMLTextAreaElement),
+      '\n0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02',
+    );
+    await waitFor(
+      () =>
+        held(canvasElement).includes(
+          '"speakers":["0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01","0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"]',
+        ),
+      'a speaker is added on a line of its own',
+    );
+  },
+};
+
 /** A conditional field: the meeting link is shown for an online event and cleared when hidden. */
 export const Conditional: Story = {
   render: (_args, { globals }) => (

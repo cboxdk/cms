@@ -42,6 +42,8 @@
   "kit.entry_form.move_down": "Flyt {item} ned",
   "kit.entry_form.move_up": "Flyt {item} op",
   "kit.entry_form.none": "Ingen",
+  "kit.entry_form.relation_one": "Id på et indhold",
+  "kit.entry_form.relation_several": "Id på indhold, ét pr. linje",
   "kit.entry_form.remove": "Fjern {item}",
   "kit.entry_form.sidebar": "Detaljer",
   "kit.entry_form.summary_item": "{label}: {message}",

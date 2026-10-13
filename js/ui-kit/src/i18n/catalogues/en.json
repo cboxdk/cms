@@ -42,6 +42,8 @@
   "kit.entry_form.move_down": "Move {item} down",
   "kit.entry_form.move_up": "Move {item} up",
   "kit.entry_form.none": "None",
+  "kit.entry_form.relation_one": "The id of an entry",
+  "kit.entry_form.relation_several": "The ids of entries, one a line",
   "kit.entry_form.remove": "Remove {item}",
   "kit.entry_form.sidebar": "Details",
   "kit.entry_form.summary_item": "{label}: {message}",

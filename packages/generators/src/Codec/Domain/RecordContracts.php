@@ -274,10 +274,11 @@ final readonly class RecordContracts
     /**
      * An entry's id, as the record writes its own id and a relation's target (PRD 5.3, 5.11): which
      * entries a relation may name the kernel checks when it writes the relation, not the codec.
+     * Upper and lower case write one id, which EntryId holds in lower case, so the form is caseless.
      */
     private static function entryId(): CodecValue
     {
-        return CodecValue::id(EntryId::class, new StringForm(self::ID_PATTERN));
+        return CodecValue::id(EntryId::class, new StringForm(self::ID_PATTERN, caseless: true));
     }
 
     /**

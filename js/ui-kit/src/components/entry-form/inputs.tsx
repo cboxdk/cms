@@ -495,11 +495,95 @@ function RichTextEntryInput(props: EntryFieldInputProps) {
   );
 }
 
+/** The entry ids of a list of relation targets as the editor writes them: one id a line. */
+function idLines(value: JsonValue | undefined): string {
+  return Array.isArray(value)
+    ? value.filter((item): item is string => typeof item === 'string').join('\n')
+    : '';
+}
+
+/** The entry ids written one a line, without blank lines and the spaces around each id. */
+function idsOf(text: string): string[] {
+  return text
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line !== '');
+}
+
+/**
+ * A relation, the ids of the entries it names: one id in a line of its own for a relation to one
+ * entry, and one id a line in a text area for a relation to several, in their order. The entry
+ * picker, which searches entries of the field's target types (PRD 5.11), takes the base's place
+ * behind the same contract.
+ */
+function RelationEntryInput(props: EntryFieldInputProps) {
+  const t = useKitTranslation();
+  const several = props.field.rule?.['kind'] === 'list';
+  const [text, setText] = useState(() => idLines(props.value));
+  // The value the text was last read into, so a value set from outside the editor shows in it,
+  // while a blank line being typed is kept.
+  const read = useRef<JsonValue | undefined>(props.value);
+
+  useEffect(() => {
+    if (several && JSON.stringify(props.value) !== JSON.stringify(read.current)) {
+      read.current = props.value;
+      setText(idLines(props.value));
+    }
+  }, [several, props.value]);
+
+  if (!several) {
+    return (
+      <TextInput
+        id={props.id}
+        name={props.name}
+        label={props.label}
+        description={props.description}
+        error={props.error}
+        required={props.required}
+        readOnly={props.readOnly}
+        disabled={props.disabled}
+        placeholder={props.inputHint ?? t('kit.entry_form.relation_one')}
+        autoComplete="off"
+        spellCheck={false}
+        value={typeof props.value === 'string' ? props.value : ''}
+        onChange={(event) => {
+          const id = event.target.value.trim();
+          props.onChange(id === '' ? undefined : id);
+        }}
+      />
+    );
+  }
+
+  return (
+    <TextArea
+      id={props.id}
+      name={props.name}
+      label={props.label}
+      description={props.description}
+      error={props.error}
+      required={props.required}
+      readOnly={props.readOnly}
+      disabled={props.disabled}
+      placeholder={props.inputHint ?? t('kit.entry_form.relation_several')}
+      monospace
+      rows={4}
+      value={text}
+      onChange={(event) => {
+        const ids = idsOf(event.target.value);
+        const value = ids.length === 0 ? undefined : ids;
+        read.current = value;
+        setText(event.target.value);
+        props.onChange(value);
+      }}
+    />
+  );
+}
+
 /**
  * The kit's input of each base: text, email and URL fields as one line, long text as a text area,
  * integers as a number field within their bounds, decimals as text, booleans as a check box, dates
  * and date-times in the browser's controls, selects as radio buttons, buttons, a dropdown or check
- * boxes by their ui display, and rich text as JSON.
+ * boxes by their ui display, rich text as JSON, and relations as the ids of the entries they name.
  *
  * @experimental
  */
@@ -513,4 +597,5 @@ export const ENTRY_FIELD_INPUTS: EntryFieldInputs = {
   datetime: DatetimeEntryInput,
   select: SelectEntryInput,
   rich_text: RichTextEntryInput,
+  relation: RelationEntryInput,
 };

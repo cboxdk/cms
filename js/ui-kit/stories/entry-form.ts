@@ -1,6 +1,7 @@
 // The type editor descriptor the stories of EntryForm render: notes:event, a type of a caller of
 // the kit, in the form type.describe answers, with a field of every base, every kind of select,
-// a group, a repeated group with a summary template, a conditional field, a hidden and a
+// a group, a repeated group with a summary template, a relation to one entry and one to several,
+// a conditional field, a hidden and a
 // read-only field, tabs, a sidebar and every width, labelled in Danish and English.
 
 import type {
@@ -59,6 +60,7 @@ function field(
     presence: 'optional',
     repeat: null,
     rule,
+    targets: [],
     translatable: false,
     type: base,
     ui: UI,
@@ -99,6 +101,10 @@ const LANGUAGES = choices(
   ['no', 'Norsk', 'Norwegian'],
 );
 const KINDS = choices(['talk', 'Foredrag', 'Talk'], ['workshop', 'Workshop', 'Workshop']);
+
+/** The pattern of an entry id, a UUIDv7, as a relation's value rule has it. */
+const ENTRY_ID =
+  '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$';
 
 const FIELDS: readonly EditorFieldV1[] = [
   field(
@@ -238,6 +244,20 @@ const FIELDS: readonly EditorFieldV1[] = [
     lists: ['bullet'],
     links: ['url'],
   }),
+  field(
+    'follows',
+    'relation',
+    ['Følger efter', 'Follows'],
+    { kind: 'string', pattern: ENTRY_ID },
+    { targets: ['notes:event'] },
+  ),
+  field(
+    'speakers',
+    'relation',
+    ['Talere', 'Speakers'],
+    { kind: 'list', item: { kind: 'string', pattern: ENTRY_ID }, maxItems: 12, distinct: true },
+    { targets: ['notes:person', 'notes:organisation'] },
+  ),
   field('organiser', 'group', ['Arrangør', 'Organiser'], null),
   field(
     'organiser.name',
@@ -339,7 +359,7 @@ export const EVENT: TypeEditorV1 = {
             placed('online_link', 'half'),
             placed('agenda'),
           ]),
-          section('people', [placed('organiser'), placed('sessions')], {
+          section('people', [placed('organiser'), placed('speakers'), placed('sessions')], {
             label: 'People',
             labels: texts('Personer', 'People'),
             collapsible: true,
@@ -364,6 +384,7 @@ export const EVENT: TypeEditorV1 = {
             placed('languages', 'half'),
             placed('contact', 'half'),
             placed('website', 'half'),
+            placed('follows'),
             placed('internal_code'),
           ]),
         ],

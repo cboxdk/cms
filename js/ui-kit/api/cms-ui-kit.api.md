@@ -393,7 +393,7 @@ export interface DryRunSummary {
 }
 
 // @experimental
-export type EditorBase = 'boolean' | 'date' | 'datetime' | 'decimal' | 'group' | 'integer' | 'long_text' | 'rich_text' | 'select' | 'text';
+export type EditorBase = 'boolean' | 'date' | 'datetime' | 'decimal' | 'group' | 'integer' | 'long_text' | 'relation' | 'rich_text' | 'select' | 'text';
 
 // @experimental
 export interface EditorChoiceV1 {
@@ -422,6 +422,7 @@ export interface EditorFieldV1 {
     presence: Presence;
     repeat: EditorRepeatV1 | null;
     rule: JsonDocument | null;
+    targets: readonly string[];
     translatable: boolean;
     type: string;
     ui: EditorUiV1;

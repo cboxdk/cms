@@ -527,6 +527,7 @@ final readonly class TypeScriptEmitter
                 ...($value->form?->pattern === null ? [] : [new Property('pattern', new StringLiteral($value->form->pattern))]),
                 ...($value->form?->minLength === null ? [] : [new Property('minLength', NumberLiteral::of($value->form->minLength))]),
                 ...($value->form?->maxLength === null ? [] : [new Property('maxLength', NumberLiteral::of($value->form->maxLength))]),
+                ...($value->form?->caseless === true ? [new Property('caseless', new BooleanLiteral(true))] : []),
             ],
             CodecKind::Enum => [$kind('enum'), new Property('values', new ArrayLiteral(array_map(
                 static fn (int|string $case): NumberLiteral|StringLiteral => is_int($case) ? NumberLiteral::of($case) : new StringLiteral($case),
