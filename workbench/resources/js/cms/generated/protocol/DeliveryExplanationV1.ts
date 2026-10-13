@@ -9,18 +9,22 @@ import { validate, type ObjectRule, type JsonObject, type Validation } from '../
 
 /** The values of HttpStatus. */
 export type HttpStatus =
-  200 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 429 | 500 | 503;
+  200 | 301 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 429 | 500 | 503;
 
 /**
  * The body of an answer of the delivery API's GET /v1/resolve with debug=1 (PRD 8.9, GUARDRAILS 5),
  * which only an actor whose classification access is at least internal gets: the answer the request
- * would have had, a record with its meta or a problem, with its HTTP status and the explanation of
- * the resolution. It is never stored or shared. Every key is always present, and a value that does
- * not apply is null. The PHP form is Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation, and the
- * generated codec DeliveryExplanationCodecV1 writes its canonical JSON: keys sorted, no whitespace.
+ * would have had, a record with its meta, a problem, or neither for a redirect (301, whose URL the
+ * explanation's redirect step names), with its HTTP status and the explanation of the resolution.
+ * It is never stored or shared. Every key is always present, and a value that does not apply is
+ * null. The PHP form is Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation, and the generated
+ * codec DeliveryExplanationCodecV1 writes its canonical JSON: keys sorted, no whitespace.
  */
 export interface DeliveryExplanationV1 {
-  /** The record, as data of delivery.v1.json holds it, or null when the answer is a problem. */
+  /**
+   * The record, as data of delivery.v1.json holds it, or null when the answer is a problem or a
+   * redirect.
+   */
   data: JsonObject | null;
   /**
    * The explanation of the resolution, a document of path-explanation.v1.json, read as the caller's
@@ -28,10 +32,13 @@ export interface DeliveryExplanationV1 {
    */
   explanation: JsonObject;
   /**
-   * What the record is, as meta of delivery.v1.json holds it, or null when the answer is a problem.
+   * What the record is, as meta of delivery.v1.json holds it, or null when the answer is a problem
+   * or a redirect.
    */
   meta: DeliveryMetaV1 | null;
-  /** The problem, a document of problem.v1.json, or null when the answer is a record. */
+  /**
+   * The problem, a document of problem.v1.json, or null when the answer is a record or a redirect.
+   */
   problem: JsonObject | null;
   /** The HTTP status of the answer. */
   status: HttpStatus;
@@ -93,7 +100,7 @@ const deliveryExplanationV1Rule: ObjectRule = {
       presence: 'required',
       value: {
         kind: 'enum',
-        values: [200, 400, 401, 403, 404, 409, 410, 412, 421, 422, 429, 500, 503],
+        values: [200, 301, 400, 401, 403, 404, 409, 410, 412, 421, 422, 429, 500, 503],
       },
     },
   ],

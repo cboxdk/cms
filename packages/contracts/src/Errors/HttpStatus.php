@@ -8,13 +8,17 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
 
 /**
  * The HTTP statuses the entries of the error catalog name (PRD 6.1, GUARDRAILS 2.1): the status
- * the REST surface answers with, in a problem details document, when a call ends with the code.
+ * the REST surface answers with, in a problem details document, when a call ends with the code;
+ * and the statuses the delivery API answers with that name no error, 200 and 301.
  */
 #[Experimental]
 enum HttpStatus: int
 {
     /** The call succeeded, as a dry run does: it computed the plan and committed nothing. */
     case Ok = 200;
+
+    /** The page lives at the URL in Location (PRD 5.8, 5.9), as the delivery API answers a redirect. */
+    case MovedPermanently = 301;
 
     /** The request cannot be read at all, such as a body that is not well-formed JSON. */
     case BadRequest = 400;
@@ -59,6 +63,7 @@ enum HttpStatus: int
     {
         return match ($this) {
             self::Ok => 'OK',
+            self::MovedPermanently => 'Moved Permanently',
             self::BadRequest => 'Bad Request',
             self::Unauthorized => 'Unauthorized',
             self::Forbidden => 'Forbidden',

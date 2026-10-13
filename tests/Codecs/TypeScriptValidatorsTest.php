@@ -408,7 +408,7 @@ it('accepts every envelope v1 the PHP codec writes, and refuses what it refuses 
     ]);
 });
 
-const VALIDATED_EXPLANATION = '{"canonical":{"here":false,"placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","url":"https://north.example/nyheder/harbour"},"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"},"outcome":"resolved","placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"},"route":{"path":"/national/harbour","rest":"harbour","route":"/national"},"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"},"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}';
+const VALIDATED_EXPLANATION = '{"canonical":{"here":false,"placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","url":"https://north.example/nyheder/harbour"},"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"},"outcome":"resolved","placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"},"redirect":null,"route":{"path":"/national/harbour","rest":"harbour","route":"/national"},"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"},"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}';
 
 const VALIDATED_DELIVERY = '{"data":{"cms_id":"01936f5e-8a2b-7c3d-9e4f-000000003631","title":"The harbour opens"},"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}}';
 
@@ -417,7 +417,7 @@ it('accepts every path explanation v1 the PHP codec writes, and refuses what it 
 
     crossCheck(new PathExplanationCodecV1, 'protocol/PathExplanationV1', 'validatePathExplanationV1', [
         'a resolved mount' => [VALIDATED_EXPLANATION, null],
-        'an unknown host' => ['{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"route":null,"site":{"handle":null,"host":"Nowhere.Example","locale":"da","locale_published":false,"site":null},"visibility":null}', null],
+        'an unknown host' => ['{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,"site":{"handle":null,"host":"Nowhere.Example","locale":"da","locale_published":false,"site":null},"visibility":null}', null],
         'a window open at both ends and no inputs to the decision' => [$explanation('"lifecycle":"active","release":"released"', '"lifecycle":null,"release":null'), null],
         'an outcome that is not one' => [$explanation('"outcome":"resolved"', '"outcome":"found"'), 'outcome'],
         'a step missing' => [$explanation('"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},', ''), 'mount'],
@@ -429,6 +429,9 @@ it('accepts every path explanation v1 the PHP codec writes, and refuses what it 
         'a decision that is not one' => [$explanation('"decision":"visible"', '"decision":"shown"'), 'visibility.decision'],
         'a window start that is no time' => [$explanation('"from":"2026-03-10T11:00:00.000000Z"', '"from":"morning"'), 'visibility.window.from'],
         'canonical here as a string' => [$explanation('"here":false', '"here":"no"'), 'canonical.here'],
+        'a redirect' => [$explanation('"redirect":null', '"redirect":{"placement":"01936f5e-8a2b-7c3d-9e4f-000000003642","reason":"own_placement","url":"https://south.example/lokalt/havnen","valid_until":null}'), null],
+        'a redirect reason that is not one' => [$explanation('"redirect":null', '"redirect":{"placement":null,"reason":"moved","url":"https://south.example/a","valid_until":null}'), 'redirect.reason'],
+        'a redirect without its URL' => [$explanation('"redirect":null', '"redirect":{"placement":null,"reason":"own_placement","valid_until":null}'), 'redirect.url'],
     ]);
 });
 
@@ -446,6 +449,7 @@ it('accepts every delivery answer and delivery explanation v1 the PHP codecs wri
     ]);
     crossCheck(new DeliveryExplanationCodecV1, 'protocol/DeliveryExplanationV1', 'validateDeliveryExplanationV1', [
         'a problem with its explanation' => [$explanation, null],
+        'a redirect with its explanation' => ['{"data":null,"explanation":'.VALIDATED_EXPLANATION.',"meta":null,"problem":null,"status":301}', null],
         'a status the kernel never answers' => [str_replace('"status":404', '"status":418', $explanation), 'status'],
         'an explanation of null' => [str_replace('"explanation":'.VALIDATED_EXPLANATION, '"explanation":null', $explanation), 'explanation'],
         'a problem that is a string' => [str_replace('"problem":'.problemJson(ErrorCode::PathNotFound), '"problem":"gone"', $explanation), 'problem'],
@@ -454,7 +458,7 @@ it('accepts every delivery answer and delivery explanation v1 the PHP codecs wri
 
 it('accepts every explained path and delivery fragment v1 the PHP codecs write, and refuses what they refuse at the same value', function (): void {
     $explained = '{"content_keys":["e-01936f5e-8a2b-7c3d-9e4f-000000003631","n-01936f5e-8a2b-7c3d-9e4f-000000003612"],"explanation":'.VALIDATED_EXPLANATION.',"read_position":"4827"}';
-    $fragment = '{"body":"{}","format":"record","stale":true,"status":200}';
+    $fragment = '{"body":"{}","format":"record","location":null,"stale":true,"status":200}';
 
     crossCheck(new ExplainedPathCodecV1, 'protocol/ExplainedPathV1', 'validateExplainedPathV1', [
         'an explained path' => [$explained, null],
@@ -464,6 +468,8 @@ it('accepts every explained path and delivery fragment v1 the PHP codecs write, 
     ]);
     crossCheck(new DeliveryFragmentCodecV1, 'protocol/DeliveryFragmentV1', 'validateDeliveryFragmentV1', [
         'a fragment' => [$fragment, null],
+        'a redirect' => ['{"body":"","format":"redirect","location":"https://south.example/lokalt/havnen","stale":false,"status":301}', null],
+        'a location that is a number' => [str_replace('"location":null', '"location":7', $fragment), 'location'],
         'a format that is not one' => [str_replace('"record"', '"page"', $fragment), 'format'],
         'a status that is not one' => [str_replace('200', '299', $fragment), 'status'],
         'stale as a string' => [str_replace('true', '"yes"', $fragment), 'stale'],

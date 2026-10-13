@@ -1,26 +1,35 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Delivery fragment, contract version 1",
-  "description": "What a fragment of the delivery API holds of an answer (PRD 8.12, 9.3): its HTTP status, the form and the bytes of its body, and whether a shared cache may serve it stale. The fragment store keeps it under the fragment's key with the fragment's content keys and valid_until; it is the delivery API's own and never leaves the server. The PHP form is Cbox\\Cms\\Core\\Delivery\\Domain\\Dto\\StoredAnswer, and the generated codec DeliveryFragmentCodecV1 writes and reads its canonical JSON: keys sorted, no whitespace. A fragment the codec does not read is rebuilt, never served.",
+  "description": "What a fragment of the delivery API holds of an answer (PRD 8.12, 9.3): its HTTP status, the form and the bytes of its body, the URL a redirect sends to, and whether a shared cache may serve it stale. The fragment store keeps it under the fragment's key with the fragment's content keys and valid_until; it is the delivery API's own and never leaves the server. The PHP form is Cbox\\Cms\\Core\\Delivery\\Domain\\Dto\\StoredAnswer, and the generated codec DeliveryFragmentCodecV1 writes and reads its canonical JSON: keys sorted, no whitespace. A fragment the codec does not read is rebuilt, never served.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "body",
     "format",
+    "location",
     "stale",
     "status"
   ],
   "properties": {
     "body": {
-      "description": "The bytes of the answer's body, a document of delivery.v1.json, problem.v1.json or delivery-explanation.v1.json as format says.",
+      "description": "The bytes of the answer's body, a document of delivery.v1.json, problem.v1.json or delivery-explanation.v1.json as format says, and nothing for a redirect.",
       "type": "string"
     },
     "format": {
-      "description": "The form of the body: record, problem or explanation.",
+      "description": "The form of the body: record, problem, explanation or redirect, which has no body.",
       "enum": [
         "record",
         "problem",
-        "explanation"
+        "explanation",
+        "redirect"
+      ]
+    },
+    "location": {
+      "description": "The absolute URL a redirect answer sends to, its Location, or null for every other answer.",
+      "type": [
+        "string",
+        "null"
       ]
     },
     "stale": {
@@ -31,6 +40,7 @@
       "description": "The HTTP status of the answer.",
       "enum": [
         200,
+        301,
         400,
         401,
         403,

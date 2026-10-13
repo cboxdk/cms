@@ -13,6 +13,9 @@ export type EntryLifecycle = 'active' | 'archived' | 'merged' | 'tombstoned' | '
 /** The values of NodeKind. */
 export type NodeKind = 'site' | 'section' | 'page' | 'list' | 'storage' | 'mount';
 
+/** The values of RedirectReason. */
+export type RedirectReason = 'own_placement';
+
 /** The values of ReleaseState. */
 export type ReleaseState = 'unreleased' | 'released' | 'withdrawn';
 
@@ -26,6 +29,7 @@ export type ResolveOutcome =
   | 'no_placement'
   | 'not_routable'
   | 'not_visible'
+  | 'redirect'
   | 'resolved';
 
 /** The values of Visibility. */
@@ -99,7 +103,8 @@ export interface PathExplanationV1 {
    * has the host), unknown_site (the host's site is configured, but no site has its handle),
    * locale_not_published, no_route, no_slug (what is left of the path is not one slug),
    * no_placement (no placement the reader can read has the slug), not_routable (the type has no
-   * URLs), not_visible (the precedence of PRD 6.6 blocks the placement) or resolved.
+   * URLs), not_visible (the precedence of PRD 6.6 blocks the placement), redirect (the page lives
+   * at another URL, which the redirect step names) or resolved.
    */
   outcome: ResolveOutcome;
   /**
@@ -107,6 +112,8 @@ export interface PathExplanationV1 {
    * reach the lookup.
    */
   placement: PlacementStepV1 | null;
+  /** The redirect the resolution ended in (PRD 5.8, 5.9), or null when it did not. */
+  redirect: RedirectStepV1 | null;
   /**
    * The longest route of the site in the locale that is a prefix of the path, or null when the
    * resolution stopped at the site.
@@ -175,6 +182,33 @@ export interface PlacementStepV1 {
   slug: string;
   /** The entry's type, or null when the reader cannot read the entry. */
   type: string | null;
+}
+
+/**
+ * The resolution ends in a redirect (PRD 5.8, 5.9, 8.10): the page lives at another URL, reached in
+ * one hop, never through another redirect. In this version the reason is own_placement: the site
+ * has a placement of its own of the entry a mount shows, which suppresses the mounted one, so the
+ * mount URL answers 301 to it.
+ */
+export interface RedirectStepV1 {
+  /** The placement the URL is of, or null when the redirect targets no placement. */
+  placement: string | null;
+  /**
+   * Why the path redirects: own_placement (the site has its own placement of the entry the mount
+   * shows, PRD 5.8).
+   */
+  reason: RedirectReason;
+  /**
+   * The absolute URL the path redirects to, the origin of the target's site with its node's route
+   * and its slug, never built from the request.
+   */
+  url: string;
+  /**
+   * When the redirect can next change because of the target placement's window, RFC 3339 in UTC
+   * with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when the
+   * window never changes it again.
+   */
+  valid_until: string | null;
 }
 
 /**
@@ -351,6 +385,23 @@ const routeStepV1Rule: ObjectRule = {
   ],
 };
 
+const redirectStepV1Rule: ObjectRule = {
+  properties: [
+    { key: 'url', presence: 'required', value: { kind: 'text' } },
+    {
+      key: 'placement',
+      presence: 'present',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    { key: 'reason', presence: 'required', value: { kind: 'enum', values: ['own_placement'] } },
+    { key: 'valid_until', presence: 'present', value: { kind: 'datetime' } },
+  ],
+};
+
 const placementStepV1Rule: ObjectRule = {
   properties: [
     {
@@ -473,6 +524,7 @@ const pathExplanationV1Rule: ObjectRule = {
           'no_placement',
           'not_routable',
           'not_visible',
+          'redirect',
           'resolved',
         ],
       },
@@ -496,6 +548,7 @@ const pathExplanationV1Rule: ObjectRule = {
       presence: 'present',
       value: { kind: 'object', object: canonicalStepV1Rule },
     },
+    { key: 'redirect', presence: 'present', value: { kind: 'object', object: redirectStepV1Rule } },
   ],
 };
 

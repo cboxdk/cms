@@ -64,6 +64,7 @@ final readonly class DeliveryFragmentCodecV1 implements JsonCodec
         $json = new stdClass;
         $json->body = $object->body;
         $json->format = $object->format->value;
+        $json->location = $object->location;
         $json->stale = $object->stale;
         $json->status = $object->status->value;
 
@@ -72,13 +73,14 @@ final readonly class DeliveryFragmentCodecV1 implements JsonCodec
 
     private function decodeStoredAnswer(stdClass $value): StoredAnswer
     {
-        $object = JsonValues::object($value, null, ['body', 'format', 'stale', 'status']);
+        $object = JsonValues::object($value, null, ['body', 'format', 'location', 'stale', 'status']);
 
         return JsonValues::build(null, static fn (): StoredAnswer => new StoredAnswer(
             status: JsonValues::required($object, 'status', null, static fn (mixed $value, FieldPath $at): HttpStatus => JsonValues::enum($value, $at, HttpStatus::class)),
             format: JsonValues::required($object, 'format', null, static fn (mixed $value, FieldPath $at): AnswerFormat => JsonValues::enum($value, $at, AnswerFormat::class)),
             body: JsonValues::required($object, 'body', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
             stale: JsonValues::required($object, 'stale', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            location: JsonValues::present($object, 'location', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
         ));
     }
 }

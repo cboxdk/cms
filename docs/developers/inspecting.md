@@ -37,6 +37,7 @@ A name that no registered command has exits 64 and names the registered commands
 - **route**: the longest route of the site that is a prefix of the path, every prefix it looked up, and the rest of the path;
 - **node** and **mount**: the node the route reaches, and for a mount the source node whose placements it shows;
 - **placement**: the slug looked up below the node, and the placement, entry and type found, whether the type has URLs and whether the placement is canonical;
+- **redirect**: for a mount URL of an entry the site has a placement of its own for, the URL the page lives at, its placement, the reason, and until when the redirect holds (PRD 5.8); such a resolution has no visibility and no canonical line;
 - **visibility**: the rung of the precedence (PRD 6.6) that decided, at what time, from what (the stored state and the window), and until when the decision holds;
 - **canonical**: the canonical URL, built from the canonical placement's site origin, and whether it is this URL.
 

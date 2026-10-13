@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Content\InvalidContentValue;
 use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\Query;
 use Cbox\Cms\Contracts\Pipeline\QueryAction;
@@ -18,14 +19,17 @@ use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Cbox\Cms\Contracts\Results\ReadContent;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
@@ -33,12 +37,14 @@ use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\RouteReader;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use Cbox\Cms\Core\Routing\Domain\SiteHosts;
 use Cbox\Cms\Core\Routing\Domain\SiteOrigin;
 use Cbox\Cms\Core\Routing\Domain\VisibilityPrecedence;
+use DateTimeImmutable;
 use Override;
 
 /**
@@ -53,15 +59,20 @@ use Override;
  *    the source, and what is found there is shown exactly as the source shows it (PRD 5.8), unless
  *    the mount's site hides the entry there, which the same lookup reads.
  * 3. The rest of the path, one slug, in (node, locale, slug) of the placements' released stage.
- * 4. Whether the entry's type has URLs, then the precedence of PRD 6.6 at the Clock's time.
- * 5. For a visible placement, the fields of the entry's released row in its type's table, and the
+ * 4. Whether the entry's type has URLs. Through a mount, whether the site has a placement of its
+ *    own of the entry: one that shows at the Clock's time below a node with a route of the site,
+ *    while the entry itself can be shown. It suppresses the mounted one, and the resolution ends in
+ *    a redirect to its URL, the site's origin with the node's route and its slug (PRD 5.8), in one
+ *    hop: the target is a page that shows now, never another redirect (PRD 5.9).
+ * 5. The precedence of PRD 6.6 at the Clock's time.
+ * 6. For a visible placement, the fields of the entry's released row in its type's table, and the
  *    canonical placement of the entry in the locale and its URL, the origin of its configured site
  *    with its node's route and its slug; a mount's placement is the source's, so its canonical URL
  *    is on the source's site.
  *
  * The answer is ResolvedPath: the entry whenever its placement and entry were read, with the fields
  * of its released row when the placement is visible and without fields otherwise, and the
- * PathExplanation. It costs COST, the four statements of the RouteReader at most, whatever the
+ * PathExplanation. It costs COST, the five statements of the RouteReader at most, whatever the
  * number of routes and placements.
  *
  * @implements QueryAction<ResolvePath, ResolvedPath>
@@ -70,8 +81,8 @@ use Override;
 #[Internal]
 final readonly class ResolvePathAction implements QueryAction
 {
-    /** The cost of a resolution: at most one route, one placement, its released row and one canonical placement. */
-    public const int COST = 4;
+    /** The cost of a resolution: at most one route, one placement, a site's own placement through a mount, the released row and one canonical placement. */
+    public const int COST = 5;
 
     public function __construct(
         private RouteReader $routes,
@@ -116,13 +127,13 @@ final readonly class ResolvePathAction implements QueryAction
             return $this->ended(new PathExplanation(ResolveOutcome::NoRoute, $site, new RouteStep($query->path, null, null)));
         }
 
-        return $this->below($query, $site, $found->match);
+        return $this->below($query, $configured, $site, $found->site, $found->match);
     }
 
     /**
-     * Steps 2 to 5, from the node the route reaches.
+     * Steps 2 to 6, from the node the route reaches.
      */
-    private function below(ResolvePath $query, SiteStep $site, RouteMatch $match): ResolvedPath
+    private function below(ResolvePath $query, ConfiguredSite $configured, SiteStep $site, SiteId $siteId, RouteMatch $match): ResolvedPath
     {
         $rest = $query->path->rest($match->route);
         $route = new RouteStep($query->path, $match->route, $rest);
@@ -150,7 +161,14 @@ final readonly class ResolvePathAction implements QueryAction
             return new ResolvedPath($content, new PathExplanation(ResolveOutcome::NotRoutable, $site, $route, $node, $mount, $step));
         }
 
-        $visibility = VisibilityPrecedence::decide($placement, $type?->capabilities->stages, $this->clock->now());
+        $now = $this->clock->now();
+        $redirect = $mount instanceof MountStep && $type instanceof TypeDefinition ? $this->ownPlacement($query, $configured, $siteId, $placement, $type, $now) : null;
+
+        if ($redirect instanceof RedirectStep) {
+            return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Redirect, $site, $route, $node, $mount, $step, redirect: $redirect));
+        }
+
+        $visibility = VisibilityPrecedence::decide($placement, $type?->capabilities->stages, $now);
 
         if (! $visibility->decision->visible()) {
             return new ResolvedPath($content, new PathExplanation(ResolveOutcome::NotVisible, $site, $route, $node, $mount, $step, $visibility));
@@ -162,6 +180,26 @@ final readonly class ResolvePathAction implements QueryAction
             : $content;
 
         return new ResolvedPath($content, new PathExplanation(ResolveOutcome::Resolved, $site, $route, $node, $mount, $step, $visibility, $canonical));
+    }
+
+    /**
+     * Step 4 through a mount (PRD 5.8): the redirect to the site's own placement of the entry, when
+     * the site has one that shows at the time and the entry itself can be shown; null otherwise,
+     * and the mount shows the source's placement as it is.
+     */
+    private function ownPlacement(ResolvePath $query, ConfiguredSite $configured, SiteId $site, PlacementMatch $placement, TypeDefinition $type, DateTimeImmutable $at): ?RedirectStep
+    {
+        if (! VisibilityPrecedence::entryShowable($placement, $type->capabilities->stages)) {
+            return null;
+        }
+
+        $own = $this->routes->own($site, $placement->entry, $query->locale);
+
+        if (! $own instanceof OwnPlacement || ! $own->visibility->visibleAt($own->window, $at)) {
+            return null;
+        }
+
+        return new RedirectStep($configured->origin->url($own->path()), $own->placement, RedirectReason::OwnPlacement, Visibility::nextTransition($own->window, $at));
     }
 
     private function canonical(ResolvePath $query, PlacementMatch $placement, ?MountStep $mount): CanonicalStep

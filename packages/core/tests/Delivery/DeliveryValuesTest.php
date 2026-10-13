@@ -23,9 +23,11 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\Delivery;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryAnswer;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliverySettings;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Tests\Reads\Probe\ReadProbe;
@@ -87,15 +89,21 @@ it('refuses a delivery setting that is not a whole number, naming it', function 
         ->toThrow(InvalidArgumentException::class, sprintf('The setting cbox-cms.delivery.%s must be a whole number; it is string.', $name));
 })->with(['max_age_seconds', 'stale_while_revalidate_seconds', 'stale_if_error_seconds']);
 
-it('holds a record with its type and locale, or a problem, and not both, and names its format', function (): void {
+it('holds a record with its type and locale, a problem, or a redirect, exactly one of them, and names its format', function (): void {
     $problem = Problem::of(ErrorCode::PathNotFound, 'Nothing is placed at /nyheder/nothing.');
     $explanation = new PathExplanation(ResolveOutcome::NoPlacement, new SiteStep(new Host('north.example'), new Locale('da'), null, null, true));
+    $redirect = new RedirectStep('https://south.example/lokalt/havnen', null, RedirectReason::OwnPlacement, null);
     $record = new DeliveryAnswer(HttpStatus::Ok, '{}', new TypeName('app:article'), new Locale('da'));
 
     expect($record->format())->toBe(AnswerFormat::Record)
         ->and(DeliveryAnswer::problem($problem)->format())->toBe(AnswerFormat::Problem)
         ->and(DeliveryAnswer::problem($problem)->status)->toBe(HttpStatus::NotFound)
         ->and(DeliveryAnswer::problem($problem, $explanation)->format())->toBe(AnswerFormat::Explanation)
+        ->and(DeliveryAnswer::redirect($redirect)->format())->toBe(AnswerFormat::Redirect)
+        ->and(DeliveryAnswer::redirect($redirect)->status)->toBe(HttpStatus::MovedPermanently)
+        ->and(DeliveryAnswer::redirect($redirect, $explanation)->format())->toBe(AnswerFormat::Explanation)
+        ->and(static fn (): DeliveryAnswer => new DeliveryAnswer(HttpStatus::Ok, redirect: $redirect))->toThrow(InvalidArgumentException::class)
+        ->and(static fn (): DeliveryAnswer => new DeliveryAnswer(HttpStatus::MovedPermanently, problem: $problem, redirect: $redirect))->toThrow(InvalidArgumentException::class)
         ->and(static fn (): DeliveryAnswer => new DeliveryAnswer(HttpStatus::Ok))->toThrow(InvalidArgumentException::class)
         ->and(static fn (): DeliveryAnswer => new DeliveryAnswer(HttpStatus::Ok, '{}', new TypeName('app:article')))->toThrow(InvalidArgumentException::class)
         ->and(static fn (): DeliveryAnswer => new DeliveryAnswer(HttpStatus::Ok, '{}', null, new Locale('da')))->toThrow(InvalidArgumentException::class)
@@ -109,6 +117,14 @@ it('gives a delivery its content keys once each, sorted', function (): void {
     $delivery = new Delivery(HttpStatus::Ok, AnswerFormat::Record, '{}', [$node, $entry, $node], CacheDirective::noStore(), DeliverySource::Origin);
 
     expect(array_map(static fn (DependencyKey $key): string => $key->toString(), $delivery->contentKeys))->toBe([$entry->toString(), $node->toString()]);
+});
+
+it('gives a redirect its URL, and no other delivery one', function (): void {
+    $redirect = new Delivery(HttpStatus::MovedPermanently, AnswerFormat::Redirect, '', [], CacheDirective::noStore(), DeliverySource::Origin, 'https://south.example/lokalt/havnen');
+
+    expect($redirect->location)->toBe('https://south.example/lokalt/havnen')
+        ->and(static fn (): Delivery => new Delivery(HttpStatus::MovedPermanently, AnswerFormat::Redirect, '', [], CacheDirective::noStore(), DeliverySource::Origin))->toThrow(InvalidArgumentException::class)
+        ->and(static fn (): Delivery => new Delivery(HttpStatus::Ok, AnswerFormat::Record, '{}', [], CacheDirective::noStore(), DeliverySource::Origin, 'https://south.example/'))->toThrow(InvalidArgumentException::class);
 });
 
 it('allows path.resolve to anyone and refuses every other read', function (): void {

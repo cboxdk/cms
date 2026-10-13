@@ -7,7 +7,9 @@ namespace Cbox\Cms\Core\Tests\Postgres;
 use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -28,9 +30,11 @@ use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\Routing\Actions\ResolvePathAction;
 use Cbox\Cms\Core\Routing\Adapter\PostgresRouteReader;
 use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -66,8 +70,9 @@ use LogicException;
  * to the source, whose placement stays canonical; row level security lets the anonymous context
  * read the routes, the routed nodes and what is public. An entry the south site hides on the
  * mount answers not_visible there, which the delivery API turns into 404, and resolves at its
- * source; an archived mount keeps showing its source. Both resolutions cost the same queries
- * whether 20 or 200 placements are below the section.
+ * source; an archived mount keeps showing its source. When south has a placement of its own of the
+ * entry, the mount URL ends in a redirect to it, which the anonymous context reads too. Both
+ * resolutions cost the same queries whether 20 or 200 placements are below the section.
  */
 
 afterEach(function (): void {
@@ -78,11 +83,14 @@ const RESOLVED_ENTRY = '0192a0c0-0000-7000-8000-0000000035e9';
 
 const RESOLVED_PLACEMENT = '0192a0c0-0000-7000-8000-0000000035c9';
 
+const RESOLVED_OWN_PLACEMENT = '0192a0c0-0000-7000-8000-0000000035ca';
+
 /**
  * The seeded structure, the mount on south and a fixture article published below north's section
- * with the slug "harbour".
+ * with the slug "harbour"; with $own also south's own placement of it below its section with the
+ * slug "havnen", live from the publish on.
  */
-function resolvedWorld(): PlacementStructure
+function resolvedWorld(bool $own = false): PlacementStructure
 {
     $structure = PlacementWorld::seed();
     $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
@@ -99,6 +107,16 @@ function resolvedWorld(): PlacementStructure
 
     if ($created->outcome() !== Outcome::Committed || $placed->outcome() !== Outcome::Committed || $published->outcome() !== Outcome::Committed) {
         throw new LogicException('The article to resolve was not published.');
+    }
+
+    if ($own) {
+        $ownPlacement = PlacementId::fromString(RESOLVED_OWN_PLACEMENT);
+        $ownPlaced = $world->place($ownPlacement, $entry, $structure->southSection, $structure->south, 'havnen', 'resolve-own');
+        $ownLive = $world->setWindow($ownPlacement, 1, new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)), 'resolve-own-live');
+
+        if ($ownPlaced->outcome() !== Outcome::Committed || $ownLive->outcome() !== Outcome::Committed) {
+            throw new LogicException('South\'s own placement of the article was not made live.');
+        }
     }
 
     return $structure;
@@ -202,6 +220,26 @@ it('resolves a placement on its site and through a mount on a second site, as th
         ->and([$mounted[1]->explanation->canonical?->url, $mounted[1]->explanation->canonical?->here])->toBe(['https://north.example/nyheder/harbour', false])
         ->and(resolvedContentKeys($mounted[0]))->toBe(['e-'.RESOLVED_ENTRY, 'n-'.$section])
         ->and(resolvedPath($elsewhere)->outcome())->toBe(ResolveOutcome::NoPlacement);
+});
+
+it('ends the mount URL in a redirect to the site\'s own placement of the entry, as the anonymous principal, with the entry\'s keys', function (): void {
+    $structure = resolvedWorld(own: true);
+    $pipeline = resolvePipeline();
+
+    $mounted = resolveAnonymously($pipeline, 'south.example', '/national/harbour');
+    $own = resolveAnonymously($pipeline, 'south.example', '/nyheder/havnen');
+    $source = resolveAnonymously($pipeline, 'north.example', '/nyheder/harbour');
+    $explanation = resolvedPath($mounted)->explanation;
+
+    expect($explanation->outcome)->toBe(ResolveOutcome::Redirect)
+        ->and($explanation->redirect)->toEqual(new RedirectStep('https://south.example/nyheder/havnen', PlacementId::fromString(RESOLVED_OWN_PLACEMENT), RedirectReason::OwnPlacement, null))
+        ->and($explanation->visibility)->toBeNull()
+        ->and(resolvedPath($mounted)->content?->fields)->toEqual(new FieldValues)
+        ->and(resolvedContentKeys($mounted))->toBe(['e-'.RESOLVED_ENTRY, 'n-'.$structure->northSection->id->toString()])
+        ->and(PathAnswers::code($explanation))->toBeNull()
+        ->and(resolvedPath($own)->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and(resolvedPath($source)->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and(resolvedPath($source)->explanation->canonical?->url)->toBe('https://north.example/nyheder/harbour');
 });
 
 it('costs the same queries to resolve the placement and the mount whether 20 or 200 placements are below the node', function (): void {

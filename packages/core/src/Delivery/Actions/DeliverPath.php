@@ -36,6 +36,7 @@ use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Routing\Domain\Dto\ConfiguredSite;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\InvalidRoutingValue;
@@ -59,7 +60,8 @@ use LogicException;
  * 3. Otherwise path.resolve runs through the query pipeline as the anonymous principal (invariant
  *    25), whose classification access is public. A resolved path is answered with the record of its
  *    entry, written by the type's generated codec at the public classification access, so no field
- *    above public is in the body (invariant 10); every other outcome with a problem (PathAnswers).
+ *    above public is in the body (invariant 10); a redirect with 301 and the URL the page lives at
+ *    in Location, with no body (PRD 5.8); every other outcome with a problem (PathAnswers).
  * 4. The answer is stored as a fragment with its content keys, built at the read's position and
  *    kept until the lower of now plus the configured max age and its valid_until (invariant 17).
  *    The store refuses it when a dependency was purged at or above that position, and the answer is
@@ -118,7 +120,7 @@ final readonly class DeliverPath
         if ($fragment instanceof Fragment && $stored instanceof StoredAnswer) {
             $maxAge = $this->secondsUntil($fragment->validUntil);
 
-            return new Delivery($stored->status, $stored->format, $stored->body, $fragment->dependencies, $maxAge > 0 ? $this->shared($maxAge, $stored->stale) : CacheDirective::noStore(), DeliverySource::Fragment);
+            return new Delivery($stored->status, $stored->format, $stored->body, $fragment->dependencies, $maxAge > 0 ? $this->shared($maxAge, $stored->stale) : CacheDirective::noStore(), DeliverySource::Fragment, $stored->location);
         }
 
         return $this->built($key, $query, $this->pipeline->run(new QueryCall($query, null)));
@@ -151,15 +153,17 @@ final readonly class DeliverPath
         $until = $this->until(PathAnswers::validUntil($explanation));
         $position = $result->position ?? throw new LogicException('An answered read has the position of its snapshot.');
 
+        $location = $answer->location();
+
         if ($this->secondsUntil($until) < 1) {
-            return new Delivery($answer->status, $answer->format(), $body, $keys, CacheDirective::noStore(), DeliverySource::Origin);
+            return new Delivery($answer->status, $answer->format(), $body, $keys, CacheDirective::noStore(), DeliverySource::Origin, $location);
         }
 
-        $stored = new StoredAnswer($answer->status, $answer->format(), $body, $stale);
+        $stored = new StoredAnswer($answer->status, $answer->format(), $body, $stale, $location);
         $outcome = $this->fragments->write(new Fragment($key, $this->documents->fragment($stored), $keys, $position, $until));
         $cache = $outcome instanceof FragmentStored ? $this->shared($this->secondsUntil($until), $stale) : CacheDirective::noStore();
 
-        return new Delivery($answer->status, $answer->format(), $body, $keys, $cache, DeliverySource::Origin);
+        return new Delivery($answer->status, $answer->format(), $body, $keys, $cache, DeliverySource::Origin, $location);
     }
 
     /**
@@ -179,13 +183,17 @@ final readonly class DeliverPath
 
         $answer = $this->answer($query, $resolved, $resolved->explanation);
 
-        return new Delivery($answer->status, $answer->format(), $this->documents->body($answer), PathAnswers::contentKeys($resolved->explanation, $result->contentKeys), CacheDirective::noStore(), DeliverySource::Origin);
+        return new Delivery($answer->status, $answer->format(), $this->documents->body($answer), PathAnswers::contentKeys($resolved->explanation, $result->contentKeys), CacheDirective::noStore(), DeliverySource::Origin, $answer->location());
     }
 
     private function answer(ResolvePath $query, ResolvedPath $resolved, ?PathExplanation $explanation): DeliveryAnswer
     {
         $code = PathAnswers::code($resolved->explanation);
         $content = $resolved->content;
+
+        if ($resolved->explanation->redirect instanceof RedirectStep) {
+            return DeliveryAnswer::redirect($resolved->explanation->redirect, $explanation);
+        }
 
         if ($code instanceof ErrorCode || ! $content instanceof ReadContent) {
             return DeliveryAnswer::problem(Problem::of($code ?? ErrorCode::PathNotFound, PathAnswers::detail($resolved->explanation)), $explanation);

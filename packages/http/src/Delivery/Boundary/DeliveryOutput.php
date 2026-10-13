@@ -16,7 +16,8 @@ use Illuminate\Http\Response;
  * Writes an answer of the delivery API's resolve (PRD 8.8, 8.10, 8.12, 9.4):
  *
  * - the status and the body, `application/json` for a record and an explanation and
- *   `application/problem+json` for a problem;
+ *   `application/problem+json` for a problem; a redirect (PRD 5.8) has no body and sends the URL
+ *   the page lives at in `Location`;
  * - `Surrogate-Key` with the answer's content keys, space-separated, which the edge strips before
  *   the answer leaves it (point 4);
  * - `Cache-Control`: `public, max-age=0, s-maxage=<seconds>` for an answer a shared cache may
@@ -36,10 +37,15 @@ final readonly class DeliveryOutput
     public static function response(Delivery $delivery): Response
     {
         $response = new Response($delivery->body, $delivery->status->value, [
-            'Content-Type' => $delivery->format === AnswerFormat::Problem ? 'application/problem+json' : 'application/json',
             self::SOURCE => $delivery->source === DeliverySource::Fragment ? 'hit' : 'miss',
         ]);
         $response->headers->set('Cache-Control', self::cacheControl($delivery->cache));
+
+        if ($delivery->format === AnswerFormat::Redirect) {
+            $response->headers->set('Location', (string) $delivery->location);
+        } else {
+            $response->headers->set('Content-Type', $delivery->format === AnswerFormat::Problem ? 'application/problem+json' : 'application/json');
+        }
 
         if ($delivery->contentKeys !== []) {
             $response->headers->set(self::SURROGATE_KEY, implode(' ', array_map(static fn (DependencyKey $key): string => $key->toString(), $delivery->contentKeys)));

@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Path explanation, contract version 1",
-  "description": "Why the page at a path looks as it does (PRD 5.9, GUARDRAILS 5): the explanation path.resolve gives of one resolution of a host, a locale and a path, each step it took in order and the outcome, named by the step that stopped it. cms:explain --json and the explanation of GET /v1/resolve?debug=1 hold it. Every key is always present; a step the resolution did not reach is null, and mount is null too for a node that is not a mount. It holds ids, handles, the path and the decisions, never a field of the entry. The PHP form is Cbox\\Cms\\Core\\Routing\\Domain\\Dto\\PathExplanation, and the generated codec PathExplanationCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "description": "Why the page at a path looks as it does (PRD 5.9, GUARDRAILS 5): the explanation path.resolve gives of one resolution of a host, a locale and a path, each step it took in order and the outcome, named by the step that stopped it. cms:explain --json and the explanation of GET /v1/resolve?debug=1 hold it. Every key is always present; a step the resolution did not reach is null, mount is null too for a node that is not a mount, and redirect is null unless the resolution ended in one. It holds ids, handles, the path and the decisions, never a field of the entry. The PHP form is Cbox\\Cms\\Core\\Routing\\Domain\\Dto\\PathExplanation, and the generated codec PathExplanationCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,6 +10,7 @@
     "node",
     "outcome",
     "placement",
+    "redirect",
     "route",
     "site",
     "visibility"
@@ -49,7 +50,7 @@
       ]
     },
     "outcome": {
-      "description": "How the resolution ended, named by the step that stopped it: unknown_host (no configured site has the host), unknown_site (the host's site is configured, but no site has its handle), locale_not_published, no_route, no_slug (what is left of the path is not one slug), no_placement (no placement the reader can read has the slug), not_routable (the type has no URLs), not_visible (the precedence of PRD 6.6 blocks the placement) or resolved.",
+      "description": "How the resolution ended, named by the step that stopped it: unknown_host (no configured site has the host), unknown_site (the host's site is configured, but no site has its handle), locale_not_published, no_route, no_slug (what is left of the path is not one slug), no_placement (no placement the reader can read has the slug), not_routable (the type has no URLs), not_visible (the precedence of PRD 6.6 blocks the placement), redirect (the page lives at another URL, which the redirect step names) or resolved.",
       "enum": [
         "unknown_host",
         "unknown_site",
@@ -59,6 +60,7 @@
         "no_placement",
         "not_routable",
         "not_visible",
+        "redirect",
         "resolved"
       ]
     },
@@ -67,6 +69,17 @@
       "anyOf": [
         {
           "$ref": "#/$defs/placement_step"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    },
+    "redirect": {
+      "description": "The redirect the resolution ended in (PRD 5.8, 5.9), or null when it did not.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/redirect_step"
         },
         {
           "type": "null"
@@ -238,6 +251,45 @@
             "null"
           ],
           "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        }
+      }
+    },
+    "redirect_step": {
+      "description": "The resolution ends in a redirect (PRD 5.8, 5.9, 8.10): the page lives at another URL, reached in one hop, never through another redirect. In this version the reason is own_placement: the site has a placement of its own of the entry a mount shows, which suppresses the mounted one, so the mount URL answers 301 to it.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "placement",
+        "reason",
+        "url",
+        "valid_until"
+      ],
+      "properties": {
+        "placement": {
+          "description": "The placement the URL is of, or null when the redirect targets no placement.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+        },
+        "reason": {
+          "description": "Why the path redirects: own_placement (the site has its own placement of the entry the mount shows, PRD 5.8).",
+          "enum": [
+            "own_placement"
+          ]
+        },
+        "url": {
+          "description": "The absolute URL the path redirects to, the origin of the target's site with its node's route and its slug, never built from the request.",
+          "type": "string"
+        },
+        "valid_until": {
+          "description": "When the redirect can next change because of the target placement's window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when the window never changes it again.",
+          "type": [
+            "string",
+            "null"
+          ],
+          "format": "date-time"
         }
       }
     },

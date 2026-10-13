@@ -58,13 +58,16 @@ const EXPLAINED_ENTRY = '0192a0c0-0000-7000-8000-0000000043e1';
 
 const EXPLAINED_PLACEMENT = '0192a0c0-0000-7000-8000-0000000043c1';
 
+const EXPLAINED_OWN_PLACEMENT = '0192a0c0-0000-7000-8000-0000000043c2';
+
 /**
  * The structure of PlacementWorld with the mount "/national" on south of north's section, the
- * fixture article published there as "harbour" with the window given, and the installation set up
- * to resolve on it: the workbench's registry, the configured sites and the clock an hour after the
- * publish.
+ * fixture article published there as "harbour" with the window given, with $own also south's own
+ * placement of it below its section as "havnen", live from the publish on, and the installation
+ * set up to resolve on it: the workbench's registry, the configured sites and the clock an hour
+ * after the publish.
  */
-function explainedWorld(?TimeWindow $window = null): PlacementStructure
+function explainedWorld(?TimeWindow $window = null, bool $own = false): PlacementStructure
 {
     $structure = PlacementWorld::seed();
     $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
@@ -81,6 +84,16 @@ function explainedWorld(?TimeWindow $window = null): PlacementStructure
 
     if ($created->outcome() !== Outcome::Committed || $placed->outcome() !== Outcome::Committed || $published->outcome() !== Outcome::Committed) {
         throw new LogicException('The article to explain was not published.');
+    }
+
+    if ($own) {
+        $ownPlacement = PlacementId::fromString(EXPLAINED_OWN_PLACEMENT);
+        $ownPlaced = $world->place($ownPlacement, $entry, $structure->southSection, $structure->south, 'havnen', 'explain-own');
+        $ownLive = $world->setWindow($ownPlacement, 1, new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)), 'explain-own-live');
+
+        if ($ownPlaced->outcome() !== Outcome::Committed || $ownLive->outcome() !== Outcome::Committed) {
+            throw new LogicException('South\'s own placement of the article was not made live.');
+        }
     }
 
     WorkbenchRegistry::bind();
@@ -189,6 +202,34 @@ it('explains the mount URL on the second site: the placement below the source, c
             'mount' => ['mount' => $node, 'source' => $section],
             'canonical' => ['here' => false, 'placement' => EXPLAINED_PLACEMENT, 'url' => 'https://north.example/nyheder/harbour'],
         ]);
+});
+
+it('explains the mount URL as a redirect to the site\'s own placement of the entry, in text and as the codecs write it', function (): void {
+    $structure = explainedWorld(own: true);
+    $section = $structure->northSection->id->toString();
+
+    [$status, $output] = explainCli('https://south.example/national/harbour');
+    [$jsonStatus, $json] = explainCli('https://south.example/national/harbour', ['--locale' => 'da', '--json' => true]);
+    $document = explainDocument($json);
+    $read = explainedRead('south.example', '/national/harbour');
+    $resolved = $read->result instanceof ResolvedPath ? $read->result : throw new LogicException('The read was not answered with a resolved path.');
+
+    expect($status)->toBe(0)
+        ->and($output)->toStartWith("south.example/national/harbour in da: redirect\n")
+        ->and($output)->toContain(sprintf("  mount        shows the placements below %s as they are there\n", $section))
+        ->and($output)->toContain(sprintf('  placement    slug harbour below %s: placement %s of entry %s', $section, EXPLAINED_PLACEMENT, EXPLAINED_ENTRY))
+        ->and($output)->toContain(sprintf("  redirect     301 to https://south.example/nyheder/havnen (placement %s), the site's own placement of the entry, which suppresses the mounted one\n", EXPLAINED_OWN_PLACEMENT))
+        ->and($output)->not->toContain('  visibility')
+        ->and($output)->not->toContain('  canonical')
+        ->and($output)->toContain(sprintf('  content keys e-%s n-%s', EXPLAINED_ENTRY, $section))
+        ->and($jsonStatus)->toBe(0)
+        ->and($document['explanation'] ?? null)->toMatchArray([
+            'outcome' => 'redirect',
+            'redirect' => ['placement' => EXPLAINED_OWN_PLACEMENT, 'reason' => 'own_placement', 'url' => 'https://south.example/nyheder/havnen', 'valid_until' => null],
+            'visibility' => null,
+            'canonical' => null,
+        ])
+        ->and($document['explanation'] ?? null)->toBe(json_decode(new PathExplanationCodecV1()->encode($resolved->explanation, ClassificationAccess::Public), true, 512, JSON_THROW_ON_ERROR));
 });
 
 it('prints the explanation path.resolve answers the same read with, through the generated codecs', function (): void {

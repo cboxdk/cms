@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
@@ -21,8 +22,8 @@ use DateTimeImmutable;
  * ends with, the content keys a cache of the answer depends on, until when the answer holds, and
  * whether the edge may serve it stale.
  *
- * - A resolved path is answered with its record; every other outcome with a problem. An unknown
- *   host is host_not_configured (421, point 7). What was withdrawn, the variant or the placement,
+ * - A resolved path is answered with its record, and a redirect with 301 to its URL (PRD 5.8);
+ *   every other outcome with a problem. An unknown host is host_not_configured (421, point 7). What was withdrawn, the variant or the placement,
  *   and an entry that was tombstoned or purged, is path_gone (410): withdrawn is sticky
  *   (invariant 7). Everything else is path_not_found (404): nothing answers the path now, and a
  *   publication, a placement or an opening window can change that.
@@ -32,7 +33,7 @@ use DateTimeImmutable;
  *   on changes (point 10).
  * - The answer holds until the placement's window next changes the decision, its end for a visible
  *   placement and its start for one that has not opened (invariant 17), the same cap for 200, 404
- *   and 410.
+ *   and 410, and for a 301 the end of the target placement's window (point 10).
  * - Only a resolved path whose window never ends may be served stale; before a removal, and for
  *   every problem, no stale directive is sent (PRD 8.12 points 3 and 4).
  */
@@ -40,12 +41,12 @@ use DateTimeImmutable;
 final readonly class PathAnswers
 {
     /**
-     * The code of the catalog the resolution ends with, or null when it resolved.
+     * The code of the catalog the resolution ends with, or null when it resolved or redirects.
      */
     public static function code(PathExplanation $explanation): ?ErrorCode
     {
         return match ($explanation->outcome) {
-            ResolveOutcome::Resolved => null,
+            ResolveOutcome::Resolved, ResolveOutcome::Redirect => null,
             ResolveOutcome::UnknownHost => ErrorCode::HostNotConfigured,
             ResolveOutcome::NotVisible => self::gone($explanation->visibility) ? ErrorCode::PathGone : ErrorCode::PathNotFound,
             default => ErrorCode::PathNotFound,
@@ -61,6 +62,7 @@ final readonly class PathAnswers
 
         return match ($explanation->outcome) {
             ResolveOutcome::Resolved => sprintf('%s resolved.', $asked),
+            ResolveOutcome::Redirect => $explanation->redirect instanceof RedirectStep ? sprintf('%s lives at %s.', $asked, $explanation->redirect->url) : sprintf('%s lives at another URL.', $asked),
             ResolveOutcome::UnknownHost => sprintf('No configured site is served at %s.', $explanation->site->host->value),
             ResolveOutcome::UnknownSite => sprintf('The site configured for %s does not exist.', $explanation->site->host->value),
             ResolveOutcome::LocaleNotPublished => sprintf('The site at %s does not publish in %s.', $explanation->site->host->value, $explanation->site->locale->value),
@@ -87,12 +89,12 @@ final readonly class PathAnswers
     }
 
     /**
-     * When the answer stops holding because of the placement's window, or null when no window
-     * changes it.
+     * When the answer stops holding because of the placement's window, the target placement's for
+     * a redirect, or null when no window changes it.
      */
     public static function validUntil(PathExplanation $explanation): ?DateTimeImmutable
     {
-        return $explanation->visibility?->validUntil;
+        return $explanation->visibility instanceof VisibilityStep ? $explanation->visibility->validUntil : $explanation->redirect?->validUntil;
     }
 
     /**

@@ -14,8 +14,10 @@ use Cbox\Cms\Core\Delivery\Domain\DeliveryDocuments;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryAnswer;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\Host;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
@@ -24,8 +26,9 @@ use PHPUnit\Framework\Attributes\Test;
  * What every DeliveryDocuments does, run against JsonDeliveryDocuments and FakeDeliveryDocuments,
  * so the fake the delivery's action tests use cannot drift from the documents the API sends
  * (GUARDRAILS 9): a record's body holds the record as the codec wrote it, a problem's its code, an
- * explanation's its outcome; a fragment reads back as the answer it was written from, and bytes
- * fragment() did not write read as no fragment.
+ * explanation's its outcome, a redirect's nothing but its explanation names the URL; a fragment
+ * reads back as the answer it was written from, its Location included, and bytes fragment() did
+ * not write read as no fragment.
  */
 trait DeliveryDocumentsBehaviour
 {
@@ -54,6 +57,16 @@ trait DeliveryDocumentsBehaviour
     }
 
     #[Test]
+    public function it_writes_a_redirect_without_a_body_and_its_explanation_with_the_url(): void
+    {
+        $redirect = new RedirectStep('https://south.example/lokalt/havnen', null, RedirectReason::OwnPlacement, null);
+        $explanation = new PathExplanation(ResolveOutcome::Redirect, new SiteStep(new Host('south.example'), new Locale('da'), null, null, true), redirect: $redirect);
+
+        Assert::assertSame('', $this->documents()->body(DeliveryAnswer::redirect($redirect)));
+        Assert::assertStringContainsString('https://south.example/lokalt/havnen', $this->documents()->body(DeliveryAnswer::redirect($redirect, $explanation)));
+    }
+
+    #[Test]
     public function a_fragment_reads_back_as_the_answer_it_was_written_from(): void
     {
         $documents = $this->documents();
@@ -62,6 +75,7 @@ trait DeliveryDocumentsBehaviour
             new StoredAnswer(HttpStatus::Ok, AnswerFormat::Record, '{"data":'.self::RECORD.'}', true),
             new StoredAnswer(HttpStatus::NotFound, AnswerFormat::Problem, "a body\nwith lines and \x1f", false),
             new StoredAnswer(HttpStatus::Gone, AnswerFormat::Problem, '', false),
+            new StoredAnswer(HttpStatus::MovedPermanently, AnswerFormat::Redirect, '', false, 'https://south.example/lokalt/havnen'),
         ] as $answer) {
             Assert::assertEquals($answer, $documents->stored($documents->fragment($answer)));
         }

@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
@@ -161,15 +162,7 @@ final class FakeRouteReader implements RouteReader
             }
 
             $site = $this->nodes[$node->toString()][1] ?? null;
-            $route = null;
-
-            foreach ($this->routes as $key => $routed) {
-                [$handle, $routedIn, $path] = explode(' ', $key, 3);
-
-                if ($handle === $site && $routedIn === $locale->value && $routed->equals($node)) {
-                    $route = $path;
-                }
-            }
+            $route = $this->routeOf($site, $locale, $node);
 
             return new CanonicalMatch(
                 $placement->placement,
@@ -184,6 +177,38 @@ final class FakeRouteReader implements RouteReader
     }
 
     #[Override]
+    public function own(SiteId $site, EntryId $entry, Locale $locale): ?OwnPlacement
+    {
+        $this->reads++;
+        $handle = null;
+
+        foreach ($this->sites as $each => [$id]) {
+            if ($id->equals($site)) {
+                $handle = $each;
+            }
+        }
+
+        /** @var list<array{bool, OwnPlacement}> the placements of the entry on the site, each with whether it is canonical */
+        $found = [];
+
+        foreach ($this->placements as [$node, $placedIn, $slug, $placement]) {
+            if (! $placement->entry->equals($entry) || ! $placedIn->equals($locale) || $placement->visibility === Visibility::Withdrawn) {
+                continue;
+            }
+
+            $route = $this->routeOf($handle, $locale, $node);
+
+            if ($route !== null) {
+                $found[] = [$placement->canonical, new OwnPlacement($placement->placement, $node, $route, $slug, $placement->visibility, $placement->window)];
+            }
+        }
+
+        usort($found, static fn (array $a, array $b): int => [! $a[0], $a[1]->placement->toString()] <=> [! $b[0], $b[1]->placement->toString()]);
+
+        return $found[0][1] ?? null;
+    }
+
+    #[Override]
     public function released(TypeDefinition $type, EntryId $entry, Locale $locale): ?FieldValues
     {
         $this->reads++;
@@ -195,5 +220,21 @@ final class FakeRouteReader implements RouteReader
     private function rowKey(TypeId $type, EntryId $entry, VariantKey $variant): string
     {
         return $type->toString().' '.$entry->toString().' '.$variant->value;
+    }
+
+    /**
+     * The route of the node in the site with the handle in the locale, or null when it has none.
+     */
+    private function routeOf(?string $site, Locale $locale, NodeId $node): ?string
+    {
+        foreach ($this->routes as $key => $routed) {
+            [$handle, $routedIn, $path] = explode(' ', $key, 3);
+
+            if ($handle === $site && $routedIn === $locale->value && $routed->equals($node)) {
+                return $path;
+            }
+        }
+
+        return null;
     }
 }

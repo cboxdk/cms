@@ -50,7 +50,8 @@ use Symfony\Component\HttpFoundation\Response;
  * principal, the generated record codecs and the Valkey fragment store. A fixture article, with
  * internal sources and the ciphertext of a confidential embargo, is published below north's
  * section, which the site south mounts at /national; the container's clock stands an hour after
- * the publish unless a test says otherwise.
+ * the publish unless a test says otherwise. When south has a placement of its own of the article,
+ * the mount URL answers 301 to it (PRD 5.8), tagged and cached like a page.
  */
 final class DeliveryResolveTest extends TestCase
 {
@@ -60,6 +61,9 @@ final class DeliveryResolveTest extends TestCase
     private const string ENTRY = '0192a0c0-0000-7000-8000-0000000036e9';
 
     private const string PLACEMENT = '0192a0c0-0000-7000-8000-0000000036c9';
+
+    /** South's own placement of the article below its section, with the slug "havnen". */
+    private const string OWN_PLACEMENT = '0192a0c0-0000-7000-8000-0000000036ca';
 
     /** The ciphertext written into the confidential embargo, 'A court order' in hex. */
     private const string EMBARGO = "'\\x4120636f757274206f72646572'::bytea";
@@ -110,6 +114,64 @@ final class DeliveryResolveTest extends TestCase
             self::assertSame(['fixture_science', 'fixture_culture'], $this->at($document, 'data.fixture_topics'));
             self::assertEquals((object) ['fixtureaddon' => (object) ['fixture_slug' => null]], $this->at($document, 'data.ext'));
         }
+    }
+
+    #[Test]
+    public function it_answers_the_mount_url_with_301_to_the_sites_own_placement_tagged_with_the_entry_and_the_nodes_and_serves_it_from_the_fragment(): void
+    {
+        $structure = $this->world(own: true);
+        $section = $structure->northSection->id->toString();
+        $mount = StorageTables::superuser()->table('nodes')->where('kind', 'mount')->value('id');
+        self::assertIsString($mount);
+        $keys = ['e-'.self::ENTRY, 'n-'.$section, 'n-'.$mount];
+        sort($keys, SORT_STRING);
+
+        $first = $this->resolve('south.example', '/national/harbour');
+        $second = $this->resolve('south.example', '/national/harbour');
+        $target = $this->resolve('south.example', '/nyheder/havnen');
+        $source = $this->resolve('north.example', '/nyheder/harbour');
+
+        $first->assertStatus(301)
+            ->assertHeader('Location', 'https://south.example/nyheder/havnen')
+            ->assertHeader(DeliveryOutput::SURROGATE_KEY, implode(' ', $keys))
+            ->assertHeader(DeliveryOutput::SOURCE, 'miss')
+            ->assertHeaderMissing('Set-Cookie');
+        self::assertSame('', $first->getContent());
+        self::assertSame(['max-age=0', 'public', 's-maxage=300'], $this->cacheControl($first));
+        $second->assertStatus(301)
+            ->assertHeader('Location', 'https://south.example/nyheder/havnen')
+            ->assertHeader(DeliveryOutput::SURROGATE_KEY, implode(' ', $keys))
+            ->assertHeader(DeliveryOutput::SOURCE, 'hit');
+        $target->assertOk();
+        self::assertSame(self::ENTRY, $this->at($this->document($target), 'data.cms_id'));
+        self::assertSame(self::OWN_PLACEMENT, StorageTables::superuser()->table('placement_locales')->where('slug', 'havnen')->value('placement_id'));
+        $source->assertOk();
+        self::assertSame('https://north.example/nyheder/harbour', $this->at($this->document($source), 'meta.canonical_url'));
+    }
+
+    #[Test]
+    public function it_explains_the_redirect_with_its_status_and_the_redirect_step_to_a_staff_actor_without_a_location(): void
+    {
+        $structure = $this->world(own: true);
+        $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+        $identity = PostgresIdentity::at($clock);
+        $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $clock, new FakeIdGenerator(seed: 3637, clock: $clock));
+        $actor = $identity->addActor(ActorClass::Service)->id;
+        $fixtures->grant($actor, $fixtures->role('editor', ClassificationAccess::Internal), $structure->south->root->id);
+        $credential = $identity->issue(new ServiceCredentialSpec($actor, IssuerKind::Service, ClassificationAccess::Internal, $clock->now()->add(new DateInterval('P1D'))));
+
+        $explained = $this->resolve('south.example', '/national/harbour', ['debug' => '1'], ['Authorization' => 'Bearer '.$credential->reveal()]);
+        $document = $this->document($explained);
+
+        $explained->assertStatus(301)->assertHeader('Content-Type', 'application/json')->assertHeaderMissing('Location');
+        self::assertSame(301, $this->at($document, 'status'));
+        self::assertSame('redirect', $this->at($document, 'explanation.outcome'));
+        self::assertSame('https://south.example/nyheder/havnen', $this->at($document, 'explanation.redirect.url'));
+        self::assertSame(self::OWN_PLACEMENT, $this->at($document, 'explanation.redirect.placement'));
+        self::assertSame('own_placement', $this->at($document, 'explanation.redirect.reason'));
+        self::assertNull($this->at($document, 'data'));
+        self::assertNull($this->at($document, 'problem'));
+        self::assertSame(['no-store', 'private'], $this->cacheControl($explained));
     }
 
     #[Test]
@@ -258,10 +320,11 @@ final class DeliveryResolveTest extends TestCase
     /**
      * The seeded structure, the mount of north's section at /national on south, and the fixture
      * article published below north's section with the slug "harbour", in the window given or from
-     * the publish on, with the ciphertext of its embargo; the container's clock $hours after the
-     * publish.
+     * the publish on, with the ciphertext of its embargo; with $own, south's own placement of the
+     * article below its section with the slug "havnen", live from the publish on; the container's
+     * clock $hours after the publish.
      */
-    private function world(?TimeWindow $window = null, int $hours = 1): PlacementStructure
+    private function world(?TimeWindow $window = null, int $hours = 1, bool $own = false): PlacementStructure
     {
         $structure = PlacementWorld::seed();
         $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
@@ -276,6 +339,12 @@ final class DeliveryResolveTest extends TestCase
             $world->place($placement, $entry, $structure->northSection, $structure->north, 'harbour', 'deliver-place'),
             $world->publish($entry, 1, 1, $placement, 1, 'deliver-publish', $window),
         ];
+
+        if ($own) {
+            $ownPlacement = PlacementId::fromString(self::OWN_PLACEMENT);
+            $results[] = $world->place($ownPlacement, $entry, $structure->southSection, $structure->south, 'havnen', 'deliver-own');
+            $results[] = $world->setWindow($ownPlacement, 1, new TimeWindow(new DateTimeImmutable(EntryWorld::NOW)), 'deliver-own-live');
+        }
 
         foreach ($results as $result) {
             if ($result->outcome() !== Outcome::Committed) {

@@ -29,6 +29,7 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
@@ -261,6 +262,25 @@ trait RouteReaderBehaviour
             $reader->canonical(EntryId::fromString(self::DRAFT), new Locale('da')),
         );
         Assert::assertNull($reader->canonical(EntryId::fromString(self::ENTRY), new Locale('en')));
+    }
+
+    #[Test]
+    public function it_reads_the_sites_own_placement_of_an_entry_with_its_route_and_none_through_a_mount_or_withdrawn(): void
+    {
+        $reader = $this->routeReader();
+        $da = new Locale('da');
+        $entry = EntryId::fromString(self::ENTRY);
+
+        Assert::assertEquals(
+            new OwnPlacement(PlacementId::fromString(self::PLACED), NodeId::fromString(self::SECTION), '/nyheder', new Slug('harbour'), Visibility::Live, new TimeWindow(new DateTimeImmutable(self::LIVE_FROM))),
+            $reader->own(SiteId::fromString(self::NORTH), $entry, $da),
+        );
+        Assert::assertEquals(
+            new OwnPlacement(PlacementId::fromString(self::DRAFTED), NodeId::fromString(self::SPORT), '/nyheder/sport', new Slug('match'), Visibility::Hidden, null),
+            $reader->own(SiteId::fromString(self::NORTH), EntryId::fromString(self::DRAFT), $da),
+        );
+        Assert::assertNull($reader->own(SiteId::fromString(self::SOUTH), $entry, $da));
+        Assert::assertNull($reader->own(SiteId::fromString(self::NORTH), $entry, new Locale('en')));
     }
 
     #[Test]

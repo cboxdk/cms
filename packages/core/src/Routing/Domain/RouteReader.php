@@ -10,8 +10,10 @@ use Cbox\Cms\Contracts\Content\Slug;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\SiteId;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
 
@@ -44,6 +46,14 @@ interface RouteReader
      * its node in the site whose tree holds the node; null when the reader can read none.
      */
     public function canonical(EntryId $entry, Locale $locale): ?CanonicalMatch;
+
+    /**
+     * The site's own placement of the entry in the locale (PRD 5.8): the released stage of a
+     * placement of the entry that is not withdrawn, below a node of the site that has a route in
+     * the locale, the canonical one first and then the lowest id; null when the reader can read
+     * none. A mount holds no placement, so a placement the site shows through one never counts.
+     */
+    public function own(SiteId $site, EntryId $entry, Locale $locale): ?OwnPlacement;
 
     /**
      * The fields of the entry's released row in its type's table, the delivery projection of what

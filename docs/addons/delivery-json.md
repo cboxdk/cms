@@ -1,7 +1,7 @@
 ---
 title: Delivery and explanation JSON
 weight: 47
-description: "The JSON forms of the delivery API's answers, its fragments, the path explanation and cms:explain --json, each a JSON Schema with a generated codec and TypeScript validator."
+description: "The JSON forms of the delivery API's answers, its fragments, the path explanation with its redirect step and cms:explain --json, each a JSON Schema with a generated codec and TypeScript validator."
 ---
 
 # Delivery and explanation JSON
@@ -17,10 +17,10 @@ The delivery API's answers and the explanation of a resolution are contracts lik
 | Schema | What it is | PHP form | Codec |
 |---|---|---|---|
 | [`delivery.v1.json`](../../packages/contracts/resources/schemas/delivery.v1.json) | the body of a 200 answer of `GET /v1/resolve`: `data`, the record, and `meta`, its `canonical_url`, `contract`, `locale` and `type` | `Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument` | `DeliveryCodecV1` |
-| [`delivery-explanation.v1.json`](../../packages/contracts/resources/schemas/delivery-explanation.v1.json) | the body of an answer with `debug=1`: `data` and `meta`, or `problem`, with `status` and `explanation` | `Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation` | `DeliveryExplanationCodecV1` |
-| [`path-explanation.v1.json`](../../packages/contracts/resources/schemas/path-explanation.v1.json) | why the page at a path looks as it does: the outcome and each step of the resolution | `Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation` | `PathExplanationCodecV1` |
+| [`delivery-explanation.v1.json`](../../packages/contracts/resources/schemas/delivery-explanation.v1.json) | the body of an answer with `debug=1`: `data` and `meta`, or `problem`, or neither for a redirect, with `status` and `explanation` | `Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation` | `DeliveryExplanationCodecV1` |
+| [`path-explanation.v1.json`](../../packages/contracts/resources/schemas/path-explanation.v1.json) | why the page at a path looks as it does: the outcome and each step of the resolution, the redirect included | `Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation` | `PathExplanationCodecV1` |
 | [`explained-path.v1.json`](../../packages/contracts/resources/schemas/explained-path.v1.json) | what `cms:explain --json` prints: `content_keys`, `explanation` and `read_position` | `Cbox\Cms\Core\Routing\Domain\Dto\ExplainedPath` | `ExplainedPathCodecV1` |
-| [`delivery-fragment.v1.json`](../../packages/core/resources/schemas/delivery-fragment.v1.json) | what a fragment holds of an answer: `body`, `format`, `stale` and `status`; it never leaves the server | `Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer` | `DeliveryFragmentCodecV1` |
+| [`delivery-fragment.v1.json`](../../packages/core/resources/schemas/delivery-fragment.v1.json) | what a fragment holds of an answer: `body`, `format`, `location`, `stale` and `status`; it never leaves the server | `Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer` | `DeliveryFragmentCodecV1` |
 
 Every key is always present, the keys are sorted and there is no whitespace, and a value that does not apply is `null`. Times are RFC 3339 in UTC with six decimals.
 
@@ -36,7 +36,7 @@ In TypeScript such a member is a `JsonObject`, and its rule is `{ kind: 'documen
 
 ## The path explanation
 
-The explanation holds ids, handles, the path and the decisions, never a field of the entry. A step the resolution did not reach is `null`, and `mount` is `null` too for a node that is not a mount. Two values are not in the document, because the document gives them already: the prefixes of the path a route was looked up as, the path itself, each shorter run of its leading segments and `/`, and the rung of the visibility decision, which `decision` names. `cms:explain` prints both without `--json`.
+The explanation holds ids, handles, the path and the decisions, never a field of the entry. A step the resolution did not reach is `null`, `mount` is `null` too for a node that is not a mount, and `redirect` is `null` unless the resolution ended in one: the outcome `redirect` (PRD 5.8, 5.9) with the absolute `url` the page lives at, the target `placement`, the `reason` (`own_placement`: the site has a placement of its own of the entry a mount shows) and `valid_until`, when the target placement's window next changes it. Such an explanation has no `visibility` and no `canonical` step. The delivery API answers it with 301 and the URL in `Location`, and a fragment of that answer keeps the URL in `location`. Two values are not in the document, because the document gives them already: the prefixes of the path a route was looked up as, the path itself, each shorter run of its leading segments and `/`, and the rung of the visibility decision, which `decision` names. `cms:explain` prints both without `--json`.
 
 ## The codecs are generated
 
@@ -89,7 +89,7 @@ it('writes the explanation of a resolution that stopped at the host, every step 
     $explanation = new PathExplanation(ResolveOutcome::UnknownHost, new SiteStep(new Host('nowhere.example'), new Locale('da'), null, null, false));
 
     expect(new PathExplanationCodecV1()->encode($explanation, ClassificationAccess::Public))->toBe(
-        '{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"route":null,'
+        '{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,'
         .'"site":{"handle":null,"host":"nowhere.example","locale":"da","locale_published":false,"site":null},"visibility":null}',
     );
 });

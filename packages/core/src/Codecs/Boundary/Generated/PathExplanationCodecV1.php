@@ -27,12 +27,14 @@ use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -90,6 +92,7 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
         $json->node = $object->node instanceof NodeStep ? $this->encodeNodeStep($object->node) : null;
         $json->outcome = $object->outcome->value;
         $json->placement = $object->placement instanceof PlacementStep ? $this->encodePlacementStep($object->placement) : null;
+        $json->redirect = $object->redirect instanceof RedirectStep ? $this->encodeRedirectStep($object->redirect) : null;
         $json->route = $object->route instanceof RouteStep ? $this->encodeRouteStep($object->route) : null;
         $json->site = $this->encodeSiteStep($object->site);
         $json->visibility = $object->visibility instanceof VisibilityStep ? $this->encodeVisibilityStep($object->visibility) : null;
@@ -99,7 +102,7 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
 
     private function decodePathExplanation(stdClass $value): PathExplanation
     {
-        $object = JsonValues::object($value, null, ['canonical', 'mount', 'node', 'outcome', 'placement', 'route', 'site', 'visibility']);
+        $object = JsonValues::object($value, null, ['canonical', 'mount', 'node', 'outcome', 'placement', 'redirect', 'route', 'site', 'visibility']);
 
         return JsonValues::build(null, fn (): PathExplanation => new PathExplanation(
             outcome: JsonValues::required($object, 'outcome', null, static fn (mixed $value, FieldPath $at): ResolveOutcome => JsonValues::enum($value, $at, ResolveOutcome::class)),
@@ -110,6 +113,7 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
             placement: JsonValues::present($object, 'placement', null, $this->decodePlacementStep(...)),
             visibility: JsonValues::present($object, 'visibility', null, $this->decodeVisibilityStep(...)),
             canonical: JsonValues::present($object, 'canonical', null, $this->decodeCanonicalStep(...)),
+            redirect: JsonValues::present($object, 'redirect', null, $this->decodeRedirectStep(...)),
         ));
     }
 
@@ -198,6 +202,29 @@ final readonly class PathExplanationCodecV1 implements JsonCodec
             type: JsonValues::present($object, 'type', $path, static fn (mixed $value, FieldPath $at): TypeId => JsonValues::id($value, $at, TypeId::fromString(...))),
             canonical: JsonValues::required($object, 'canonical', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             routable: JsonValues::required($object, 'routable', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodeRedirectStep(RedirectStep $object): stdClass
+    {
+        $json = new stdClass;
+        $json->placement = $object->placement instanceof PlacementId ? $object->placement->toString() : null;
+        $json->reason = $object->reason->value;
+        $json->url = $object->url;
+        $json->valid_until = $object->validUntil instanceof DateTimeImmutable ? JsonValues::encodeDatetime($object->validUntil) : null;
+
+        return $json;
+    }
+
+    private function decodeRedirectStep(mixed $value, FieldPath $path): RedirectStep
+    {
+        $object = JsonValues::object($value, $path, ['placement', 'reason', 'url', 'valid_until']);
+
+        return JsonValues::build($path, static fn (): RedirectStep => new RedirectStep(
+            url: JsonValues::required($object, 'url', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
+            placement: JsonValues::present($object, 'placement', $path, static fn (mixed $value, FieldPath $at): PlacementId => JsonValues::id($value, $at, PlacementId::fromString(...))),
+            reason: JsonValues::required($object, 'reason', $path, static fn (mixed $value, FieldPath $at): RedirectReason => JsonValues::enum($value, $at, RedirectReason::class)),
+            validUntil: JsonValues::present($object, 'valid_until', $path, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at)),
         ));
     }
 

@@ -11,15 +11,18 @@ use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Core\Delivery\Domain\PathAnswers;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\VisibilityDecision;
@@ -35,7 +38,7 @@ const ANSWERED_NODE = '01936f5e-8a2b-7c3d-9e4f-000000003612';
 
 const ANSWERED_ENTRY = '01936f5e-8a2b-7c3d-9e4f-000000003631';
 
-function answeredExplanation(ResolveOutcome $outcome, ?VisibilityStep $visibility = null, bool $placed = true): PathExplanation
+function answeredExplanation(ResolveOutcome $outcome, ?VisibilityStep $visibility = null, bool $placed = true, ?RedirectStep $redirect = null): PathExplanation
 {
     return new PathExplanation(
         $outcome,
@@ -43,7 +46,13 @@ function answeredExplanation(ResolveOutcome $outcome, ?VisibilityStep $visibilit
         new RouteStep(new RequestPath('/nyheder/harbour'), '/nyheder', 'harbour'),
         placement: $placed ? new PlacementStep(NodeId::fromString(ANSWERED_NODE), new Slug('harbour')) : null,
         visibility: $visibility,
+        redirect: $redirect,
     );
+}
+
+function answeredRedirect(?DateTimeImmutable $validUntil = null): RedirectStep
+{
+    return new RedirectStep('https://north.example/lokalt/havnen', PlacementId::fromString('01936f5e-8a2b-7c3d-9e4f-000000003642'), RedirectReason::OwnPlacement, $validUntil);
 }
 
 function answeredVisibility(VisibilityDecision $decision, ?EntryLifecycle $lifecycle = EntryLifecycle::Active, ?DateTimeImmutable $validUntil = null): VisibilityStep
@@ -60,8 +69,9 @@ function answeredKeys(array $read, bool $placed): array
     return array_map(static fn (DependencyKey $key): string => $key->toString(), PathAnswers::contentKeys(answeredExplanation(ResolveOutcome::NoPlacement, placed: $placed), $read));
 }
 
-it('answers a resolved path with no code, and an unknown host with host_not_configured', function (): void {
+it('answers a resolved path and a redirect with no code, and an unknown host with host_not_configured', function (): void {
     expect(PathAnswers::code(answeredExplanation(ResolveOutcome::Resolved)))->toBeNull()
+        ->and(PathAnswers::code(answeredExplanation(ResolveOutcome::Redirect, redirect: answeredRedirect())))->toBeNull()
         ->and(PathAnswers::code(answeredExplanation(ResolveOutcome::UnknownHost)))->toBe(ErrorCode::HostNotConfigured);
 });
 
@@ -89,6 +99,8 @@ it('says the cause of each outcome in the detail', function (): void {
     $site = new SiteStep(new Host('north.example'), new Locale('da'), null, null, false);
 
     expect(PathAnswers::detail(answeredExplanation(ResolveOutcome::Resolved)))->toBe('/nyheder/harbour in da at north.example resolved.')
+        ->and(PathAnswers::detail(answeredExplanation(ResolveOutcome::Redirect, redirect: answeredRedirect())))->toBe('/nyheder/harbour in da at north.example lives at https://north.example/lokalt/havnen.')
+        ->and(PathAnswers::detail(answeredExplanation(ResolveOutcome::Redirect)))->toBe('/nyheder/harbour in da at north.example lives at another URL.')
         ->and(PathAnswers::detail(answeredExplanation(ResolveOutcome::UnknownHost)))->toBe('No configured site is served at north.example.')
         ->and(PathAnswers::detail(new PathExplanation(ResolveOutcome::UnknownSite, $site)))->toBe('The site configured for north.example does not exist.')
         ->and(PathAnswers::detail(new PathExplanation(ResolveOutcome::LocaleNotPublished, $site)))->toBe('The site at north.example does not publish in da.')
@@ -115,6 +127,9 @@ it('holds an answer until the window next changes it, and lets only a resolved p
 
     expect(PathAnswers::validUntil(answeredExplanation(ResolveOutcome::Resolved, answeredVisibility(VisibilityDecision::Visible, validUntil: $until))))->toEqual($until)
         ->and(PathAnswers::validUntil(answeredExplanation(ResolveOutcome::NoPlacement)))->toBeNull()
+        ->and(PathAnswers::validUntil(answeredExplanation(ResolveOutcome::Redirect, redirect: answeredRedirect($until))))->toEqual($until)
+        ->and(PathAnswers::validUntil(answeredExplanation(ResolveOutcome::Redirect, redirect: answeredRedirect())))->toBeNull()
+        ->and(PathAnswers::mayBeStale(answeredExplanation(ResolveOutcome::Redirect, redirect: answeredRedirect())))->toBeFalse()
         ->and(PathAnswers::mayBeStale(answeredExplanation(ResolveOutcome::Resolved, answeredVisibility(VisibilityDecision::Visible))))->toBeTrue()
         ->and(PathAnswers::mayBeStale(answeredExplanation(ResolveOutcome::Resolved, answeredVisibility(VisibilityDecision::Visible, validUntil: $until))))->toBeFalse()
         ->and(PathAnswers::mayBeStale(answeredExplanation(ResolveOutcome::NotVisible, answeredVisibility(VisibilityDecision::AfterWindow))))->toBeFalse()

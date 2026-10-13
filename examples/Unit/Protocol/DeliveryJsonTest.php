@@ -41,7 +41,7 @@ it('writes the explanation of a resolution that stopped at the host, every step 
     $explanation = new PathExplanation(ResolveOutcome::UnknownHost, new SiteStep(new Host('nowhere.example'), new Locale('da'), null, null, false));
 
     expect(new PathExplanationCodecV1()->encode($explanation, ClassificationAccess::Public))->toBe(
-        '{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"route":null,'
+        '{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,'
         .'"site":{"handle":null,"host":"nowhere.example","locale":"da","locale_published":false,"site":null},"visibility":null}',
     );
 });

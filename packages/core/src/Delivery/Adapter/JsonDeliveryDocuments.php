@@ -22,6 +22,7 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryDocument;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryMeta;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use LogicException;
 use Override;
 
@@ -34,6 +35,7 @@ use Override;
  * - A problem: problem.v1.json by ProblemCodecV1.
  * - An explanation: delivery-explanation.v1.json by DeliveryExplanationCodecV1, with the
  *   explanation written by PathExplanationCodecV1 and the problem by ProblemCodecV1.
+ * - A redirect: no body; its URL travels in Location, and in the fragment's location.
  * - A fragment: delivery-fragment.v1.json by DeliveryFragmentCodecV1; stored() gives null for any
  *   bytes the codec does not read, so a damaged fragment is rebuilt instead of served.
  */
@@ -55,6 +57,7 @@ final readonly class JsonDeliveryDocuments implements DeliveryDocuments
             AnswerFormat::Record => $this->records->encode(new DeliveryDocument($this->record($answer), $this->meta($answer)), ClassificationAccess::Public),
             AnswerFormat::Problem => $this->problem($answer->problem ?? throw new LogicException('A problem answer holds its problem.')),
             AnswerFormat::Explanation => $this->explanation($answer),
+            AnswerFormat::Redirect => '',
         };
     }
 
@@ -78,11 +81,12 @@ final readonly class JsonDeliveryDocuments implements DeliveryDocuments
     {
         $explanation = $answer->explanation ?? throw new LogicException('An explanation answer holds its explanation.');
         $problem = $answer->problem;
+        $record = ! $problem instanceof Problem && ! $answer->redirect instanceof RedirectStep;
 
         return $this->explanations->encode(new DeliveryExplanation(
-            data: $problem instanceof Problem ? null : $this->record($answer),
+            data: $record ? $this->record($answer) : null,
             explanation: new JsonDocument($this->paths->encode($explanation, ClassificationAccess::Public)),
-            meta: $problem instanceof Problem ? null : $this->meta($answer),
+            meta: $record ? $this->meta($answer) : null,
             problem: $problem instanceof Problem ? new JsonDocument($this->problem($problem)) : null,
             status: $answer->status,
         ), ClassificationAccess::Public);

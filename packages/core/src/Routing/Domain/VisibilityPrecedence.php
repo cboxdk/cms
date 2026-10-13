@@ -34,7 +34,7 @@ final readonly class VisibilityPrecedence
             $placement->release === ReleaseState::Withdrawn => VisibilityDecision::VariantWithdrawn,
             $placement->visibility === Visibility::Withdrawn => VisibilityDecision::PlacementWithdrawn,
             $placement->hiddenOnMount => VisibilityDecision::MountHidden,
-            $stages !== Stages::None && $placement->release !== ReleaseState::Released => VisibilityDecision::NoReleasedRevision,
+            ! self::entryShowable($placement, $stages) => VisibilityDecision::NoReleasedRevision,
             default => self::window($placement, $at),
         };
 
@@ -49,6 +49,18 @@ final readonly class VisibilityPrecedence
                 ? Visibility::nextTransition($placement->window, $at)
                 : null,
         );
+    }
+
+    /**
+     * Whether the entry itself, apart from any placement of it, can be shown (PRD 6.6 rungs 2, 3
+     * and 8): it is active, its variant is not withdrawn, and a type with stages has a released
+     * revision. A placement of such an entry shows when its own state and window allow it.
+     */
+    public static function entryShowable(PlacementMatch $placement, ?Stages $stages): bool
+    {
+        return $placement->lifecycle === EntryLifecycle::Active
+            && $placement->release !== ReleaseState::Withdrawn
+            && ($stages === Stages::None || $placement->release === ReleaseState::Released);
     }
 
     private static function window(PlacementMatch $placement, DateTimeImmutable $at): VisibilityDecision

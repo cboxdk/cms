@@ -62,6 +62,7 @@ it('writes every step of a resolved placement with every key, sorted', function 
             'slug' => 'harbour',
             'type' => World::ARTICLE,
         ],
+        'redirect' => null,
         'route' => ['path' => '/nyheder/harbour', 'rest' => 'harbour', 'route' => '/nyheder'],
         'site' => ['handle' => 'north', 'host' => 'north.example', 'locale' => 'da', 'locale_published' => true, 'site' => World::NORTH_SITE],
         'visibility' => [
@@ -90,6 +91,21 @@ it('writes the mount of a second site and the canonical URL on the source\'s sit
         ]);
 });
 
+it('writes the redirect of a mount URL to the site\'s own placement, with no visibility and no canonical step', function (): void {
+    $world = new World()
+        ->place(World::PLACEMENT, World::SECTION, 'harbour')
+        ->place(World::SOUTH_PLACEMENT, World::LOCAL, 'havnen', window: World::window(-1, 5), canonical: false);
+
+    $document = explanationDocument($world->resolve('south.example', '/national/harbour')->explanation);
+
+    expect($document['outcome'])->toBe('redirect')
+        ->and($document['redirect'])->toBe(['placement' => World::SOUTH_PLACEMENT, 'reason' => 'own_placement', 'url' => 'https://south.example/lokalt/havnen', 'valid_until' => '2026-03-10T17:00:00.000000Z'])
+        ->and($document['mount'])->toBe(['mount' => World::MOUNT, 'source' => World::SECTION])
+        ->and($document['placement'])->toMatchArray(['placement' => World::PLACEMENT, 'entry' => World::ENTRY])
+        ->and($document['visibility'])->toBeNull()
+        ->and($document['canonical'])->toBeNull();
+});
+
 it('writes null for every step a resolution did not reach', function (): void {
     $document = explanationDocument(new World()->resolve('nowhere.example', '/nyheder/harbour')->explanation);
 
@@ -99,6 +115,7 @@ it('writes null for every step a resolution did not reach', function (): void {
         'node' => null,
         'outcome' => 'unknown_host',
         'placement' => null,
+        'redirect' => null,
         'route' => null,
         'site' => ['handle' => null, 'host' => 'nowhere.example', 'locale' => 'da', 'locale_published' => false, 'site' => null],
         'visibility' => null,

@@ -29,6 +29,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
@@ -36,6 +37,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -251,6 +253,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                         "node",
                         "outcome",
                         "placement",
+                        "redirect",
                         "route",
                         "site",
                         "visibility"
@@ -290,7 +293,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                             ]
                         },
                         "outcome": {
-                            "description": "How the resolution ended, named by the step that stopped it: unknown_host (no configured site has the host), unknown_site (the host's site is configured, but no site has its handle), locale_not_published, no_route, no_slug (what is left of the path is not one slug), no_placement (no placement the reader can read has the slug), not_routable (the type has no URLs), not_visible (the precedence of PRD 6.6 blocks the placement) or resolved.",
+                            "description": "How the resolution ended, named by the step that stopped it: unknown_host (no configured site has the host), unknown_site (the host's site is configured, but no site has its handle), locale_not_published, no_route, no_slug (what is left of the path is not one slug), no_placement (no placement the reader can read has the slug), not_routable (the type has no URLs), not_visible (the precedence of PRD 6.6 blocks the placement), redirect (the page lives at another URL, which the redirect step names) or resolved.",
                             "enum": [
                                 "unknown_host",
                                 "unknown_site",
@@ -300,6 +303,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                                 "no_placement",
                                 "not_routable",
                                 "not_visible",
+                                "redirect",
                                 "resolved"
                             ]
                         },
@@ -308,6 +312,17 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                             "anyOf": [
                                 {
                                     "$ref": "#/$defs/placement_step"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
+                        "redirect": {
+                            "description": "The redirect the resolution ended in (PRD 5.8, 5.9), or null when it did not.",
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/redirect_step"
                                 },
                                 {
                                     "type": "null"
@@ -427,6 +442,45 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
                         "type": {
                             "description": "The entry's type.",
                             "$ref": "#/$defs/id"
+                        }
+                    }
+                },
+                "redirect_step": {
+                    "description": "The resolution ends in a redirect (PRD 5.8, 5.9, 8.10): the page lives at another URL, reached in one hop, never through another redirect. In this version the reason is own_placement: the site has a placement of its own of the entry a mount shows, which suppresses the mounted one, so the mount URL answers 301 to it.",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "placement",
+                        "reason",
+                        "url",
+                        "valid_until"
+                    ],
+                    "properties": {
+                        "placement": {
+                            "description": "The placement the URL is of, or null when the redirect targets no placement.",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+                        },
+                        "reason": {
+                            "description": "Why the path redirects: own_placement (the site has its own placement of the entry the mount shows, PRD 5.8).",
+                            "enum": [
+                                "own_placement"
+                            ]
+                        },
+                        "url": {
+                            "description": "The absolute URL the path redirects to, the origin of the target's site with its node's route and its slug, never built from the request.",
+                            "type": "string"
+                        },
+                        "valid_until": {
+                            "description": "When the redirect can next change because of the target placement's window, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read. Null when the window never changes it again.",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "format": "date-time"
                         }
                     }
                 },
@@ -709,6 +763,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
         $json->node = $object->node instanceof NodeStep ? $this->encodeNodeStep($object->node) : null;
         $json->outcome = $object->outcome->value;
         $json->placement = $object->placement instanceof PlacementStep ? $this->encodePlacementStep($object->placement) : null;
+        $json->redirect = $object->redirect instanceof RedirectStep ? $this->encodeRedirectStep($object->redirect) : null;
         $json->route = $object->route instanceof RouteStep ? $this->encodeRouteStep($object->route) : null;
         $json->site = $this->encodeSiteStep($object->site);
         $json->visibility = $object->visibility instanceof VisibilityStep ? $this->encodeVisibilityStep($object->visibility) : null;
@@ -718,7 +773,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
 
     private function decodePathExplanation(mixed $value, FieldPath $path): PathExplanation
     {
-        $object = JsonValues::object($value, $path, ['canonical', 'mount', 'node', 'outcome', 'placement', 'route', 'site', 'visibility']);
+        $object = JsonValues::object($value, $path, ['canonical', 'mount', 'node', 'outcome', 'placement', 'redirect', 'route', 'site', 'visibility']);
 
         return JsonValues::build($path, fn (): PathExplanation => new PathExplanation(
             outcome: JsonValues::required($object, 'outcome', $path, static fn (mixed $value, FieldPath $at): ResolveOutcome => JsonValues::enum($value, $at, ResolveOutcome::class)),
@@ -729,6 +784,7 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
             placement: JsonValues::present($object, 'placement', $path, $this->decodePlacementStep(...)),
             visibility: JsonValues::present($object, 'visibility', $path, $this->decodeVisibilityStep(...)),
             canonical: JsonValues::present($object, 'canonical', $path, $this->decodeCanonicalStep(...)),
+            redirect: JsonValues::present($object, 'redirect', $path, $this->decodeRedirectStep(...)),
         ));
     }
 
@@ -817,6 +873,29 @@ final readonly class ResolvedPathCodecV1 implements JsonCodec
             type: JsonValues::present($object, 'type', $path, static fn (mixed $value, FieldPath $at): TypeId => JsonValues::id($value, $at, TypeId::fromString(...))),
             canonical: JsonValues::required($object, 'canonical', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             routable: JsonValues::required($object, 'routable', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodeRedirectStep(RedirectStep $object): stdClass
+    {
+        $json = new stdClass;
+        $json->placement = $object->placement instanceof PlacementId ? $object->placement->toString() : null;
+        $json->reason = $object->reason->value;
+        $json->url = $object->url;
+        $json->valid_until = $object->validUntil instanceof DateTimeImmutable ? JsonValues::encodeDatetime($object->validUntil) : null;
+
+        return $json;
+    }
+
+    private function decodeRedirectStep(mixed $value, FieldPath $path): RedirectStep
+    {
+        $object = JsonValues::object($value, $path, ['placement', 'reason', 'url', 'valid_until']);
+
+        return JsonValues::build($path, static fn (): RedirectStep => new RedirectStep(
+            url: JsonValues::required($object, 'url', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
+            placement: JsonValues::present($object, 'placement', $path, static fn (mixed $value, FieldPath $at): PlacementId => JsonValues::id($value, $at, PlacementId::fromString(...))),
+            reason: JsonValues::required($object, 'reason', $path, static fn (mixed $value, FieldPath $at): RedirectReason => JsonValues::enum($value, $at, RedirectReason::class)),
+            validUntil: JsonValues::present($object, 'valid_until', $path, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at)),
         ));
     }
 

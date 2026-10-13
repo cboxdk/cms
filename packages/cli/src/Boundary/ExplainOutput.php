@@ -26,9 +26,11 @@ use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -124,6 +126,10 @@ final readonly class ExplainOutput
             $lines[] = $this->placement($explanation->placement);
         }
 
+        if ($explanation->redirect instanceof RedirectStep) {
+            $lines[] = $this->redirect($explanation->redirect);
+        }
+
         if ($explanation->visibility instanceof VisibilityStep) {
             $lines[] = $this->visibility($explanation->visibility);
         }
@@ -160,6 +166,20 @@ final readonly class ExplainOutput
             $placement->entry->toString(),
             $placement->type instanceof TypeId ? sprintf('type %s %s', $placement->type->toString(), $placement->routable ? 'with URLs' : 'without URLs') : 'whose entry the reader cannot read',
             $placement->canonical ? 'canonical' : 'not canonical',
+        );
+    }
+
+    private function redirect(RedirectStep $redirect): string
+    {
+        return sprintf(
+            '  %-12s 301 to %s%s, %s%s',
+            'redirect',
+            $redirect->url,
+            $redirect->placement instanceof PlacementId ? sprintf(' (placement %s)', $redirect->placement->toString()) : '',
+            match ($redirect->reason) {
+                RedirectReason::OwnPlacement => 'the site\'s own placement of the entry, which suppresses the mounted one',
+            },
+            $redirect->validUntil instanceof DateTimeImmutable ? '; valid until '.$this->time($redirect->validUntil) : '',
         );
     }
 

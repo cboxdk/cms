@@ -30,12 +30,14 @@ use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\VisibilityStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -90,7 +92,7 @@ it('writes an explanation with every step, ids in their canonical form and insta
         .',"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"}'
         .',"outcome":"resolved"'
         .',"placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"}'
-        .',"route":{"path":"/national/harbour","rest":"harbour","route":"/national"}'
+        .',"redirect":null,"route":{"path":"/national/harbour","rest":"harbour","route":"/national"}'
         .',"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"}'
         .',"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}'
         .',"meta":{"canonical_url":"https://north.example/nyheder/harbour","contract":1,"locale":"da","type":"app:article"}'
@@ -108,7 +110,7 @@ it('writes the explanation of a problem with the problem and without a record, a
     $explanation = new PathExplanation(ResolveOutcome::LocaleNotPublished, new SiteStep(new Host('north.example'), new Locale('en'), null, null, false));
 
     expect(new JsonDeliveryDocuments()->body(DeliveryAnswer::problem($problem, $explanation)))->toBe('{"data":null'
-        .',"explanation":{"canonical":null,"mount":null,"node":null,"outcome":"locale_not_published","placement":null,"route":null'
+        .',"explanation":{"canonical":null,"mount":null,"node":null,"outcome":"locale_not_published","placement":null,"redirect":null,"route":null'
         .',"site":{"handle":null,"host":"north.example","locale":"en","locale_published":false,"site":null},"visibility":null}'
         .',"meta":null,"problem":'.new ProblemCodecV1()->encode($problem, ClassificationAccess::Public).',"status":404}');
 });
@@ -135,19 +137,35 @@ it('writes an open window end and a missing decision input as null', function ()
         ->toContain('"window":{"from":null,"until":"2026-03-10T11:00:00.000000Z"}');
 });
 
+it('writes a redirect without a body, and its explanation with the status 301, the redirect step and neither record nor problem', function (): void {
+    $documents = new JsonDeliveryDocuments;
+    $redirect = new RedirectStep('https://south.example/lokalt/havnen', PlacementId::fromString('01936f5e-8a2b-7c3d-9e4f-000000003642'), RedirectReason::OwnPlacement, new DateTimeImmutable('2026-03-10T14:00:00Z'));
+    $explanation = new PathExplanation(ResolveOutcome::Redirect, new SiteStep(new Host('south.example'), new Locale('da'), null, null, true), redirect: $redirect);
+
+    expect($documents->body(DeliveryAnswer::redirect($redirect)))->toBe('')
+        ->and($documents->body(DeliveryAnswer::redirect($redirect, $explanation)))->toBe('{"data":null'
+            .',"explanation":{"canonical":null,"mount":null,"node":null,"outcome":"redirect","placement":null'
+            .',"redirect":{"placement":"01936f5e-8a2b-7c3d-9e4f-000000003642","reason":"own_placement","url":"https://south.example/lokalt/havnen","valid_until":"2026-03-10T14:00:00.000000Z"}'
+            .',"route":null,"site":{"handle":null,"host":"south.example","locale":"da","locale_published":true,"site":null},"visibility":null}'
+            .',"meta":null,"problem":null,"status":301}');
+});
+
 it('stores an answer as its body, format, stale flag and status, and reads back only that form', function (): void {
     $documents = new JsonDeliveryDocuments;
     $stored = new StoredAnswer(HttpStatus::NotFound, AnswerFormat::Problem, '{"code":"path_not_found"}', false);
+    $redirect = new StoredAnswer(HttpStatus::MovedPermanently, AnswerFormat::Redirect, '', false, 'https://south.example/lokalt/havnen');
 
-    expect($documents->fragment($stored))->toBe('{"body":"{\"code\":\"path_not_found\"}","format":"problem","stale":false,"status":404}')
-        ->and($documents->stored('{"body":"x","format":"record","stale":true,"status":200}'))->toEqual(new StoredAnswer(HttpStatus::Ok, AnswerFormat::Record, 'x', true))
+    expect($documents->fragment($stored))->toBe('{"body":"{\"code\":\"path_not_found\"}","format":"problem","location":null,"stale":false,"status":404}')
+        ->and($documents->fragment($redirect))->toBe('{"body":"","format":"redirect","location":"https://south.example/lokalt/havnen","stale":false,"status":301}')
+        ->and($documents->stored($documents->fragment($redirect)))->toEqual($redirect)
+        ->and($documents->stored('{"body":"x","format":"record","location":null,"stale":true,"status":200}'))->toEqual(new StoredAnswer(HttpStatus::Ok, AnswerFormat::Record, 'x', true))
         ->and($documents->stored('not json'))->toBeNull()
-        ->and($documents->stored('{"body":"x","format":"record","stale":true,"status":200,"more":1}'))->toBeNull()
-        ->and($documents->stored('{"body":1,"format":"record","stale":true,"status":200}'))->toBeNull()
-        ->and($documents->stored('{"body":"x","format":"other","stale":true,"status":200}'))->toBeNull()
+        ->and($documents->stored('{"body":"x","format":"record","location":null,"stale":true,"status":200,"more":1}'))->toBeNull()
+        ->and($documents->stored('{"body":1,"format":"record","location":null,"stale":true,"status":200}'))->toBeNull()
+        ->and($documents->stored('{"body":"x","format":"other","location":null,"stale":true,"status":200}'))->toBeNull()
         ->and($documents->stored('{"body":"x","format":1,"stale":true,"status":200}'))->toBeNull()
-        ->and($documents->stored('{"body":"x","format":"record","stale":"yes","status":200}'))->toBeNull()
-        ->and($documents->stored('{"body":"x","format":"record","stale":true,"status":299}'))->toBeNull()
-        ->and($documents->stored('{"body":"x","format":"record","stale":true,"status":"200"}'))->toBeNull()
-        ->and($documents->stored('{"format":"record","stale":true,"status":200}'))->toBeNull();
+        ->and($documents->stored('{"body":"x","format":"record","location":null,"stale":"yes","status":200}'))->toBeNull()
+        ->and($documents->stored('{"body":"x","format":"record","location":null,"stale":true,"status":299}'))->toBeNull()
+        ->and($documents->stored('{"body":"x","format":"record","location":null,"stale":true,"status":"200"}'))->toBeNull()
+        ->and($documents->stored('{"format":"record","location":null,"stale":true,"status":200}'))->toBeNull();
 });

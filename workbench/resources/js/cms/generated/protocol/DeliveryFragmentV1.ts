@@ -8,17 +8,17 @@
 import { validate, type ObjectRule, type Validation } from '../validation';
 
 /** The values of AnswerFormat. */
-export type AnswerFormat = 'record' | 'problem' | 'explanation';
+export type AnswerFormat = 'record' | 'problem' | 'explanation' | 'redirect';
 
 /** The values of HttpStatus. */
 export type HttpStatus =
-  200 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 429 | 500 | 503;
+  200 | 301 | 400 | 401 | 403 | 404 | 409 | 410 | 412 | 421 | 422 | 429 | 500 | 503;
 
 /**
  * What a fragment of the delivery API holds of an answer (PRD 8.12, 9.3): its HTTP status, the form
- * and the bytes of its body, and whether a shared cache may serve it stale. The fragment store
- * keeps it under the fragment's key with the fragment's content keys and valid_until; it is the
- * delivery API's own and never leaves the server. The PHP form is
+ * and the bytes of its body, the URL a redirect sends to, and whether a shared cache may serve it
+ * stale. The fragment store keeps it under the fragment's key with the fragment's content keys and
+ * valid_until; it is the delivery API's own and never leaves the server. The PHP form is
  * Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer, and the generated codec DeliveryFragmentCodecV1
  * writes and reads its canonical JSON: keys sorted, no whitespace. A fragment the codec does not
  * read is rebuilt, never served.
@@ -26,11 +26,13 @@ export type HttpStatus =
 export interface DeliveryFragmentV1 {
   /**
    * The bytes of the answer's body, a document of delivery.v1.json, problem.v1.json or
-   * delivery-explanation.v1.json as format says.
+   * delivery-explanation.v1.json as format says, and nothing for a redirect.
    */
   body: string;
-  /** The form of the body: record, problem or explanation. */
+  /** The form of the body: record, problem, explanation or redirect, which has no body. */
   format: AnswerFormat;
+  /** The absolute URL a redirect answer sends to, its Location, or null for every other answer. */
+  location: string | null;
   /**
    * Whether a shared cache may serve the answer stale while it refetches it or while the origin
    * fails.
@@ -47,16 +49,17 @@ const deliveryFragmentV1Rule: ObjectRule = {
       presence: 'required',
       value: {
         kind: 'enum',
-        values: [200, 400, 401, 403, 404, 409, 410, 412, 421, 422, 429, 500, 503],
+        values: [200, 301, 400, 401, 403, 404, 409, 410, 412, 421, 422, 429, 500, 503],
       },
     },
     {
       key: 'format',
       presence: 'required',
-      value: { kind: 'enum', values: ['record', 'problem', 'explanation'] },
+      value: { kind: 'enum', values: ['record', 'problem', 'explanation', 'redirect'] },
     },
     { key: 'body', presence: 'required', value: { kind: 'text' } },
     { key: 'stale', presence: 'required', value: { kind: 'boolean' } },
+    { key: 'location', presence: 'present', value: { kind: 'text' } },
   ],
 };
 

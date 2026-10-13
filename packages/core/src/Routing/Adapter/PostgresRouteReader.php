@@ -19,6 +19,7 @@ use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Placements\Adapter\PlacementRows;
 use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalMatch;
+use Cbox\Cms\Core\Routing\Domain\Dto\OwnPlacement;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteMatch;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteRoute;
@@ -55,6 +56,10 @@ use UnexpectedValueException;
  * - CANONICAL: the canonical placement of the entry in the locale, its node's route in the site
  *   whose root is the root of the node's tree, and that site's handle; both null when the node has
  *   no route.
+ * - OWN: the site's own placement of the entry in the locale (PRD 5.8), the released stage that is
+ *   not withdrawn below a node with a route of the site in the locale, the canonical one first and
+ *   then the lowest id, with the route, the slug, the stored visibility and the window; a route of
+ *   the site belongs to a node of its tree, and a mount holds no placement.
  * - released(): the entry's released row in its type's table, the shared variant's or, for a type
  *   with localization variants, the locale's, by the table's primary key, through the query
  *   builder, decoded by TypeTableColumns. The anonymous context
@@ -108,6 +113,15 @@ final readonly class PostgresRouteReader implements RouteReader
         left join sites as s on s.root_node_id = n.root_id
         left join node_routes as r on r.node_id = pl.node_id and r.site_id = s.id and r.locale = pl.locale
         where pl.entry_id = ?::uuid and pl.locale = ? and pl.stage = 'released' and pl.canonical
+        limit 1
+        SQL;
+
+    public const string OWN = <<<'SQL'
+        select pl.placement_id::text as placement_id, pl.node_id::text as node_id, r.route, pl.slug, pl.visibility, pl.live_from, pl.live_until
+        from placement_locales as pl
+        join node_routes as r on r.node_id = pl.node_id and r.site_id = ?::uuid and r.locale = pl.locale
+        where pl.entry_id = ?::uuid and pl.locale = ? and pl.stage = 'released' and pl.visibility <> 'withdrawn'
+        order by pl.canonical desc, pl.placement_id
         limit 1
         SQL;
 
@@ -198,6 +212,27 @@ final readonly class PostgresRouteReader implements RouteReader
             new Slug(PlacementRows::text($row, 'slug')),
             $handle === null ? null : new SiteHandle($handle),
             PlacementRows::textOrNull($row, 'route'),
+        );
+    }
+
+    #[Override]
+    public function own(SiteId $site, EntryId $entry, Locale $locale): ?OwnPlacement
+    {
+        $row = $this->db()->selectOne(self::OWN, [$site->toString(), $entry->toString(), $locale->value], false);
+
+        if ($row === null) {
+            return null;
+        }
+
+        $row = PlacementRows::object($row);
+
+        return new OwnPlacement(
+            PlacementId::fromString(PlacementRows::text($row, 'placement_id')),
+            NodeId::fromString(PlacementRows::text($row, 'node_id')),
+            PlacementRows::text($row, 'route'),
+            new Slug(PlacementRows::text($row, 'slug')),
+            PlacementRows::visibility($row),
+            PlacementRows::window($row),
         );
     }
 

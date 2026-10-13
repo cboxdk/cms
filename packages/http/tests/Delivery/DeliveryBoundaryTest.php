@@ -101,6 +101,17 @@ it('writes only the stale directives an answer has', function (int $revalidate, 
     [0, 90, 'max-age=0, public, s-maxage=60, stale-if-error=90'],
 ]);
 
+it('writes a redirect with its Location, no body and a public lifetime', function (): void {
+    $response = DeliveryOutput::response(new Delivery(HttpStatus::MovedPermanently, AnswerFormat::Redirect, '', [DependencyKey::entry(EntryId::fromString(BOUNDARY_ENTRY))], CacheDirective::shared(300), DeliverySource::Origin, 'https://south.example/lokalt/havnen'));
+
+    expect($response->getStatusCode())->toBe(301)
+        ->and($response->getContent())->toBe('')
+        ->and($response->headers->get('Location'))->toBe('https://south.example/lokalt/havnen')
+        ->and($response->headers->get('Cache-Control'))->toBe('max-age=0, public, s-maxage=300')
+        ->and($response->headers->get(DeliveryOutput::SURROGATE_KEY))->toBe('e-'.BOUNDARY_ENTRY)
+        ->and($response->headers->has('Vary'))->toBeFalse();
+});
+
 it('writes an answer no shared cache may keep as private and no-store, a problem as problem details, and a fragment as a hit', function (): void {
     $response = DeliveryOutput::response(boundaryDelivery(CacheDirective::noStore(), AnswerFormat::Problem, DeliverySource::Fragment, keys: false));
     $explained = DeliveryOutput::response(boundaryDelivery(CacheDirective::noStore(), AnswerFormat::Explanation));

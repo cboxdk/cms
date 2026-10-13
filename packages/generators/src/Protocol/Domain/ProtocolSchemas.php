@@ -146,6 +146,7 @@ use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\RouteStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
@@ -154,6 +155,7 @@ use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -931,6 +933,7 @@ final readonly class ProtocolSchemas
             $defs.'mount_step' => MountStep::class,
             $defs.'node_step' => NodeStep::class,
             $defs.'placement_step' => PlacementStep::class,
+            $defs.'redirect_step' => RedirectStep::class,
             $defs.'route_step' => RouteStep::class,
             $defs.'site_step' => SiteStep::class,
             $defs.'time_window' => TimeWindow::class,
@@ -960,6 +963,8 @@ final readonly class ProtocolSchemas
             $defs.'placement_step/properties/placement' => $id(PlacementId::class),
             $defs.'placement_step/properties/slug' => ValueBinding::value(Slug::class),
             $defs.'placement_step/properties/type' => $id(TypeId::class),
+            $defs.'redirect_step/properties/placement' => $id(PlacementId::class),
+            $defs.'redirect_step/properties/reason' => ValueBinding::enum(RedirectReason::class),
             $defs.'route_step/properties/path' => ValueBinding::value(RequestPath::class),
             $defs.'site_step/properties/handle' => ValueBinding::value(SiteHandle::class),
             $defs.'site_step/properties/host' => ValueBinding::value(Host::class),

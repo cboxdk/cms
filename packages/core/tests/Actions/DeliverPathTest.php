@@ -32,8 +32,9 @@ use DateTimeImmutable;
  * answered with the entry's record at the public classification access and stored as a fragment
  * with its content keys, and the next request is served from the fragment without a read; 404, 410
  * and 421 and a malformed request are answered with a problem; the lifetime is capped by the
- * placement's window; a build under a purge fence is sent with no-store; and the explanation is for
- * an actor whose access is at least internal, never stored.
+ * placement's window; a build under a purge fence is sent with no-store; a mount URL the site has
+ * its own placement for is answered 301 to that placement's URL, stored as a fragment with its
+ * Location; and the explanation is for an actor whose access is at least internal, never stored.
  */
 
 const DELIVERED_ENTRY = ResolveWorld::ENTRY;
@@ -81,6 +82,41 @@ it('answers the same placement through a mount on a second site, with the same c
         ->and($delivery->body)->toContain('record {"cms_id":"'.DELIVERED_ENTRY.'","title":"The harbour opens"}')
         ->and($delivery->body)->toContain('https://north.example/nyheder/harbour')
         ->and(deliveredKeys($delivery))->toBe(['e-'.DELIVERED_ENTRY, 'n-'.ResolveWorld::SECTION, 'n-'.ResolveWorld::MOUNT]);
+});
+
+it('answers a mount URL the site has its own placement for with 301 to that URL, tagged with the entry and the nodes, and serves it again from the fragment', function (): void {
+    $world = new DeliveryWorld;
+    $world->resolve
+        ->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour')
+        ->place(ResolveWorld::SOUTH_PLACEMENT, ResolveWorld::LOCAL, 'havnen', window: ResolveWorld::window(-1, 2), canonical: false);
+
+    $first = $world->deliver('south.example', 'da', '/national/harbour');
+    $fragment = deliveredFragment($world, 'south.example', '/national/harbour');
+    $second = $world->deliver('south.example', 'da', '/national/harbour');
+
+    expect($first->status)->toBe(HttpStatus::MovedPermanently)
+        ->and($first->format)->toBe(AnswerFormat::Redirect)
+        ->and($first->location)->toBe('https://south.example/lokalt/havnen')
+        ->and($first->body)->toBe('')
+        ->and(deliveredKeys($first))->toBe(['e-'.DELIVERED_ENTRY, 'n-'.ResolveWorld::SECTION, 'n-'.ResolveWorld::MOUNT])
+        ->and([$first->cache->shared, $first->cache->maxAge, $first->cache->staleWhileRevalidate, $first->cache->staleIfError])->toBe([true, 600, 0, 0])
+        ->and($fragment?->validUntil)->toEqual(new DateTimeImmutable(ResolveWorld::NOW)->add(new DateInterval('PT600S')))
+        ->and($world->resolutions())->toBe(1)
+        ->and($second->source)->toBe(DeliverySource::Fragment)
+        ->and([$second->status, $second->format, $second->location, deliveredKeys($second)])->toBe([HttpStatus::MovedPermanently, AnswerFormat::Redirect, 'https://south.example/lokalt/havnen', deliveredKeys($first)]);
+});
+
+it('caps a redirect at the end of the target placement\'s window', function (): void {
+    $world = new DeliveryWorld;
+    $world->resolve
+        ->place(ResolveWorld::PLACEMENT, ResolveWorld::SECTION, 'harbour')
+        ->place(ResolveWorld::SOUTH_PLACEMENT, ResolveWorld::LOCAL, 'havnen', window: ResolveWorld::window(-1, 2), canonical: false);
+    $world->settings = new DeliverySettings(maxAge: 86400, staleWhileRevalidate: 30, staleIfError: 3600);
+
+    $delivery = $world->deliver('south.example', 'da', '/national/harbour');
+
+    expect($delivery->status)->toBe(HttpStatus::MovedPermanently)
+        ->and([$delivery->cache->shared, $delivery->cache->maxAge, $delivery->cache->stale()])->toBe([true, 7200, false]);
 });
 
 it('serves the next request from the fragment without running the query pipeline, for what is left of its lifetime', function (): void {

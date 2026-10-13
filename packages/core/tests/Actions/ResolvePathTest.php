@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Cache\DependencyKey;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\Slug;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
@@ -21,12 +22,14 @@ use Cbox\Cms\Core\Routing\Domain\Dto\CanonicalStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\MountStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\NodeStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\PlacementStep;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Cbox\Cms\Core\Routing\Domain\Dto\ResolvedPath;
 use Cbox\Cms\Core\Routing\Domain\Dto\SiteStep;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Routing\Domain\Host;
 use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\Queries\ResolvePath;
+use Cbox\Cms\Core\Routing\Domain\RedirectReason;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 use Cbox\Cms\Core\Routing\Domain\SiteHandle;
@@ -40,7 +43,9 @@ use ReflectionClass;
  * configured site, finds the longest route prefix of the path, looks the rest up as a slug below
  * the node, below the source for a mount, decides the precedence at the Clock's time and, for a
  * visible placement, the canonical URL; each answer carries the typed explanation of every step it
- * reached, and the entry whenever its placement was read.
+ * reached, and the entry whenever its placement was read. Through a mount, a placement of the
+ * site's own of the same entry suppresses the mounted one: the mount URL redirects to it, in one
+ * hop (PRD 5.8).
  */
 
 const RESOLVE_OTHER_ENTRY = '01936f5e-8a2b-7c3d-9e4f-000000003532';
@@ -146,6 +151,50 @@ it('resolves a mount on a second site below its source, identical to the source,
         ->and($explanation->visibility?->decision)->toBe(VisibilityDecision::Visible)
         ->and($explanation->canonical)->toEqual(new CanonicalStep(PlacementId::fromString(World::PLACEMENT), 'https://north.example/nyheder/harbour', false))
         ->and(resolvedKeys($result))->toBe(['e-'.World::ENTRY, 'n-'.World::SECTION]);
+});
+
+it('redirects the mount URL to the site\'s own placement of the entry, which suppresses the mounted one, with the entry\'s content keys', function (): void {
+    $world = new World()
+        ->place(World::PLACEMENT, World::SECTION, 'harbour')
+        ->place(World::SOUTH_PLACEMENT, World::LOCAL, 'havnen', window: World::window(-1, 5), canonical: false);
+
+    $result = $world->resolve('south.example', '/national/harbour');
+    $explanation = $result->explanation;
+
+    expect($result->outcome())->toBe(ResolveOutcome::Redirect)
+        ->and($result->resolved())->toBeFalse()
+        ->and($explanation->mount)->toEqual(new MountStep(NodeId::fromString(World::MOUNT), NodeId::fromString(World::SECTION)))
+        ->and($explanation->placement?->placement?->toString())->toBe(World::PLACEMENT)
+        ->and($explanation->redirect)->toEqual(new RedirectStep('https://south.example/lokalt/havnen', PlacementId::fromString(World::SOUTH_PLACEMENT), RedirectReason::OwnPlacement, new DateTimeImmutable('2026-03-10T17:00:00Z')))
+        ->and($explanation->visibility)->toBeNull()
+        ->and($explanation->canonical)->toBeNull()
+        ->and($result->content?->fields)->toEqual(new FieldValues)
+        ->and(resolvedKeys($result))->toBe(['e-'.World::ENTRY, 'n-'.World::SECTION])
+        ->and($world->reader->reads)->toBe(3)
+        ->and($world->resolve('north.example', '/nyheder/harbour')->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and($world->resolve('south.example', '/lokalt/havnen')->outcome())->toBe(ResolveOutcome::Resolved);
+});
+
+it('shows the mounted placement when the site\'s own placement does not show now, and nothing when the entry itself cannot be shown', function (): void {
+    $closed = new World()
+        ->place(World::PLACEMENT, World::SECTION, 'harbour')
+        ->place(World::SOUTH_PLACEMENT, World::LOCAL, 'havnen', window: World::window(-5, -1), canonical: false);
+    $scheduled = new World()
+        ->place(World::PLACEMENT, World::SECTION, 'harbour')
+        ->place(World::SOUTH_PLACEMENT, World::LOCAL, 'havnen', Visibility::Scheduled, World::window(2, null), canonical: false);
+    $unreleased = new World()
+        ->place(World::PLACEMENT, World::SECTION, 'harbour', release: ReleaseState::Unreleased)
+        ->place(World::SOUTH_PLACEMENT, World::LOCAL, 'havnen', canonical: false, release: ReleaseState::Unreleased);
+    $hidden = new World()
+        ->place(World::PLACEMENT, World::SECTION, 'harbour')
+        ->place(World::SOUTH_PLACEMENT, World::LOCAL, 'havnen', canonical: false);
+    $hidden->reader->withOverride(NodeId::fromString(World::MOUNT), EntryId::fromString(World::ENTRY));
+
+    expect($closed->resolve('south.example', '/national/harbour')->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and($scheduled->resolve('south.example', '/national/harbour')->outcome())->toBe(ResolveOutcome::Resolved)
+        ->and($unreleased->resolve('south.example', '/national/harbour')->explanation->visibility?->decision)->toBe(VisibilityDecision::NoReleasedRevision)
+        ->and($unreleased->reader->reads)->toBe(2)
+        ->and($hidden->resolve('south.example', '/national/harbour')->outcome())->toBe(ResolveOutcome::Redirect);
 });
 
 it('explains an unknown path: no placement with the slug, a rest that is not one slug, and a path that names the node', function (): void {
@@ -288,11 +337,11 @@ it('gives no canonical URL when the canonical placement\'s node has no route', f
         ->and($result->explanation->canonical)->toEqual(new CanonicalStep(PlacementId::fromString(World::PLACEMENT), null, false));
 });
 
-it('costs at most one route, one placement, its released row and one canonical placement, whatever the query', function (): void {
+it('costs at most one route, one placement, the site\'s own placement through a mount, the released row and one canonical placement, whatever the query', function (): void {
     $query = new ResolvePath(new Host('north.example'), new Locale('da'), new RequestPath('/nyheder/harbour'));
 
     expect(new World()->action()->cost($query)->units)->toBe(ResolvePathAction::COST)
-        ->and(ResolvePathAction::COST)->toBe(4);
+        ->and(ResolvePathAction::COST)->toBe(5);
 });
 
 it('is version 1 of path.resolve', function (): void {

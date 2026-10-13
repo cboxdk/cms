@@ -41,7 +41,9 @@ use Cbox\Cms\Core\Routing\Domain\ResolveOutcome;
 
 const CODEC_RECORD = '{"cms_id":"01936f5e-8a2b-7c3d-9e4f-000000003631","title":"The harbour opens"}';
 
-const CODEC_EXPLANATION = '{"canonical":{"here":false,"placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","url":"https://north.example/nyheder/harbour"},"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"},"outcome":"resolved","placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"},"route":{"path":"/national/harbour","rest":"harbour","route":"/national"},"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"},"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}';
+const CODEC_EXPLANATION = '{"canonical":{"here":false,"placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","url":"https://north.example/nyheder/harbour"},"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"},"outcome":"resolved","placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"},"redirect":null,"route":{"path":"/national/harbour","rest":"harbour","route":"/national"},"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"},"visibility":{"at":"2026-03-10T12:00:00.000000Z","decision":"visible","lifecycle":"active","release":"released","stored":"live","valid_until":"2026-03-10T17:00:00.000000Z","window":{"from":"2026-03-10T11:00:00.000000Z","until":"2026-03-10T17:00:00.000000Z"}}}';
+
+const CODEC_REDIRECT = '{"canonical":null,"mount":{"mount":"01936f5e-8a2b-7c3d-9e4f-000000003614","source":"01936f5e-8a2b-7c3d-9e4f-000000003612"},"node":{"kind":"mount","node":"01936f5e-8a2b-7c3d-9e4f-000000003614"},"outcome":"redirect","placement":{"canonical":true,"entry":"01936f5e-8a2b-7c3d-9e4f-000000003631","looked_under":"01936f5e-8a2b-7c3d-9e4f-000000003612","placement":"01936f5e-8a2b-7c3d-9e4f-000000003641","routable":true,"slug":"harbour","type":"01936f5e-8a2b-7c3d-9e4f-000000003621"},"redirect":{"placement":"01936f5e-8a2b-7c3d-9e4f-000000003642","reason":"own_placement","url":"https://south.example/lokalt/havnen","valid_until":null},"route":{"path":"/national/harbour","rest":"harbour","route":"/national"},"site":{"handle":"south","host":"south.example","locale":"da","locale_published":true,"site":"01936f5e-8a2b-7c3d-9e4f-000000003602"},"visibility":null}';
 
 const CODEC_PROBLEM = '{"code":"path_not_found","detail":"Nothing is placed at /nyheder/nothing.","errors":[],"instance":null,"retryable":false,"status":404,"title":"Nothing is shown at the path","type":"https://cbox.dk/cms/errors/path_not_found"}';
 
@@ -104,12 +106,25 @@ it('writes a delivery explanation with the explanation and the problem as their 
         ->and($codec->encode($codec->decode($problem, ClassificationAccess::Public), ClassificationAccess::Public))->toBe($problem);
 });
 
+it('writes the explanation of a redirect with the status 301 and neither a record nor a problem, valid against both schemas', function (): void {
+    $codec = new DeliveryExplanationCodecV1;
+    $redirect = $codec->encode(new DeliveryExplanation(null, new JsonDocument(CODEC_REDIRECT), null, null, HttpStatus::MovedPermanently), ClassificationAccess::Public);
+
+    expect($redirect)->toBe('{"data":null,"explanation":'.CODEC_REDIRECT.',"meta":null,"problem":null,"status":301}')
+        ->and(KernelSchema::errors('delivery-explanation.v1.json', $redirect))->toBe([])
+        ->and(KernelSchema::errors('path-explanation.v1.json', CODEC_REDIRECT))->toBe([])
+        ->and($codec->encode($codec->decode($redirect, ClassificationAccess::Public), ClassificationAccess::Public))->toBe($redirect)
+        ->and(new PathExplanationCodecV1()->encode(new PathExplanationCodecV1()->decode(CODEC_REDIRECT, ClassificationAccess::Public), ClassificationAccess::Public))->toBe(CODEC_REDIRECT);
+});
+
 it('refuses a delivery explanation that holds both a record and a problem, or neither, or a status that is not one', function (string $json, string $path): void {
     expect(codecRefusedAt(static fn (string $json): object => new DeliveryExplanationCodecV1()->decode($json, ClassificationAccess::Public), $json))->toBe($path);
 })->with([
     'a record and a problem' => ['{"data":{},"explanation":{},"meta":{"canonical_url":null,"contract":1,"locale":"da","type":"app:article"},"problem":{},"status":200}', ''],
     'a record without its meta' => ['{"data":{},"explanation":{},"meta":null,"problem":null,"status":200}', ''],
     'neither' => ['{"data":null,"explanation":{},"meta":null,"problem":null,"status":200}', ''],
+    'a redirect with a problem' => ['{"data":null,"explanation":{},"meta":null,"problem":{},"status":301}', ''],
+    'a redirect with a record' => ['{"data":{},"explanation":{},"meta":{"canonical_url":null,"contract":1,"locale":"da","type":"app:article"},"problem":null,"status":301}', ''],
     'an explanation of null' => ['{"data":null,"explanation":null,"meta":null,"problem":{},"status":404}', 'explanation'],
     'a status the kernel never answers' => ['{"data":null,"explanation":{},"meta":null,"problem":{},"status":418}', 'status'],
 ]);
@@ -123,7 +138,7 @@ it('writes a path explanation valid against path-explanation.v1.json and reads i
     expect($codec->encode($decoded, ClassificationAccess::Public))->toBe(CODEC_EXPLANATION)
         ->and($decoded->route?->candidates)->toBe(['/national/harbour', '/national', '/'])
         ->and($decoded->visibility?->decision->rung())->toBe(11)
-        ->and($unknownJson)->toBe('{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"route":null,"site":{"handle":null,"host":"nowhere.example","locale":"da","locale_published":false,"site":null},"visibility":null}')
+        ->and($unknownJson)->toBe('{"canonical":null,"mount":null,"node":null,"outcome":"unknown_host","placement":null,"redirect":null,"route":null,"site":{"handle":null,"host":"nowhere.example","locale":"da","locale_published":false,"site":null},"visibility":null}')
         ->and(KernelSchema::errors('path-explanation.v1.json', $unknownJson))->toBe([])
         ->and($codec->decode($unknownJson, ClassificationAccess::Public))->toEqual($unknown);
 });
@@ -141,6 +156,9 @@ it('refuses a path explanation whose steps break the rules of their classes', fu
     'a window that is no time' => ['"from":"2026-03-10T11:00:00.000000Z"', '"from":"morning"', 'visibility.window.from'],
     'a node kind that is not one' => ['"kind":"mount"', '"kind":"folder"', 'node.kind'],
     'a step it does not have' => ['"outcome":"resolved"', '"outcome":"resolved","rung":11', ''],
+    'a redirect step without its URL' => ['"redirect":null', '"redirect":{"placement":null,"reason":"own_placement","valid_until":null}', 'redirect.url'],
+    'a redirect reason that is not one' => ['"redirect":null', '"redirect":{"placement":null,"reason":"moved","url":"https://south.example/a","valid_until":null}', 'redirect.reason'],
+    'a redirect placement that is not a UUIDv7' => ['"redirect":null', '"redirect":{"placement":"p-1","reason":"own_placement","url":"https://south.example/a","valid_until":null}', 'redirect.placement'],
 ]);
 
 it('writes cms:explain\'s document with sorted content keys and the explanation as its codec wrote it, valid against explained-path.v1.json', function (): void {
@@ -159,10 +177,16 @@ it('writes cms:explain\'s document with sorted content keys and the explanation 
 it('writes a fragment as delivery-fragment.v1.json and refuses every other form', function (): void {
     $codec = new DeliveryFragmentCodecV1;
     $stored = new StoredAnswer(HttpStatus::NotFound, AnswerFormat::Problem, CODEC_PROBLEM, false);
+    $redirect = new StoredAnswer(HttpStatus::MovedPermanently, AnswerFormat::Redirect, '', false, 'https://south.example/lokalt/havnen');
     $json = $codec->encode($stored, ClassificationAccess::Public);
+    $redirectJson = $codec->encode($redirect, ClassificationAccess::Public);
 
     expect(KernelSchema::errors('delivery-fragment.v1.json', $json, KernelSchema::CORE_DIRECTORY))->toBe([])
         ->and($codec->decode($json, ClassificationAccess::Public))->toEqual($stored)
-        ->and(codecRefusedAt(static fn (string $json): object => $codec->decode($json, ClassificationAccess::Public), '{"body":"x","format":"record","stale":true,"status":299}'))->toBe('status')
-        ->and(codecRefusedAt(static fn (string $json): object => $codec->decode($json, ClassificationAccess::Public), '{"body":"x","format":"page","stale":true,"status":200}'))->toBe('format');
+        ->and($redirectJson)->toBe('{"body":"","format":"redirect","location":"https://south.example/lokalt/havnen","stale":false,"status":301}')
+        ->and(KernelSchema::errors('delivery-fragment.v1.json', $redirectJson, KernelSchema::CORE_DIRECTORY))->toBe([])
+        ->and($codec->decode($redirectJson, ClassificationAccess::Public))->toEqual($redirect)
+        ->and(codecRefusedAt(static fn (string $json): object => $codec->decode($json, ClassificationAccess::Public), '{"body":"","format":"redirect","stale":false,"status":301}'))->toBe('location')
+        ->and(codecRefusedAt(static fn (string $json): object => $codec->decode($json, ClassificationAccess::Public), '{"body":"x","format":"record","location":null,"stale":true,"status":299}'))->toBe('status')
+        ->and(codecRefusedAt(static fn (string $json): object => $codec->decode($json, ClassificationAccess::Public), '{"body":"x","format":"page","location":null,"stale":true,"status":200}'))->toBe('format');
 });

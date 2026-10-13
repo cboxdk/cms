@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Delivery\Domain\DeliveryDocuments;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryAnswer;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Routing\Domain\Dto\PathExplanation;
+use Cbox\Cms\Core\Routing\Domain\Dto\RedirectStep;
 use Override;
 
 /**
@@ -32,6 +33,11 @@ final class FakeDeliveryDocuments implements DeliveryDocuments
     public function body(DeliveryAnswer $answer): string
     {
         $this->written++;
+
+        if ($answer->format() === AnswerFormat::Redirect) {
+            return '';
+        }
+
         $lines = ['status '.$answer->status->value];
 
         if ($answer->record !== null) {
@@ -43,8 +49,12 @@ final class FakeDeliveryDocuments implements DeliveryDocuments
             $lines[] = 'problem '.$answer->problem->code->value.' '.$answer->problem->detail;
         }
 
+        if ($answer->redirect instanceof RedirectStep) {
+            $lines[] = 'redirect '.$answer->redirect->reason->value.' '.$answer->redirect->url;
+        }
+
         if ($answer->explanation instanceof PathExplanation) {
-            $lines[] = 'explanation '.$answer->explanation->outcome->value;
+            $lines[] = 'explanation '.$answer->explanation->outcome->value.($answer->explanation->redirect instanceof RedirectStep ? ' to '.$answer->explanation->redirect->url : '');
         }
 
         return implode("\n", $lines);
@@ -53,7 +63,7 @@ final class FakeDeliveryDocuments implements DeliveryDocuments
     #[Override]
     public function fragment(StoredAnswer $answer): string
     {
-        return self::MARK.implode("\x1f", [$answer->status->value, $answer->format->value, $answer->stale ? '1' : '0', $answer->body]).self::END;
+        return self::MARK.implode("\x1f", [$answer->status->value, $answer->format->value, $answer->stale ? '1' : '0', $answer->location ?? '', $answer->body]).self::END;
     }
 
     #[Override]
@@ -63,9 +73,9 @@ final class FakeDeliveryDocuments implements DeliveryDocuments
             return null;
         }
 
-        $parts = explode("\x1f", substr($fragment, strlen(self::MARK), -strlen(self::END)), 4);
+        $parts = explode("\x1f", substr($fragment, strlen(self::MARK), -strlen(self::END)), 5);
 
-        if (count($parts) !== 4) {
+        if (count($parts) !== 5) {
             return null;
         }
 
@@ -73,7 +83,7 @@ final class FakeDeliveryDocuments implements DeliveryDocuments
         $format = AnswerFormat::tryFrom($parts[1]);
 
         return $status instanceof HttpStatus && $format instanceof AnswerFormat && in_array($parts[2], ['0', '1'], true)
-            ? new StoredAnswer($status, $format, $parts[3], $parts[2] === '1')
+            ? new StoredAnswer($status, $format, $parts[4], $parts[2] === '1', $parts[3] === '' ? null : $parts[3])
             : null;
     }
 }

@@ -17,6 +17,8 @@ use Cbox\Cms\Contracts\Attributes\Experimental;
  * - NoPlacement: no placement the reader can read has the slug below the node in the locale.
  * - NotRoutable: the entry's type has no URLs (its blueprint says routable: false).
  * - NotVisible: the precedence of PRD 6.6 blocks the placement at the time.
+ * - Redirect: the page lives at another URL, which the explanation's redirect step names (PRD 5.8,
+ *   5.9): the delivery API answers 301, in one hop.
  * - Resolved: the placement is visible.
  */
 #[Experimental]
@@ -30,5 +32,6 @@ enum ResolveOutcome: string
     case NoPlacement = 'no_placement';
     case NotRoutable = 'not_routable';
     case NotVisible = 'not_visible';
+    case Redirect = 'redirect';
     case Resolved = 'resolved';
 }
