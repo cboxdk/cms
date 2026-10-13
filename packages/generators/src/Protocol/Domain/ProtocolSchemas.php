@@ -118,6 +118,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
+use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
 use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
@@ -618,6 +619,7 @@ final readonly class ProtocolSchemas
                 [
                     '#' => EntryDetail::class,
                     '#/$defs/head' => EntryHead::class,
+                    '#/$defs/head_change' => HeadChange::class,
                     '#/$defs/translated_from' => TranslatedFrom::class,
                     '#/$defs/placement' => EntryPlacement::class,
                     '#/$defs/placement_locale' => EntryPlacementLocale::class,
@@ -636,6 +638,8 @@ final readonly class ProtocolSchemas
                     '#/$defs/head/properties/state' => ValueBinding::enum(ReleaseState::class),
                     '#/$defs/head/properties/variant' => ValueBinding::value(VariantKey::class),
                     '#/$defs/head/properties/version' => $version,
+                    '#/$defs/head_change/properties/actor' => $id(ActorId::class),
+                    '#/$defs/head_change/properties/name' => ValueBinding::value(DisplayName::class),
                     '#/$defs/translated_from/properties/revision' => ValueBinding::value(RevisionNumber::class),
                     '#/$defs/translated_from/properties/variant' => ValueBinding::value(VariantKey::class),
                     '#/$defs/placement/properties/id' => $id(PlacementId::class),

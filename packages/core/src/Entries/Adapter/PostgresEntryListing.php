@@ -13,6 +13,8 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Identity\DisplayName;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
@@ -25,6 +27,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
+use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
@@ -69,8 +72,10 @@ final readonly class PostgresEntryListing implements EntryListing
         SQL;
 
     /**
-     * Every head of the entry, the shared variant first, each with its numbers, its draft's payload
-     * and its latest translated_from derivation with whether a release of its source made it stale.
+     * Every head of the entry, the shared variant first, each with its numbers, its draft's payload,
+     * its latest translated_from derivation with whether a release of its source made it stale, and
+     * who changed it last and when, with the display name of that actor when row level security on
+     * actor_profiles lets the context read it.
      */
     public const string HEADS = <<<'SQL'
         select
@@ -79,12 +84,14 @@ final readonly class PostgresEntryListing implements EntryListing
             (select max(l.rev_no) from revisions as l where l.entry_id = h.entry_id and l.variant = h.variant) as latest_number,
             coalesce(r.schema_version, s.schema_version) as content_schema_version,
             coalesce(rp.content, s.content)::text as content,
-            d.source_variant, d.source_rev_no, d.stale_changeset_id is not null as stale
+            d.source_variant, d.source_rev_no, d.stale_changeset_id is not null as stale,
+            h.changed_by_actor_id::text as changed_by, h.changed_at, cp.display_name as changed_by_name
         from variant_heads as h
         left join revisions as r on r.revision_id = h.draft_revision_id
         left join revision_payloads as rp on rp.revision_id = r.revision_id and rp.kind = r.kind
         left join revisions as p on p.revision_id = h.published_revision_id and h.release_state = 'released'
         left join head_snapshots as s on s.entry_id = h.entry_id and s.variant = h.variant
+        left join actor_profiles as cp on cp.actor_id = h.changed_by_actor_id
         left join lateral (
             select x.source_variant, x.source_rev_no, x.stale_changeset_id
             from derivations as x
@@ -306,10 +313,32 @@ final readonly class PostgresEntryListing implements EntryListing
                     : new FieldValues,
                 $this->translatedFrom($row),
                 PlacementRows::boolean($row, 'stale'),
+                $this->changed($row),
             );
         }
 
         return $heads;
+    }
+
+    /**
+     * Who changed the head last and when, or null for a head no command has changed since the
+     * kernel kept it.
+     */
+    private function changed(object $row): ?HeadChange
+    {
+        $actor = PlacementRows::textOrNull($row, 'changed_by');
+
+        if ($actor === null) {
+            return null;
+        }
+
+        $name = PlacementRows::textOrNull($row, 'changed_by_name');
+
+        return new HeadChange(
+            ActorId::fromString($actor),
+            $name === null ? null : new DisplayName($name),
+            PlacementRows::instant(PlacementRows::text($row, 'changed_at')) ?? throw new UnexpectedValueException('A head that names who changed it has the time of the change.'),
+        );
     }
 
     /**

@@ -8,9 +8,13 @@ use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Identity\ActorClass;
+use Cbox\Cms\Contracts\Identity\ActorProfile;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\DisplayName;
+use Cbox\Cms\Contracts\Identity\EmailAddress;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\TransportCredential;
+use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\Query;
@@ -25,6 +29,7 @@ use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
+use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
@@ -48,6 +53,7 @@ use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
 use Cbox\Cms\Core\Tests\Reads\Probe\ProbeQueryBinding;
 use Cbox\Cms\Testkit\Clock\FakeClock;
 use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
+use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Identity\ServiceCredentialSpec;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
@@ -137,6 +143,37 @@ function entryReadsOfEntryWorld(): array
     );
 
     return [$pipeline, $identity->issue(new ServiceCredentialSpec($actor, IssuerKind::Service, ClassificationAccess::Internal, $clock->now()->add(new DateInterval('P1D'))))];
+}
+
+/**
+ * The credential of another reader granted on EntryWorld's root, through a role of the
+ * classification access that may run the permissions; the seed keeps its ids apart.
+ *
+ * @param  list<string>  $permissions
+ */
+function entryReader(ClassificationAccess $access, array $permissions, int $seed): TransportCredential
+{
+    $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+    $ids = new FakeIdGenerator(seed: $seed, clock: $clock);
+    $identity = new PostgresIdentitySeeder(app(DatabaseManager::class), $clock, $ids);
+    $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $clock, $ids);
+    $actor = $identity->addActor(ActorClass::Service)->id;
+    $fixtures->grant($actor, $fixtures->role('readers'.$seed, $access, array_map(static fn (string $name): CommandName => new CommandName($name), $permissions)), NodeId::fromString(EntryWorld::ROOT));
+
+    return $identity->issue(new ServiceCredentialSpec($actor, IssuerKind::Service, $access, $clock->now()->add(new DateInterval('P1D'))));
+}
+
+/**
+ * Who changed the shared head of the entry.get answer last, as "<actor> <name or -> <time>", or "-" for a head no command changed.
+ */
+function changeOf(QueryResult $answer): string
+{
+    $result = $answer->result;
+    $change = $result instanceof EntryDetail ? $result->heads[0]->changed : null;
+
+    return $change instanceof HeadChange
+        ? sprintf('%s %s %s', $change->actor->toString(), $change->name instanceof DisplayName ? $change->name->value : '-', $change->at->format('Y-m-d\TH:i:s.uP'))
+        : '-';
 }
 
 /**
@@ -252,6 +289,33 @@ it('costs the same statements to list a page and to read an entry with 20 and wi
         ->and($counts[200][0])->toBe(100)
         ->and($counts[200][1])->toBe($counts[20][1])
         ->and($counts[200][2])->toBe($counts[20][2]);
+});
+
+it('gives each head who changed it last and when, with the name only to a reader who may read the profile', function (): void {
+    EntryWorld::seed();
+    $world = new EntryWorld;
+    $clock = new FakeClock(new DateTimeImmutable(EntryWorld::NOW));
+    new PostgresIdentitySeeder(app(DatabaseManager::class), $clock, new FakeIdGenerator(seed: 4141, clock: $clock))
+        ->addProfile($world->actor, new ActorProfile(new DisplayName('Ole Frost'), new EmailAddress('ole.frost@example.com')));
+    $query = new GetEntry(EntryWorld::entry());
+
+    expect($world->create(EntryWorld::type(EntryWorld::ARTICLE)->id, EntryFields::article())->outcome())->toBe(Outcome::Committed);
+
+    [$pipeline, $internal] = entryReadsOfEntryWorld();
+    $lister = entryReader(ClassificationAccess::Personal, ['actor.list'], 3434);
+    $personal = entryReader(ClassificationAccess::Personal, [], 3535);
+    $at = new DateTimeImmutable(EntryWorld::NOW)->format('Y-m-d\TH:i:s.uP');
+
+    expect(changeOf($pipeline->run(new QueryCall($query, $internal))))->toBe($world->actor->toString().' - '.$at)
+        ->and(changeOf($pipeline->run(new QueryCall($query, $personal))))->toBe($world->actor->toString().' - '.$at)
+        ->and(changeOf($pipeline->run(new QueryCall($query, $lister))))->toBe($world->actor->toString().' Ole Frost '.$at);
+
+    $other = new EntryWorld(seed: 2);
+
+    expect($other->revise(1, EntryFields::article('A second title'), 'revise-other')->outcome())->toBe(Outcome::Committed)
+        ->and(changeOf($pipeline->run(new QueryCall($query, $lister))))->toBe($other->actor->toString().' - '.$at)
+        ->and($world->release(2, 2, 'release-1')->outcome())->toBe(Outcome::Committed)
+        ->and(changeOf($pipeline->run(new QueryCall($query, $lister))))->toBe($world->actor->toString().' Ole Frost '.$at);
 });
 
 it('gives each head the variant and revision it was translated from and whether the translation is stale', function (): void {

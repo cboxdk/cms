@@ -26,8 +26,8 @@ use Override;
  * is unpublished, for the entry's type as the TypeCatalog gives it:
  *
  * 1. The head in `variant_heads`: it points at no published revision any more, its release state
- *    is unreleased and it takes the context's version, in one statement that moves only a
- *    released head. The published revision stays, so a later release can release it again.
+ *    is unreleased and it takes the context's version, changed by the context's actor at the
+ *    changeset's time, in one statement that moves only a released head. The published revision stays, so a later release can release it again.
  * 2. The unrelease in `release_log`: the action `unreleased` without a revision, the time it took
  *    effect, which is the changeset's, and the changeset.
  * 3. The type table's released row is removed, and its values are kept as the draft row where the
@@ -87,7 +87,13 @@ final readonly class VariantUnreleasedWriter implements MutationWriter
             ->where('entry_id', $entry)
             ->where('variant', $variant)
             ->where('release_state', self::RELEASED)
-            ->update(['published_revision_id' => null, 'release_state' => self::UNRELEASED, 'version' => $context->version->value]);
+            ->update([
+                'published_revision_id' => null,
+                'release_state' => self::UNRELEASED,
+                'version' => $context->version->value,
+                'changed_by_actor_id' => $context->actor->toString(),
+                'changed_at' => Timestamps::of($context->at),
+            ]);
 
         if ($moved !== 1) {
             throw new LogicException(sprintf('The head of the variant %s of the entry %s is not there or is not released.', $variant, $entry));

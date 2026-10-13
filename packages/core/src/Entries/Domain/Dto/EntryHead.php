@@ -20,7 +20,8 @@ use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
  * than the type's, whose fields the type cannot read (upcasters come with B3). A language's variant
  * made by variant.create_from has the variant and revision it was translated from, and is stale
  * once that variant was released with other content since (PRD 10.3); every other head has no
- * translation source and is never stale.
+ * translation source and is never stale. Who changed the head last, and when, is null for a head
+ * no command has changed since the kernel kept it.
  */
 #[Experimental]
 final readonly class EntryHead
@@ -36,10 +37,11 @@ final readonly class EntryHead
         public FieldValues $fields,
         public ?TranslatedFrom $translatedFrom = null,
         public bool $stale = false,
+        public ?HeadChange $changed = null,
     ) {}
 
     public function withFields(FieldValues $fields): self
     {
-        return new self($this->variant, $this->version, $this->revision, $this->latest, $this->released, $this->state, $this->schemaVersion, $fields, $this->translatedFrom, $this->stale);
+        return new self($this->variant, $this->version, $this->revision, $this->latest, $this->released, $this->state, $this->schemaVersion, $fields, $this->translatedFrom, $this->stale, $this->changed);
     }
 }

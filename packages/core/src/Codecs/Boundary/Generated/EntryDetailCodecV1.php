@@ -14,6 +14,8 @@ use Cbox\Cms\Contracts\Content\TimeWindow;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\DisplayName;
+use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
@@ -28,6 +30,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
+use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
@@ -57,7 +60,7 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
         {
             "$schema": "https://json-schema.org/draft/2020-12/schema",
             "title": "entry.get result, contract version 1",
-            "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them and the variant and revision it was translated from with whether that translation is stale, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+            "description": "The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every variant head in the order of the variants, the shared variant first, each with the fields of its draft revision as the reader may read them and the variant and revision it was translated from with whether that translation is stale and who changed it last and when, and every placement of the entry the reader reaches in the order of their ids, each with its locales. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryDetail, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
             "type": "object",
             "additionalProperties": false,
             "required": [
@@ -192,6 +195,7 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
                     "type": "object",
                     "additionalProperties": false,
                     "required": [
+                        "changed",
                         "fields",
                         "latest",
                         "released",
@@ -204,6 +208,17 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
                         "version"
                     ],
                     "properties": {
+                        "changed": {
+                            "description": "Who changed the head last and when: the actor of the changeset that last gave the head its version, with the time of that changeset; null for a head no command has changed since the kernel began to keep it.",
+                            "anyOf": [
+                                {
+                                    "$ref": "#/$defs/head_change"
+                                },
+                                {
+                                    "type": "null"
+                                }
+                            ]
+                        },
                         "fields": {
                             "description": "The fields of the head's draft revision in the input form, left out of the answer above the reader's classification access, and empty when the revision was written under another schema version than the type's, whose fields the type cannot read.",
                             "$ref": "#/$defs/fields"
@@ -397,6 +412,37 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
                             "pattern": "^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$"
                         }
                     }
+                },
+                "head_change": {
+                    "description": "Who changed a variant's head last, and when (PRD 5.4, 6.1).",
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": [
+                        "actor",
+                        "at",
+                        "name"
+                    ],
+                    "properties": {
+                        "actor": {
+                            "description": "The actor of the changeset that last gave the head its version.",
+                            "$ref": "#/$defs/id"
+                        },
+                        "at": {
+                            "description": "The time of that changeset, RFC 3339 in UTC with six decimals, such as 2026-09-30T12:00:00.000000Z. Any offset is read.",
+                            "type": "string",
+                            "format": "date-time"
+                        },
+                        "name": {
+                            "description": "The display name of the actor's profile, personal data (PRD 12.2), or null when the reader may not read the profile: it is the reader's own, or one the reader may list with personal access and a role that may run actor.list.",
+                            "type": [
+                                "string",
+                                "null"
+                            ],
+                            "pattern": "^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$",
+                            "minLength": 1,
+                            "maxLength": 200
+                        }
+                    }
                 }
             }
         }
@@ -461,6 +507,7 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
     private function encodeEntryHead(EntryHead $object): stdClass
     {
         $json = new stdClass;
+        $json->changed = $object->changed instanceof HeadChange ? $this->encodeHeadChange($object->changed) : null;
         $json->fields = JsonValues::encodeFieldValues($object->fields);
         $json->latest = $object->latest->value;
         $json->released = $object->released instanceof RevisionNumber ? $object->released->value : null;
@@ -477,7 +524,7 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
 
     private function decodeEntryHead(mixed $value, FieldPath $path): EntryHead
     {
-        $object = JsonValues::object($value, $path, ['fields', 'latest', 'released', 'revision', 'schema_version', 'stale', 'state', 'translated_from', 'variant', 'version']);
+        $object = JsonValues::object($value, $path, ['changed', 'fields', 'latest', 'released', 'revision', 'schema_version', 'stale', 'state', 'translated_from', 'variant', 'version']);
 
         return JsonValues::build($path, fn (): EntryHead => new EntryHead(
             variant: JsonValues::required($object, 'variant', $path, static fn (mixed $value, FieldPath $at): VariantKey => JsonValues::value($value, $at, static fn (string $text): VariantKey => new VariantKey($text))),
@@ -490,6 +537,28 @@ final readonly class EntryDetailCodecV1 implements JsonCodec
             fields: JsonValues::required($object, 'fields', $path, static fn (mixed $value, FieldPath $at): FieldValues => JsonValues::fieldValues($value, $at)),
             translatedFrom: JsonValues::present($object, 'translated_from', $path, $this->decodeTranslatedFrom(...)),
             stale: JsonValues::required($object, 'stale', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            changed: JsonValues::present($object, 'changed', $path, $this->decodeHeadChange(...)),
+        ));
+    }
+
+    private function encodeHeadChange(HeadChange $object): stdClass
+    {
+        $json = new stdClass;
+        $json->actor = $object->actor->toString();
+        $json->at = JsonValues::encodeDatetime($object->at);
+        $json->name = $object->name instanceof DisplayName ? $object->name->value : null;
+
+        return $json;
+    }
+
+    private function decodeHeadChange(mixed $value, FieldPath $path): HeadChange
+    {
+        $object = JsonValues::object($value, $path, ['actor', 'at', 'name']);
+
+        return JsonValues::build($path, static fn (): HeadChange => new HeadChange(
+            actor: JsonValues::required($object, 'actor', $path, static fn (mixed $value, FieldPath $at): ActorId => JsonValues::id($value, $at, ActorId::fromString(...))),
+            name: JsonValues::present($object, 'name', $path, static fn (mixed $value, FieldPath $at): DisplayName => JsonValues::value($value, $at, static fn (string $text): DisplayName => new DisplayName($text))),
+            at: JsonValues::required($object, 'at', $path, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::datetime($value, $at)),
         ));
     }
 

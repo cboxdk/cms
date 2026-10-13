@@ -40,7 +40,8 @@ use UnexpectedValueException;
  *    variant's highest number, with the draft's schema version and a copy of its payload, written
  *    in the changeset; a revision that is published already is released as it is.
  * 2. The head in `variant_heads`: it points at the published revision, its release state is
- *    released and it takes the context's version, in one statement. A withdrawn variant is
+ *    released and it takes the context's version, changed by the context's actor at the
+ *    changeset's time, in one statement. A withdrawn variant is
  *    released only by reinstate (PRD 6.4, invariant 7), so its head is not moved and the writer
  *    throws.
  * 3. The release in `release_log`: the published revision, the time it took effect, which is the
@@ -87,8 +88,9 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
     /** The heads of a run, each moved to its published revision. */
     public const string MOVE_HEADS = <<<'SQL'
         update variant_heads as h
-        set published_revision_id = m.published, release_state = 'released', version = m.version
-        from unnest(?::uuid[], ?::text[], ?::bigint[], ?::bigint[]) as m(entry_id, variant, published, version)
+        set published_revision_id = m.published, release_state = 'released', version = m.version,
+            changed_by_actor_id = m.actor_id, changed_at = m.changed_at
+        from unnest(?::uuid[], ?::text[], ?::bigint[], ?::bigint[], ?::uuid[], ?::timestamptz[]) as m(entry_id, variant, published, version, actor_id, changed_at)
         where h.entry_id = m.entry_id and h.variant = m.variant and h.release_state in ('unreleased', 'released')
         SQL;
 
@@ -207,7 +209,7 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
         }
 
         $published = $this->publish($db, $drafts, $sources);
-        $heads = [[], [], [], []];
+        $heads = [[], [], [], [], [], []];
         $stale = [[], [], [], [], []];
         $log = [];
         $rows = [];
@@ -223,6 +225,8 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
             $heads[1][] = '"'.$mutation->variant->value.'"';
             $heads[2][] = $id;
             $heads[3][] = $context->version->value;
+            $heads[4][] = $context->actor->toString();
+            $heads[5][] = '"'.Timestamps::of($context->at).'"';
             $log[] = [
                 'entry_id' => $mutation->entry->toString(),
                 'variant' => $mutation->variant->value,

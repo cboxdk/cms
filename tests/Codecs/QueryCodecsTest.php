@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -47,7 +48,10 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeEditorCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\TypeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\WhoAmICodecV1;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
+use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
@@ -78,6 +82,7 @@ use Cbox\Cms\Testkit\Editors\SampleEditors;
 use Cbox\Cms\Tests\Support\Phpstan;
 use Cbox\Cms\Tests\Support\TypeScript\TypeScriptValidators;
 use Closure;
+use DateTimeImmutable;
 use LogicException;
 use Opis\JsonSchema\Errors\ValidationError;
 use Opis\JsonSchema\Formats\DateTimeFormats;
@@ -189,7 +194,28 @@ function queryFixtures(): array
             }
 
             expect(new EntryDetailCodecV1()->encode(EntryListingWorld::detail(EntryListingWorld::SECOND), ClassificationAccess::Sensitive))
-                ->toContain('"heads":[{"fields":{', '"released":2,"revision":1,"schema_version":2,"stale":false,"state":"released","translated_from":null,"variant":"shared","version":3}', '"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}');
+                ->toContain('"heads":[{"changed":null,"fields":{', '"released":2,"revision":1,"schema_version":2,"stale":false,"state":"released","translated_from":null,"variant":"shared","version":3}', '"window":{"from":"2026-03-10T12:00:00.000000Z","until":null}');
+
+            // Who changed a head last, with the name the reader may read and without it.
+            $detail = EntryListingWorld::detail(EntryListingWorld::SECOND);
+            $head = $detail->heads[0];
+            $changed = static fn (?DisplayName $name): EntryDetail => new EntryDetail($detail->id, $detail->type, $detail->home, $detail->lifecycle, $detail->version, [
+                new EntryHead($head->variant, $head->version, $head->revision, $head->latest, $head->released, $head->state, $head->schemaVersion, $head->fields, $head->translatedFrom, $head->stale, new HeadChange(
+                    ActorId::fromString('0192a0c0-0000-7000-8000-0000000000a7'),
+                    $name,
+                    new DateTimeImmutable('2026-03-10T13:30:00.250000+02:00'),
+                )),
+            ], $detail->placements);
+
+            foreach ([new DisplayName('Ole Frost'), null] as $index => $name) {
+                $result = new EntryDetailCodecV1()->decode(new EntryDetailCodecV1()->encode($changed($name), ClassificationAccess::Sensitive), ClassificationAccess::Sensitive);
+                queryRoundTrip(new EntryDetailCodecV1, $result, 'entry.get.result.v1.json', 'changed '.$index);
+            }
+
+            expect(new EntryDetailCodecV1()->encode($changed(new DisplayName('Ole Frost')), ClassificationAccess::Sensitive))
+                ->toContain('"heads":[{"changed":{"actor":"0192a0c0-0000-7000-8000-0000000000a7","at":"2026-03-10T11:30:00.250000Z","name":"Ole Frost"},"fields":{')
+                ->and(new EntryDetailCodecV1()->encode($changed(null), ClassificationAccess::Sensitive))
+                ->toContain('"changed":{"actor":"0192a0c0-0000-7000-8000-0000000000a7","at":"2026-03-10T11:30:00.250000Z","name":null}');
         },
         'entry.list v1' => static function (QueryCodec $codec): void {
             expect($codec->query)->toBeInstanceOf(ListEntriesCodecV1::class)

@@ -13,7 +13,8 @@ import { join } from 'node:path';
 
 import { rejectedProblem } from '@cboxdk/cms-panel/testing';
 import type { CommandAnswer } from '@cboxdk/cms-panel/extend';
-import { fireEvent, screen, waitFor } from '@testing-library/react';
+import { act, fireEvent, screen, waitFor, within } from '@testing-library/react';
+import { useState } from 'react';
 import { beforeEach, describe, expect, test, vi } from 'vitest';
 
 import {
@@ -31,7 +32,8 @@ import {
 } from '../../src/content/editor';
 import type { ContentEditorPageV1 } from '../../src/generated/pages/ContentEditorPageV1';
 import type { ActionListV1 } from '../../src/generated/protocol/ActionListV1';
-import type { EntryDetailV1 } from '../../src/generated/protocol/EntryDetailV1';
+import { recoveryKey, RecoveryStore } from '../../src/content/recovery';
+import type { EntryDetailV1, EntryHeadV1 } from '../../src/generated/protocol/EntryDetailV1';
 import { validateProblemV1, type ProblemV1 } from '../../src/generated/protocol/ProblemV1';
 import type { ReceiptV1 } from '../../src/generated/protocol/ReceiptV1';
 import { validateTypeEditorV1, type TypeEditorV1 } from '../../src/generated/protocol/TypeEditorV1';
@@ -107,6 +109,7 @@ const CHANGESET = '0192a0c0-0000-7000-8000-0000000008c1';
 const DETAIL: EntryDetailV1 = {
   heads: [
     {
+      changed: null,
       fields: { name: 'Oak table' },
       latest: 2,
       released: null,
@@ -215,6 +218,10 @@ function rejectedAt(field: string, code: string): ProblemV1 {
 beforeEach(() => {
   inertia.router.visit.mockReset();
   inertia.router.post.mockReset();
+  inertia.router.reload.mockReset();
+  inertia.router.on.mockReset();
+  inertia.router.on.mockImplementation(() => () => undefined);
+  window.localStorage.clear();
 });
 
 describe('what the page reads', () => {
@@ -480,5 +487,323 @@ describe('the page', () => {
     fireEvent.click(screen.getByRole('button', { name: t('panel.editor.localized_action') }));
 
     expect(inertia.router.visit).toHaveBeenCalledWith(expect.stringMatching(/entry\.create\/v2$/));
+  });
+});
+
+/** The shared head of DETAIL as someone else's save left it: the next version, with their name. */
+const SAVED_BY_OLE: EntryHeadV1 = {
+  ...(DETAIL.heads[0] as EntryHeadV1),
+  changed: {
+    actor: '0192a0c0-0000-7000-8000-0000000008a7',
+    at: '2026-10-13T12:05:00.000000Z',
+    name: 'Ole Frost',
+  },
+  fields: { name: 'Oak table, by Ole' },
+  revision: 3,
+  latest: 3,
+  version: 5,
+};
+
+/**
+ * Renders the editor as Inertia keeps it: the props of the page, which the redirect after a save
+ * replaces with the page read again, while the editor keeps its state.
+ */
+function renderLiveEditor(
+  page: ContentEditorPageV1,
+  actions: ActionListV1,
+  answer: (show: (page: ContentEditorPageV1) => void) => Promise<CommandAnswer>,
+) {
+  let show: (page: ContentEditorPageV1) => void = () => undefined;
+
+  function Live() {
+    const [current, setCurrent] = useState(page);
+    show = (next) => {
+      act(() => {
+        setCurrent(next);
+      });
+    };
+
+    return <Editor {...current} />;
+  }
+
+  inertia.page.props = {
+    ...page,
+    brand: { login: null, logo: null, name: 'Cbox CMS' },
+    palette: { rejection: null, result: actions },
+    types: { content: '/cms/content', rejection: null, result: { types: [PRODUCT] } },
+  };
+
+  return renderHost(<Live />, {
+    contributions: contributions([], { cms: [] }, { pages: [] }),
+    registrations: {},
+    answering: { runCommand: () => answer(show) },
+  });
+}
+
+/** The editor's handler of Inertia's `before` event, which the leave guard subscribes. */
+function beforeVisit(): (event: unknown) => void {
+  const call = inertia.router.on.mock.calls.find((args: unknown[]) => args[0] === 'before') as
+    [string, (event: unknown) => void] | undefined;
+
+  if (call === undefined) {
+    throw new Error('The editor subscribes to no before event.');
+  }
+
+  return call[1];
+}
+
+/** A visit inside the panel to the address, as Inertia's `before` event carries it. */
+function visitEvent(url: string, changes: Record<string, unknown> = {}) {
+  return {
+    detail: {
+      visit: {
+        url: new URL(url, 'http://panel.test'),
+        method: 'get',
+        data: {},
+        replace: false,
+        preserveScroll: false,
+        preserveState: false,
+        only: [],
+        prefetch: false,
+        ...changes,
+      },
+    },
+    preventDefault: vi.fn(),
+  };
+}
+
+describe('a save someone else saved before', () => {
+  test('says who saved, compares per field, and continues from their version with the edits to bring back', async () => {
+    const { recorded } = renderLiveEditor(props(), palette('entry.revise@1'), (show) => {
+      if (recorded.commands.length > 1) {
+        return Promise.resolve({ receipt: receipt('committed'), problem: null, dryRun: null });
+      }
+
+      show(props({ entry_read: read({ ...DETAIL, heads: [SAVED_BY_OLE] }) }));
+
+      return Promise.resolve(rejectedProblem('version_conflict', [{ code: 'version_conflict' }]));
+    });
+    const input = () => document.getElementById('entry-name') as HTMLInputElement;
+
+    fireEvent.change(input(), { target: { value: 'Oak table, long' } });
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+
+    const notice = await screen.findByText(t('panel.editor.conflict.title'));
+    const conflict = notice.closest('.cms-callout') as HTMLElement;
+
+    expect(within(conflict).getByText(/Ole Frost saved it at/)).toBeDefined();
+    expect(
+      within(conflict).getByText(t('panel.editor.conflict.theirs', { name: 'Ole Frost' })),
+    ).toBeDefined();
+    expect(within(conflict).getByText('Oak table, by Ole')).toBeDefined();
+    expect(within(conflict).getByText('Oak table, long')).toBeDefined();
+    expect(input().value).toBe('Oak table, long');
+    expect(screen.queryByText('version_conflict')).toBeNull();
+
+    fireEvent.click(
+      within(conflict).getByRole('button', { name: t('panel.editor.conflict.reload') }),
+    );
+
+    expect(input().value).toBe('Oak table, by Ole');
+    expect(screen.queryByText(t('panel.editor.conflict.title'))).toBeNull();
+    expect(screen.getByText(t('panel.editor.compare.title'))).toBeDefined();
+
+    fireEvent.click(
+      screen.getByRole('button', { name: `${t('panel.editor.compare.use_mine')}: Name` }),
+    );
+
+    expect(input().value).toBe('Oak table, long');
+
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+    await waitFor(() => {
+      expect(recorded.commands).toHaveLength(2);
+    });
+
+    expect(recorded.commands[1]?.document).toEqual({
+      entry: ENTRY,
+      fields: { name: 'Oak table, long' },
+      version: 5,
+    });
+  });
+
+  test('offers to read the entry again when the saved version is not there yet, and names no one it may not', async () => {
+    renderLiveEditor(props(), palette('entry.revise@1'), () =>
+      Promise.resolve(rejectedProblem('version_conflict', [{ code: 'version_conflict' }])),
+    );
+
+    fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+      target: { value: 'Oak table, long' },
+    });
+    fireEvent.keyDown(window, { key: 'Enter', ctrlKey: true });
+
+    await screen.findByText(t('panel.editor.conflict.unread'));
+    fireEvent.click(screen.getByRole('button', { name: t('panel.editor.conflict.reload') }));
+
+    expect(inertia.router.reload).toHaveBeenCalledWith(
+      expect.objectContaining({ only: ['entry_read'] }),
+    );
+  });
+});
+
+describe('the leave guard', () => {
+  test('asks before a visit away from changes that are not saved, stays, and leaves on request', () => {
+    renderEditor(props(), palette('entry.revise@1'));
+    const before = beforeVisit();
+    const untouched = visitEvent('/cms');
+
+    before(untouched);
+
+    expect(untouched.preventDefault).not.toHaveBeenCalled();
+
+    fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+      target: { value: 'Oak table, long' },
+    });
+
+    const away = visitEvent('/cms');
+    act(() => {
+      before(away);
+    });
+
+    expect(away.preventDefault).toHaveBeenCalled();
+    expect(screen.getByRole('alertdialog', { name: t('panel.editor.leave.title') })).toBeDefined();
+
+    fireEvent.click(screen.getByRole('button', { name: t('panel.editor.leave.cancel') }));
+
+    expect(screen.queryByRole('alertdialog')).toBeNull();
+    expect(inertia.router.visit).not.toHaveBeenCalled();
+
+    const own = [
+      visitEvent('/cms/commands/entry.revise/v1', { method: 'post' }),
+      visitEvent('/cms/content/shop:product/x', { only: ['entry_read'] }),
+      visitEvent('/cms', { prefetch: true }),
+    ];
+
+    for (const event of own) {
+      before(event);
+      expect(event.preventDefault).not.toHaveBeenCalled();
+    }
+
+    const again = visitEvent('/cms');
+    act(() => {
+      before(again);
+    });
+    fireEvent.click(screen.getByRole('button', { name: t('panel.editor.leave.confirm') }));
+
+    expect(inertia.router.visit).toHaveBeenCalledWith(
+      new URL('/cms', 'http://panel.test'),
+      expect.objectContaining({ method: 'get' }),
+    );
+    expect(window.localStorage.length).toBe(0);
+  });
+
+  test('asks the browser before the tab closes or reloads with changes that are not saved', () => {
+    renderEditor(props(), palette('entry.revise@1'));
+    const unload = () => {
+      const event = new Event('beforeunload', { cancelable: true });
+      window.dispatchEvent(event);
+
+      return event.defaultPrevented;
+    };
+
+    expect(unload()).toBe(false);
+
+    fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+      target: { value: 'Oak table, long' },
+    });
+
+    expect(unload()).toBe(true);
+
+    fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+      target: { value: 'Oak table' },
+    });
+
+    expect(unload()).toBe(false);
+  });
+});
+
+describe('local recovery', () => {
+  const kept = { viewer: null, type: 'shop:product', entry: ENTRY, version: 4 };
+
+  test('keeps the edits of the entry at its version while they are not saved', () => {
+    renderEditor(props(), palette('entry.revise@1'));
+
+    fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+      target: { value: 'Oak table, long' },
+    });
+
+    expect(new RecoveryStore(window.localStorage).find(kept)?.fields).toEqual({
+      name: 'Oak table, long',
+    });
+
+    fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+      target: { value: 'Oak table' },
+    });
+
+    expect(window.localStorage.getItem(recoveryKey(kept))).toBeNull();
+  });
+
+  test('offers the edits kept for the entry at its version, and restores them', () => {
+    new RecoveryStore(window.localStorage).keep(kept, { name: 'Oak table, recovered' });
+    renderEditor(props(), palette('entry.revise@1'));
+
+    expect(screen.getByText(t('panel.editor.recovery.title'))).toBeDefined();
+    expect(screen.getByLabelText<HTMLInputElement>('Name', { exact: false }).value).toBe(
+      'Oak table',
+    );
+
+    fireEvent.click(screen.getByRole('button', { name: t('panel.editor.recovery.restore') }));
+
+    expect(screen.getByLabelText<HTMLInputElement>('Name', { exact: false }).value).toBe(
+      'Oak table, recovered',
+    );
+    expect(screen.queryByText(t('panel.editor.recovery.title'))).toBeNull();
+    expect(new RecoveryStore(window.localStorage).find(kept)?.fields).toEqual({
+      name: 'Oak table, recovered',
+    });
+  });
+
+  test('discards the edits on request, and offers none of another version or another entry', () => {
+    const store = new RecoveryStore(window.localStorage);
+    store.keep(kept, { name: 'Oak table, recovered' });
+    const { unmount } = renderEditor(props(), palette('entry.revise@1'));
+
+    fireEvent.click(screen.getByRole('button', { name: t('panel.editor.recovery.discard') }));
+
+    expect(screen.queryByText(t('panel.editor.recovery.title'))).toBeNull();
+    expect(window.localStorage.getItem(recoveryKey(kept))).toBeNull();
+    unmount();
+
+    store.keep({ ...kept, version: 3 }, { name: 'Made on an older version' });
+    store.keep({ ...kept, entry: '0192a0c0-0000-7000-8000-0000000008e2' }, { name: 'Another' });
+    renderEditor(props(), palette('entry.revise@1'));
+
+    expect(screen.queryByText(t('panel.editor.recovery.title'))).toBeNull();
+    expect(window.localStorage.getItem(recoveryKey({ ...kept, version: 3 }))).toBeNull();
+  });
+
+  test('works without recovery when the browser refuses storage', () => {
+    const descriptor = Object.getOwnPropertyDescriptor(window, 'localStorage');
+    Object.defineProperty(window, 'localStorage', {
+      configurable: true,
+      get: () => {
+        throw new DOMException('The operation is insecure.', 'SecurityError');
+      },
+    });
+
+    try {
+      renderEditor(props(), palette('entry.revise@1'));
+      fireEvent.change(screen.getByLabelText('Name', { exact: false }), {
+        target: { value: 'Oak table, long' },
+      });
+
+      expect(screen.getByLabelText<HTMLInputElement>('Name', { exact: false }).value).toBe(
+        'Oak table, long',
+      );
+      expect(screen.queryByText(t('panel.editor.recovery.title'))).toBeNull();
+    } finally {
+      if (descriptor !== undefined) {
+        Object.defineProperty(window, 'localStorage', descriptor);
+      }
+    }
   });
 });

@@ -53,6 +53,7 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
         'CREATE UNIQUE INDEX sites_handle_key ON sites USING btree (handle)',
         'CREATE UNIQUE INDEX sites_pkey ON sites USING btree (id)',
         'CREATE UNIQUE INDEX sites_root_node_id_key ON sites USING btree (root_node_id)',
+        'CREATE INDEX variant_heads_changed_by_actor_id ON variant_heads USING btree (changed_by_actor_id)',
         'CREATE INDEX variant_heads_draft_revision_id ON variant_heads USING btree (draft_revision_id)',
         'CREATE UNIQUE INDEX variant_heads_pkey ON variant_heads USING btree (entry_id, variant)',
         'CREATE INDEX variant_heads_published_revision_id ON variant_heads USING btree (published_revision_id)',
@@ -65,6 +66,7 @@ it('has the keys, uniques, foreign keys and indexes of the storage form', functi
         'nodes FOREIGN KEY (parent_id) REFERENCES nodes(id)',
         'site_locales FOREIGN KEY (site_id) REFERENCES sites(id)',
         'sites FOREIGN KEY (root_node_id) REFERENCES nodes(id)',
+        'variant_heads FOREIGN KEY (changed_by_actor_id) REFERENCES actors(id)',
         'variant_heads FOREIGN KEY (draft_revision_id) REFERENCES revisions(revision_id)',
         'variant_heads FOREIGN KEY (entry_id) REFERENCES entries(id)',
         'variant_heads FOREIGN KEY (published_revision_id) REFERENCES revisions(revision_id)',
@@ -254,6 +256,7 @@ it('keeps one head per variant, shared or a locale, and a released head with its
         'variant_heads_draft_revision' => ['variant' => 'en', 'draft_revision_id' => 0],
         'variant_heads_published_revision' => ['variant' => 'en', 'published_revision_id' => 0],
         'variant_heads_workflow_state' => ['variant' => 'en', 'workflow_state' => 'In review'],
+        'variant_heads_changed' => ['variant' => 'en', 'changed_at' => '2026-03-10 12:00:00+00'],
     ] as $constraint => $changes) {
         expect(StorageTables::violation($insert($changes)))->toBe('23514 '.$constraint, (string) json_encode($changes));
     }

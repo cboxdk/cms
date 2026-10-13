@@ -117,6 +117,11 @@ final readonly class Screenshots
                 'tests/Browser/Panel/EntryEditorTest.php',
             ),
             new BrowserScreenshot(
+                'entry-editor-conflict',
+                'The entry editor after a refused save: who saved the entry and when, and the title they saved above the title you typed, with the button that reloads their version and keeps your edits to compare.',
+                'tests/Browser/Panel/EntryEditorConflictTest.php',
+            ),
+            new BrowserScreenshot(
                 'access-roles',
                 'The roles page on a desktop: every role with its handle, classification ceiling and permissions, read with role.list, and the button that creates one.',
                 'tests/Browser/Panel/RolesAndGrantsTest.php',

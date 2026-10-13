@@ -31,8 +31,8 @@ use UnexpectedValueException;
  * mutation names, as the TypeCatalog gives it, at the type's schema version:
  *
  * 1. The variant's head, when this is the variant's first revision: its row in `variant_heads`,
- *    unreleased, with no draft revision yet, at the context's version. HeadMoved points it at the
- *    revision.
+ *    unreleased, with no draft revision yet, at the context's version, changed by the context's
+ *    actor at the changeset's time. HeadMoved points it at the revision.
  * 2. The content. A type with full history gets the revision's row in `revisions`, a draft, with
  *    its number, the schema version and the changeset, and its payload in `revision_payloads`. A
  *    type whose history is audit-only or none keeps no revisions (PRD 4.1): the variant's head
@@ -130,6 +130,8 @@ final readonly class RevisionCreatedWriter implements BatchMutationWriter
                     'next_transition_at' => null,
                     'version' => $pending->context->version->value,
                     'created_at' => $at,
+                    'changed_by_actor_id' => $pending->context->actor->toString(),
+                    'changed_at' => $at,
                 ];
             }
 

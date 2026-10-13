@@ -40,7 +40,17 @@ A new entry first asks where in the site it belongs: choose the part of the site
 
 Save, or press ⌘↵ on a Mac and Ctrl+Enter elsewhere, saves your changes. The status beside the entry's state says Saving while it runs, then Saved, or Saved with a note that the site is still being updated, which is no failure. A new entry's page becomes the page of the entry once it is saved. Saving the same change twice never makes two copies.
 
-When the entry cannot be saved, the status says Not saved, each problem is shown at its field and listed above the form with a link to the field, and nothing of what you typed is lost: correct what is marked and save again. When someone else saved the entry after you opened it, your save is refused rather than overwriting their change, and the page says so; reload it to see what it is now. When the panel gets no answer, it says so and keeps your changes, so you can save again.
+When the entry cannot be saved, the status says Not saved, each problem is shown at its field and listed above the form with a link to the field, and nothing of what you typed is lost: correct what is marked and save again. When the panel gets no answer, it says so and keeps your changes, so you can save again.
+
+### When someone else saved first
+
+When someone else saved the entry after you opened it, your save is refused rather than overwriting their change. The page says who saved it and when, and lists each field where what they saved differs from your edit, their value above yours. Reload, keep my edits to compare puts their version in the form and keeps your edits beside it: Use my edit brings back your edit of one field, Use all my edits brings back every one, and Save then saves on top of their version. The name is shown when you may see who the person is, which needs a role that may list the staff; otherwise the page says someone else saved.
+
+![The entry editor after a refused save: who saved the entry and when, and the title they saved above the title you typed, with the button that reloads their version and keeps your edits to compare.](../screenshots/entry-editor-conflict.png)
+
+### Leaving and coming back
+
+While you have changes that are not saved, the panel asks before you leave them. Opening another page from the search asks in the panel, with Stay and Leave and discard; a link or closing the tab asks through the browser. The browser also keeps your unsaved changes of each entry for seven days, so a reload, a crash or a closed tab does not lose them: when you open the entry again, the editor offers to restore them. It offers them only while the entry is as it was when you made them; once someone has saved the entry since, they are discarded, because they were made on a version that is gone. Signing out from the editor removes everything the browser kept, and a browser that keeps nothing, such as a private window with storage blocked, simply offers nothing.
 
 On a phone the form takes the whole width, the sidebar comes after the tabs, and the Save button sits below the title:
 

@@ -3,7 +3,9 @@
  * entry's state in the header, in the mono face as the design's save state is, the shortcut of
  * the Save button, which a phone leaves out, and the place of a
  * new entry in the site, whose fieldset only disables the picker while a save runs and adds no box
- * of its own.
+ * of its own; and the comparison of a version conflict: one block per field that differs, the
+ * field's label above the saved value and the person's edit, each wrapped, never wider than the
+ * page, so a phone never scrolls sideways.
  */
 @layer cms.panel {
   .cms-panel-editor__status {
@@ -24,5 +26,39 @@
     margin: 0;
     min-inline-size: 0;
     padding: 0;
+  }
+
+  .cms-panel-editor__compare-title {
+    font-size: var(--cms-font-size-md);
+    margin: 0 0 var(--cms-space-2);
+  }
+
+  .cms-panel-editor__differences {
+    display: grid;
+    gap: var(--cms-space-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .cms-panel-editor__difference {
+    border-block-start: 1px solid var(--cms-color-border);
+    min-inline-size: 0;
+    padding-block-start: var(--cms-space-3);
+  }
+
+  .cms-panel-editor__field {
+    font-size: var(--cms-font-size-md);
+    margin: 0 0 var(--cms-space-2);
+  }
+
+  .cms-panel-editor__value {
+    overflow-wrap: anywhere;
+    white-space: pre-wrap;
+  }
+
+  .cms-panel-editor__empty {
+    color: var(--cms-color-text-muted);
+    font-style: italic;
   }
 }

@@ -20,8 +20,8 @@ export type Visibility = 'hidden' | 'scheduled' | 'live' | 'expired' | 'withdraw
  * The result of entry.get (PRD 5.4, 5.7): the entry's type, home node, lifecycle and version, every
  * variant head in the order of the variants, the shared variant first, each with the fields of its
  * draft revision as the reader may read them and the variant and revision it was translated from
- * with whether that translation is stale, and every placement of the entry the reader reaches in
- * the order of their ids, each with its locales. The PHP form is
+ * with whether that translation is stale and who changed it last and when, and every placement of
+ * the entry the reader reaches in the order of their ids, each with its locales. The PHP form is
  * Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail, and the generated codec writes its canonical JSON:
  * keys sorted, no whitespace.
  */
@@ -44,6 +44,12 @@ export interface EntryDetailV1 {
 
 /** One variant head (PRD 5.4, 5.6). */
 export interface EntryHeadV1 {
+  /**
+   * Who changed the head last and when: the actor of the changeset that last gave the head its
+   * version, with the time of that changeset; null for a head no command has changed since the
+   * kernel began to keep it.
+   */
+  changed: HeadChangeV1 | null;
   /**
    * The fields of the head's draft revision in the input form, left out of the answer above the
    * reader's classification access, and empty when the revision was written under another schema
@@ -77,6 +83,23 @@ export interface EntryHeadV1 {
   variant: string;
   /** The variant's version, which a command that revises it expects. */
   version: number;
+}
+
+/** Who changed a variant's head last, and when (PRD 5.4, 6.1). */
+export interface HeadChangeV1 {
+  /** The actor of the changeset that last gave the head its version. */
+  actor: string;
+  /**
+   * The time of that changeset, RFC 3339 in UTC with six decimals, such as
+   * 2026-09-30T12:00:00.000000Z. Any offset is read.
+   */
+  at: string;
+  /**
+   * The display name of the actor's profile, personal data (PRD 12.2), or null when the reader may
+   * not read the profile: it is the reader's own, or one the reader may list with personal access
+   * and a role that may run actor.list.
+   */
+  name: string | null;
 }
 
 /**
@@ -132,6 +155,31 @@ export interface TimeWindowV1 {
   until: string | null;
 }
 
+const headChangeV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'actor',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    {
+      key: 'name',
+      presence: 'present',
+      value: {
+        kind: 'string',
+        pattern: '^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$',
+        minLength: 1,
+        maxLength: 200,
+      },
+    },
+    { key: 'at', presence: 'required', value: { kind: 'datetime' } },
+  ],
+};
+
 const translatedFromV1Rule: ObjectRule = {
   properties: [
     {
@@ -173,6 +221,7 @@ const entryHeadV1Rule: ObjectRule = {
       value: { kind: 'object', object: translatedFromV1Rule },
     },
     { key: 'stale', presence: 'required', value: { kind: 'boolean' } },
+    { key: 'changed', presence: 'present', value: { kind: 'object', object: headChangeV1Rule } },
   ],
 };
 

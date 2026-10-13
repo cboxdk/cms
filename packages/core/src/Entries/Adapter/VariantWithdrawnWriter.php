@@ -27,7 +27,8 @@ use UnexpectedValueException;
  * of an entry is deleted, for the entry's type as the TypeCatalog gives it:
  *
  * 1. The head in `variant_heads`: it points at no published revision any more, its release state
- *    is withdrawn and it takes the context's version, in one statement (WITHDRAW) that moves only
+ *    is withdrawn and it takes the context's version, changed by the context's actor at the
+ *    changeset's time, in one statement (WITHDRAW) that moves only
  *    a head that is not withdrawn and returns the release state before and the number of the
  *    revision released until then. The revisions stay: they are history.
  * 2. The withdrawal in `release_log`: the action `withdrawn` without a revision, the time it took
@@ -57,7 +58,7 @@ final readonly class VariantWithdrawnWriter implements MutationWriter
             for no key update
         )
         update variant_heads h
-           set published_revision_id = null, release_state = 'withdrawn', version = ?
+           set published_revision_id = null, release_state = 'withdrawn', version = ?, changed_by_actor_id = ?::uuid, changed_at = ?::timestamptz
           from old
          where h.entry_id = old.entry_id and h.variant = old.variant
         returning old.release_state as previous, (select r.rev_no from revisions r where r.revision_id = old.published_revision_id) as revision
@@ -98,7 +99,7 @@ final readonly class VariantWithdrawnWriter implements MutationWriter
             throw new LogicException(sprintf('The entry %s is not there, or its type is not a type of this installation.', $entry));
         }
 
-        $rows = $db->select(self::WITHDRAW, [$entry, $variant, $context->version->value], false);
+        $rows = $db->select(self::WITHDRAW, [$entry, $variant, $context->version->value, $context->actor->toString(), Timestamps::of($context->at)], false);
 
         if (count($rows) !== 1 || ! is_object($rows[0])) {
             throw new LogicException(sprintf('The head of the variant %s of the entry %s is not there or is withdrawn already.', $variant, $entry));

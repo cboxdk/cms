@@ -20,8 +20,9 @@ use Override;
 
 /**
  * Writes HeadMoved in the commit (PRD 5.4, 6.2 phase 7): the variant's head in `variant_heads`
- * points at the revision it moved to and takes that revision's schema version and the context's
- * version, in one statement. The revision is the row of `revisions` with the number, for a type
+ * points at the revision it moved to and takes that revision's schema version, the context's
+ * version and, as who changed it last and when, the context's actor and the changeset's time, in
+ * one statement. The revision is the row of `revisions` with the number, for a type
  * with full history, or the variant's head snapshot at that number, for one that keeps no
  * revisions, whose head has no draft revision to point at. It returns variant.revised.
  *
@@ -34,8 +35,9 @@ final readonly class HeadMovedWriter implements BatchMutationWriter
     /** The moves of a run of heads, each with the revision or snapshot it moves to. */
     public const string MOVE = <<<'SQL'
         update variant_heads as h
-        set draft_revision_id = c.revision_id, schema_version = c.schema_version, version = m.version
-        from unnest(?::uuid[], ?::text[], ?::bigint[], ?::bigint[]) as m(entry_id, variant, rev_no, version)
+        set draft_revision_id = c.revision_id, schema_version = c.schema_version, version = m.version,
+            changed_by_actor_id = m.actor_id, changed_at = m.changed_at
+        from unnest(?::uuid[], ?::text[], ?::bigint[], ?::bigint[], ?::uuid[], ?::timestamptz[]) as m(entry_id, variant, rev_no, version, actor_id, changed_at)
         cross join lateral (
             select r.revision_id, r.schema_version from revisions as r where r.entry_id = m.entry_id and r.variant = m.variant and r.rev_no = m.rev_no
             union all
@@ -89,7 +91,14 @@ final readonly class HeadMovedWriter implements BatchMutationWriter
                 throw new InvalidArgumentException(sprintf('The head writer writes HeadMoved, not %s.', $mutation::class));
             }
 
-            $moves[] = [$mutation->entry->toString(), $mutation->variant->value, $mutation->to->value, $pending->context->version->value];
+            $moves[] = [
+                $mutation->entry->toString(),
+                $mutation->variant->value,
+                $mutation->to->value,
+                $pending->context->version->value,
+                $pending->context->actor->toString(),
+                Timestamps::of($pending->context->at),
+            ];
             $events[] = new VariantRevised($pending->context->version->value, new VariantRevisedV1(
                 $mutation->entry,
                 new VariantRef($mutation->entry, $mutation->variant),
@@ -106,6 +115,8 @@ final readonly class HeadMovedWriter implements BatchMutationWriter
                 '{'.implode(',', array_map(static fn (string $variant): string => '"'.$variant.'"', array_column($chunk, 1))).'}',
                 '{'.implode(',', array_column($chunk, 2)).'}',
                 '{'.implode(',', array_column($chunk, 3)).'}',
+                '{'.implode(',', array_column($chunk, 4)).'}',
+                '{'.implode(',', array_map(static fn (string $at): string => '"'.$at.'"', array_column($chunk, 5))).'}',
             ]);
 
             if ($moved !== count($chunk)) {
