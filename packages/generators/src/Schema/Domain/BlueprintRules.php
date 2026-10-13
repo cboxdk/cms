@@ -10,6 +10,7 @@ use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\Layout;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 
 /**
@@ -41,6 +42,10 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
  *   its own and those its extensions add (PRD 10.1), and `fallback: field` to a translatable field
  *   (PRD 10.3). An extension's fields are held to the localization of the type they extend, when
  *   that type was read.
+ * - A `layout` places every top-level field of its file exactly once, with a width preset, and
+ *   names its tabs and sections once (LayoutRules, gap G2).
+ * - A `default` is of the kind the field's type takes, and a repeated group's `ui.summary` names
+ *   only the group's fields (PresentationRules, gap G2).
  *
  * The rules run on the blueprints that were read. When a file could not be read, the type it
  * defines is unknown, so an unknown `extends` is reported only when every file was read; the other
@@ -102,6 +107,10 @@ final readonly class BlueprintRules
             $seen = [];
             $this->fields($type->fields, sprintf('the type %s', $type->handle->value), $seen, $problems);
             $this->localization($type->fields, $type, $problems);
+
+            if ($type->layout instanceof Layout) {
+                array_push($problems, ...LayoutRules::problems($type->layout, $type->fields, sprintf('the type %s', $type->handle->value)));
+            }
 
             foreach ($type->fields as $field) {
                 $this->columnName(ColumnName::ofTypeField($field->handle), $field, $problems);
@@ -196,6 +205,10 @@ final readonly class BlueprintRules
 
             $this->localization($extension->fields, $target, $problems);
 
+            if ($extension->layout instanceof Layout) {
+                array_push($problems, ...LayoutRules::problems($extension->layout, $extension->fields, $this->extensionNamespace($extension)));
+            }
+
             foreach ($extension->fields as $field) {
                 $this->columnName(ColumnName::ofExtensionField($extension->owner, $field->handle), $field, $problems);
             }
@@ -233,6 +246,7 @@ final readonly class BlueprintRules
             }
 
             $this->options($field, $problems);
+            array_push($problems, ...PresentationRules::problems($field));
         }
     }
 

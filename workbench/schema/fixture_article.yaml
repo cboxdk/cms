@@ -9,12 +9,19 @@
 # Version 2 adds the owner's fixture_slug, the handle of the fixture addon's extension field in
 # workbench/addons/fixtureaddon/schema: the two are different fields, fixture_slug and
 # ext.fixtureaddon.fixture_slug, side by side (PRD 11.12 point 2).
+# The presentation keys (gap G2, B2-T72) reach only the editor descriptor: the labels in Danish
+# and English, the layout of two tabs and a sidebar, the ui hints and the form-only defaults.
+# The fixture addon's extension has no layout fragment, so its field lands in the tab extensions.
 blueprint: 1
 kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
 handle: fixture_article
-label: Fixture article
-description: A news article with a title, a body, its topics and sources, and an embargo.
+label:
+  en: Fixture article
+  da: Fixture-artikel
+description:
+  en: A news article with a title, a body, its topics and sources, and an embargo.
+  da: En nyhedsartikel med en titel, en brødtekst, dens emner og kilder, og en embargo.
 version: 2
 capabilities:
   history: full
@@ -23,10 +30,16 @@ capabilities:
   routable: true
 fields:
   - handle: fixture_title
-    label: Title
+    label:
+      en: Title
+      da: Titel
     description: The title of the article, as it is shown on the page and in lists.
     type: text
     classification: public
+    ui:
+      input_hint:
+        en: The headline
+        da: Overskriften
   - handle: fixture_slug
     label: Slug
     description: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.
@@ -34,10 +47,16 @@ fields:
     classification: public
     max_length: 160
   - handle: fixture_body
-    label: Body
+    label:
+      en: Body
+      da: Brødtekst
     description: The body of the article.
     type: rich_text
     classification: public
+    ui:
+      instructions:
+        en: Write the article; the first paragraph is shown in lists.
+        da: Skriv artiklen; det første afsnit vises i lister.
   - handle: fixture_published_on
     label: Published on
     description: The day the article was first published.
@@ -45,6 +64,7 @@ fields:
     classification: public
     sortable: true
     min: '2000-01-01'
+    default: today
   - handle: fixture_reading_minutes
     label: Reading minutes
     description: How many minutes the article takes to read.
@@ -59,6 +79,7 @@ fields:
     required: true
     classification: public
     filterable: true
+    default: false
   - handle: fixture_topics
     label: Topics
     description: The topics the article is listed under.
@@ -66,13 +87,21 @@ fields:
     classification: public
     multiple: true
     max_items: 2
+    ui:
+      display: buttons
     options:
       - value: fixture_politics
-        label: Politics
+        label:
+          en: Politics
+          da: Politik
       - value: fixture_science
-        label: Science
+        label:
+          en: Science
+          da: Videnskab
       - value: fixture_culture
-        label: Culture
+        label:
+          en: Culture
+          da: Kultur
   - handle: fixture_sources
     label: Sources
     description: The sources the article cites.
@@ -80,6 +109,8 @@ fields:
     classification: internal
     repeat:
       max_items: 10
+    ui:
+      summary: '{fixture_source_title}'
     fields:
       - handle: fixture_source_title
         label: Source title
@@ -103,3 +134,50 @@ fields:
       - handle: fixture_embargo_reason
         label: Embargo reason
         type: long_text
+        ui:
+          read_only: true
+layout:
+  tabs:
+    - handle: fixture_content
+      label:
+        en: Content
+        da: Indhold
+      sections:
+        - handle: fixture_headline
+          fields:
+            - field: fixture_title
+              width: two_thirds
+            - field: fixture_slug
+              width: third
+            - field: fixture_body
+        - handle: fixture_sources_section
+          label:
+            en: Sources
+            da: Kilder
+          instructions:
+            en: Cite every source the article relies on.
+            da: Angiv hver kilde artiklen bygger på.
+          collapsible: true
+          fields:
+            - field: fixture_sources
+    - handle: fixture_restrictions
+      label:
+        en: Restrictions
+        da: Begrænsninger
+      sections:
+        - handle: fixture_embargo_section
+          fields:
+            - field: fixture_embargo
+  sidebar:
+    sections:
+      - handle: fixture_publishing
+        label:
+          en: Publishing
+          da: Udgivelse
+        fields:
+          - field: fixture_published_on
+            width: half
+          - field: fixture_reading_minutes
+            width: half
+          - field: fixture_featured
+          - field: fixture_topics

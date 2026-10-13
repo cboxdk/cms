@@ -218,6 +218,9 @@ function invalidContractFixtures(): array
         'fallback: entry' => ['fallback-entry.yaml', '/fields/0/fallback'],
         'an extension without fields' => ['extension-without-fields.yaml', '/'],
         'a missing blueprint' => ['missing-blueprint.yaml', '/'],
+        'a display on a text field' => ['ui-display-on-text.yaml', '/fields/0/ui'],
+        'a summary on a group without repeat' => ['ui-summary-without-repeat.yaml', '/fields/0/ui'],
+        'a label map without a locale' => ['label-map-empty.yaml', '/label'],
     ];
 }
 

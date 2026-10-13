@@ -110,6 +110,30 @@ export interface TimeWindowV1 {
   until: string | null;
 }
 
+const entryHeadV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'variant',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$',
+      },
+    },
+    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'revision', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'latest', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'released', presence: 'present', value: { kind: 'integer', min: 1 } },
+    {
+      key: 'state',
+      presence: 'required',
+      value: { kind: 'enum', values: ['unreleased', 'released', 'withdrawn'] },
+    },
+    { key: 'schema_version', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'fields', presence: 'required', value: { kind: 'fields' } },
+  ],
+};
+
 const timeWindowV1Rule: ObjectRule = {
   properties: [
     { key: 'from', presence: 'present', value: { kind: 'datetime' } },
@@ -168,30 +192,6 @@ const entryPlacementV1Rule: ObjectRule = {
       presence: 'required',
       value: { kind: 'list', item: { kind: 'object', object: entryPlacementLocaleV1Rule } },
     },
-  ],
-};
-
-const entryHeadV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'variant',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$',
-      },
-    },
-    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
-    { key: 'revision', presence: 'required', value: { kind: 'integer', min: 1 } },
-    { key: 'latest', presence: 'required', value: { kind: 'integer', min: 1 } },
-    { key: 'released', presence: 'present', value: { kind: 'integer', min: 1 } },
-    {
-      key: 'state',
-      presence: 'required',
-      value: { kind: 'enum', values: ['unreleased', 'released', 'withdrawn'] },
-    },
-    { key: 'schema_version', presence: 'required', value: { kind: 'integer', min: 1 } },
-    { key: 'fields', presence: 'required', value: { kind: 'fields' } },
   ],
 };
 

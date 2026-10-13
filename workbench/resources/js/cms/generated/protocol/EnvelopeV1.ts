@@ -90,17 +90,17 @@ export interface ModelParameterV1 {
   value: string;
 }
 
-const modelParameterV1Rule: ObjectRule = {
-  properties: [
-    { key: 'name', presence: 'required', value: { kind: 'text', minLength: 1 } },
-    { key: 'value', presence: 'required', value: { kind: 'text', minLength: 1 } },
-  ],
-};
-
 const generationModelV1Rule: ObjectRule = {
   properties: [
     { key: 'name', presence: 'required', value: { kind: 'text', minLength: 1 } },
     { key: 'version', presence: 'required', value: { kind: 'text', minLength: 1 } },
+  ],
+};
+
+const modelParameterV1Rule: ObjectRule = {
+  properties: [
+    { key: 'name', presence: 'required', value: { kind: 'text', minLength: 1 } },
+    { key: 'value', presence: 'required', value: { kind: 'text', minLength: 1 } },
   ],
 };
 

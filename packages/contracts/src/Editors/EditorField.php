@@ -39,6 +39,15 @@ use Cbox\Cms\Contracts\Validation\Presence;
  *   form shows the field once per language or once for every language; a nested field takes its
  *   group's. `fallback` is how a translatable field falls back (PRD 10.3), and Variant for every
  *   other field.
+ * - `labels` and `descriptions` are the label and the description per locale the blueprint names
+ *   (gap G2), beside the plain `label` and `description`, so a form shows the panel's language.
+ * - `ui` holds the hints the blueprint's `ui` gives the input (EditorUi): the display of a select
+ *   only for a select, and a summary only for a repeated group.
+ * - `defaultValue` is the form's starting value from the blueprint's `default`, as one JSON
+ *   document, or null: `{"kind":"constant","value":<the value in the record's JSON form>}` for a
+ *   constant, or `{"kind":"token","token":"today"}` or `"now"` for a date or datetime the form
+ *   takes from the clock. It is form only: a command never fills it in, and a group or rich
+ *   text has none.
  */
 #[Experimental]
 final readonly class EditorField
@@ -49,10 +58,20 @@ final readonly class EditorField
 
     private const string FIELD_TYPE = '/\A(?:[a-z][a-z0-9]{0,19}:)?[a-z][a-z0-9]*(?:_[a-z0-9]+)*\z/';
 
+    /** @var list<EditorText> sorted by locale */
+    public array $labels;
+
+    /** @var list<EditorText> sorted by locale */
+    public array $descriptions;
+
     /**
      * @param  list<EditorChoice>  $choices  the options of a select, each value once
      * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
      * @param  FieldFallback  $fallback  how a translatable field falls back; Variant for every other field
+     * @param  list<EditorText>  $labels  the label per locale
+     * @param  list<EditorText>  $descriptions  the description per locale
+     * @param  EditorUi  $ui  the hints the form takes for the input
+     * @param  ?JsonDocument  $defaultValue  the form's starting value, or null
      *
      * @throws InvalidTypeEditor when the field breaks its rules
      */
@@ -74,6 +93,10 @@ final readonly class EditorField
         public ?JsonDocument $rule,
         public bool $translatable = false,
         public FieldFallback $fallback = FieldFallback::Variant,
+        array $labels = [],
+        array $descriptions = [],
+        public EditorUi $ui = new EditorUi,
+        public ?JsonDocument $defaultValue = null,
     ) {
         $expected = ($parent === null ? ($namespace instanceof FieldNamespace ? 'ext.'.$namespace->value.'.' : '') : $parent.'.').$handle->value;
 
@@ -122,6 +145,21 @@ final readonly class EditorField
         if ($fallback !== FieldFallback::Variant && ! $translatable) {
             throw InvalidTypeEditor::fallback($path);
         }
+
+        if ($ui->display instanceof SelectDisplay && $base !== EditorBase::Select) {
+            throw InvalidTypeEditor::display($path);
+        }
+
+        if ($ui->summary !== null && ! $repeat instanceof EditorRepeat) {
+            throw InvalidTypeEditor::summary($path);
+        }
+
+        if ($defaultValue instanceof JsonDocument && ($base === EditorBase::Group || $base === EditorBase::RichText)) {
+            throw InvalidTypeEditor::defaultValue($path);
+        }
+
+        $this->labels = EditorText::checked($labels, 'the label of the field '.$path);
+        $this->descriptions = EditorText::checked($descriptions, 'the description of the field '.$path);
     }
 
     /**

@@ -77,6 +77,31 @@ export interface LoginRefusalsV1 {
   password: LoginRefusal | null;
 }
 
+const loginNoticePropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'addon',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
+    },
+    {
+      key: 'id',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$',
+        maxLength: 96,
+      },
+    },
+    { key: 'message', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    {
+      key: 'tone',
+      presence: 'required',
+      value: { kind: 'enum', values: ['neutral', 'info', 'warning', 'danger'] },
+    },
+  ],
+};
+
 const loginRefusalsV1Rule: ObjectRule = {
   properties: [
     {
@@ -102,31 +127,6 @@ const loginRefusalsV1Rule: ObjectRule = {
         kind: 'enum',
         values: ['validation_required', 'login_rejected', 'login_rate_limited'],
       },
-    },
-  ],
-};
-
-const loginNoticePropV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'addon',
-      presence: 'required',
-      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
-    },
-    {
-      key: 'id',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$',
-        maxLength: 96,
-      },
-    },
-    { key: 'message', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
-    {
-      key: 'tone',
-      presence: 'required',
-      value: { kind: 'enum', values: ['neutral', 'info', 'warning', 'danger'] },
     },
   ],
 };

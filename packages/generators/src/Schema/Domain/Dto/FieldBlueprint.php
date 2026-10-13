@@ -24,6 +24,10 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * `translatable` and `fallback` are the keys of a top-level field of a type with localization
  * variants (PRD 10.1, 10.3); a field inside a group has its group's, and both have their defaults
  * everywhere else.
+ *
+ * The presentation keys (gap G2) reach only the editor descriptor: `labels` and `descriptions`
+ * are the label and the description per locale when the file gives a map, `ui` the hints of the
+ * form and `default` the form's starting value; each is empty or null when the file has none.
  */
 #[Internal]
 final readonly class FieldBlueprint
@@ -43,6 +47,8 @@ final readonly class FieldBlueprint
      * @param  bool  $agents  whether MCP tools and agents see the field
      * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
      * @param  FieldFallback  $fallback  how a translatable field falls back
+     * @param  array<string, string>  $labels  the label by locale, in file order, when the file gives a map
+     * @param  array<string, string>  $descriptions  the description by locale, in file order, when the file gives a map
      */
     public function __construct(
         public Handle $handle,
@@ -58,5 +64,9 @@ final readonly class FieldBlueprint
         public SourceLocation $location,
         public bool $translatable = self::DEFAULT_TRANSLATABLE,
         public FieldFallback $fallback = self::DEFAULT_FALLBACK,
+        public array $labels = [],
+        public array $descriptions = [],
+        public ?FieldUi $ui = null,
+        public ?FieldDefault $default = null,
     ) {}
 }

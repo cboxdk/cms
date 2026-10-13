@@ -6,6 +6,8 @@ namespace Cbox\Cms\Generators\Descriptor\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldDefault;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
@@ -33,6 +35,10 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * a language's when true and the shared one when false, and $fallback how a translatable field
  * falls back (PRD 10.3); a field inside a group has its group's, and in a type without localization
  * both have their defaults.
+ *
+ * The presentation keys (gap G2), $labels and $descriptions per locale, $ui and $default, reach
+ * only the editor descriptor; the canonical JSON, the catalog, the codecs, the validators and the
+ * tables leave them out.
  */
 #[Internal]
 final readonly class FieldDescriptor
@@ -48,6 +54,10 @@ final readonly class FieldDescriptor
      * @param  ?string  $base  the core field type the value takes the form of; null for $type itself
      * @param  bool  $translatable  whether a language's variant holds the field
      * @param  FieldFallback  $fallback  how a translatable field falls back
+     * @param  array<string, string>  $labels  the label by locale, in file order, when the blueprint gives a map
+     * @param  array<string, string>  $descriptions  the description by locale, in file order, when the blueprint gives a map
+     * @param  ?FieldUi  $ui  the hints the form takes, or null
+     * @param  ?FieldDefault  $default  the form's starting value, or null
      */
     public function __construct(
         public ?ColumnDescriptor $column,
@@ -72,6 +82,10 @@ final readonly class FieldDescriptor
         ?string $base = null,
         public bool $translatable = false,
         public FieldFallback $fallback = FieldFallback::Variant,
+        public array $labels = [],
+        public array $descriptions = [],
+        public ?FieldUi $ui = null,
+        public ?FieldDefault $default = null,
     ) {
         $this->base = $base ?? $type;
     }

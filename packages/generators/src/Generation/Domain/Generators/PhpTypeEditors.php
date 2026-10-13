@@ -6,10 +6,19 @@ namespace Cbox\Cms\Generators\Generation\Domain\Generators;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Editors\EditorBase;
 use Cbox\Cms\Contracts\Editors\EditorChoice;
 use Cbox\Cms\Contracts\Editors\EditorField;
+use Cbox\Cms\Contracts\Editors\EditorLayout;
+use Cbox\Cms\Contracts\Editors\EditorPlacement;
 use Cbox\Cms\Contracts\Editors\EditorRepeat;
+use Cbox\Cms\Contracts\Editors\EditorSection;
+use Cbox\Cms\Contracts\Editors\EditorTab;
+use Cbox\Cms\Contracts\Editors\EditorText;
+use Cbox\Cms\Contracts\Editors\EditorUi;
+use Cbox\Cms\Contracts\Editors\EditorWidth;
+use Cbox\Cms\Contracts\Editors\SelectDisplay;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
@@ -38,7 +47,9 @@ use Override;
  * with a TypeEditor per type, sorted by name, which the generated service provider binds
  * (PhpTypeCatalog). The panel's forms render a type from it, through the queries type.list and
  * type.describe, and a form validates with the rule each leaf field carries, the ValueRule of the
- * record's TypeScript module, as one JSON document (TypeEditorCompiler, RuleJson).
+ * record's TypeScript module, as one JSON document (TypeEditorCompiler, RuleJson). Each type's
+ * layout, the labels per locale, the hints of each field and its form-only default come with it
+ * (gap G2); an argument that has its default is left out, so a field without hints stays short.
  *
  * The output is formatted the way Pint, Rector and PHPStan level 10 accept it unchanged, and it
  * uses only the public API of cboxdk/cms.
@@ -76,8 +87,8 @@ final readonly class PhpTypeEditors implements Generator
      * @var array<string, string>
      */
     public const array KINDS = [
-        'extension' => 'its version among the extensions of the type it extends, and its fields after the owner\'s under ext.<namespace>, with required_on_release presence where the blueprint requires them',
-        'type' => 'a TypeEditor with the type\'s id, name, label, description, version, capabilities, title field and fields in form order',
+        'extension' => 'its version among the extensions of the type it extends, its fields after the owner\'s under ext.<namespace>, with required_on_release presence where the blueprint requires them, and its layout fragment composed into the type\'s layout, or its fields in the tab extensions',
+        'type' => 'a TypeEditor with the type\'s id, name, label, description, version, capabilities, title field, fields in form order, layout and labels per locale',
     ];
 
     public function __construct(private TypeEditorCompiler $compiler) {}
@@ -111,16 +122,25 @@ final readonly class PhpTypeEditors implements Generator
                 EditorBase::class,
                 EditorChoice::class,
                 EditorField::class,
+                EditorLayout::class,
+                EditorPlacement::class,
                 EditorRepeat::class,
+                EditorSection::class,
+                EditorTab::class,
+                EditorText::class,
+                EditorUi::class,
+                EditorWidth::class,
                 ExtensionVersion::class,
                 FieldFallback::class,
                 FieldHandle::class,
                 FieldNamespace::class,
                 History::class,
                 JsonDocument::class,
+                Locale::class,
                 Localization::class,
                 Override::class,
                 Presence::class,
+                SelectDisplay::class,
                 Stages::class,
                 TypeCapabilities::class,
                 TypeEditor::class,
@@ -131,7 +151,8 @@ final readonly class PhpTypeEditors implements Generator
                 '/**',
                 ' * The editor descriptors of the schema roots\' types, as the panel\'s forms render them at run time',
                 ' * through the TypeEditors contract (PRD 11.12, 14.1): each type\'s name, labels, capabilities, title',
-                ' * field and fields in form order, each field with its rule in the form of the validation runtime.',
+                ' * field, layout and fields in form order, each field with its rule in the form of the validation',
+                ' * runtime, the hints its form takes and its form-only default.',
                 ' *',
                 ...array_map(static fn (string $line): string => ' * '.$line, PhpSource::NOTICE),
                 ' *',
@@ -204,8 +225,144 @@ final readonly class PhpTypeEditors implements Generator
             sprintf('                %s,', $editor->titleField === null ? 'null' : PhpSource::literal($editor->titleField)),
             ...($extensions === [] ? ['                [],'] : ['                [', ...$extensions, '                ],']),
             ...($fields === [] ? ['                [],'] : ['                [', ...$fields, '                ],']),
+            ...$this->layout($editor->layout, '                '),
+            ...($editor->labels === [] && $editor->descriptions === [] ? [] : $this->texts($editor->labels, '                ')),
+            ...($editor->descriptions === [] ? [] : $this->texts($editor->descriptions, '                ')),
             '            ),',
         ];
+    }
+
+    /**
+     * The layout as a `new EditorLayout(...)` argument at the indent, ending with a comma.
+     *
+     * @return list<string>
+     */
+    private function layout(EditorLayout $layout, string $indent): array
+    {
+        $tabs = [];
+
+        foreach ($layout->tabs as $tab) {
+            $tabs = [
+                ...$tabs,
+                sprintf('%s        new EditorTab(', $indent),
+                sprintf('%s            new FieldHandle(%s),', $indent, PhpSource::literal($tab->handle->value)),
+                sprintf('%s            %s,', $indent, PhpSource::literal($tab->label)),
+                ...$this->texts($tab->labels, $indent.'            '),
+                ...$this->sections($tab->sections, $indent.'            '),
+                sprintf('%s        ),', $indent),
+            ];
+        }
+
+        return [
+            $indent.'new EditorLayout(',
+            ...($tabs === [] ? [$indent.'    [],'] : [$indent.'    [', ...$tabs, $indent.'    ],']),
+            ...$this->sections($layout->sidebar, $indent.'    '),
+            $indent.'),',
+        ];
+    }
+
+    /**
+     * A list of sections as an argument at the indent, ending with a comma.
+     *
+     * @param  list<EditorSection>  $sections
+     * @return list<string>
+     */
+    private function sections(array $sections, string $indent): array
+    {
+        if ($sections === []) {
+            return [$indent.'[],'];
+        }
+
+        $lines = [$indent.'['];
+
+        foreach ($sections as $section) {
+            $placements = [];
+
+            foreach ($section->fields as $placement) {
+                $placements[] = sprintf('%s            new EditorPlacement(%s, EditorWidth::%s),', $indent, PhpSource::literal($placement->path), $placement->width->name);
+            }
+
+            $lines = [
+                ...$lines,
+                sprintf('%s    new EditorSection(', $indent),
+                sprintf('%s        new FieldHandle(%s),', $indent, PhpSource::literal($section->handle->value)),
+                sprintf('%s        %s,', $indent, $section->label === null ? 'null' : PhpSource::literal($section->label)),
+                ...$this->texts($section->labels, $indent.'        '),
+                sprintf('%s        %s,', $indent, $section->instructions === null ? 'null' : PhpSource::literal($section->instructions)),
+                ...$this->texts($section->instructionsByLocale, $indent.'        '),
+                sprintf('%s        %s,', $indent, $section->collapsible ? 'true' : 'false'),
+                ...($placements === [] ? [$indent.'        [],'] : [$indent.'        [', ...$placements, $indent.'        ],']),
+                sprintf('%s    ),', $indent),
+            ];
+        }
+
+        return [...$lines, $indent.'],'];
+    }
+
+    /**
+     * A list of texts per locale as an argument at the indent, ending with a comma; `$name: ` is
+     * written before it for a named argument.
+     *
+     * @param  list<EditorText>  $texts
+     * @return list<string>
+     */
+    private function texts(array $texts, string $indent, string $name = ''): array
+    {
+        $prefix = $name === '' ? '' : $name.': ';
+
+        if ($texts === []) {
+            return [$indent.$prefix.'[],'];
+        }
+
+        return [
+            $indent.$prefix.'[',
+            ...array_map(static fn (EditorText $text): string => sprintf('%s    new EditorText(new Locale(%s), %s),', $indent, PhpSource::literal($text->locale->value), PhpSource::literal($text->text)), $texts),
+            $indent.'],',
+        ];
+    }
+
+    /**
+     * The `ui:` argument of a field with hints, at the indent of the field's arguments.
+     *
+     * @return list<string>
+     */
+    private function ui(EditorUi $ui, string $indent): array
+    {
+        $lines = [];
+
+        if ($ui->instructions !== null) {
+            $lines[] = $indent.'    instructions: '.PhpSource::literal($ui->instructions).',';
+        }
+
+        if ($ui->instructionsByLocale !== []) {
+            $lines = [...$lines, ...$this->texts($ui->instructionsByLocale, $indent.'    ', 'instructionsByLocale')];
+        }
+
+        if ($ui->inputHint !== null) {
+            $lines[] = $indent.'    inputHint: '.PhpSource::literal($ui->inputHint).',';
+        }
+
+        if ($ui->inputHintByLocale !== []) {
+            $lines = [...$lines, ...$this->texts($ui->inputHintByLocale, $indent.'    ', 'inputHintByLocale')];
+        }
+
+        if ($ui->readOnly) {
+            $lines[] = $indent.'    readOnly: true,';
+        }
+
+        if ($ui->hidden) {
+            $lines[] = $indent.'    hidden: true,';
+        }
+
+        if ($ui->display instanceof SelectDisplay) {
+            $lines[] = $indent.'    display: SelectDisplay::'.$ui->display->name.',';
+        }
+
+        if ($ui->summary !== null) {
+            $lines[] = $indent.'    summary: '.PhpSource::literal($ui->summary).',';
+        }
+
+        return [$indent.'ui: new EditorUi(', ...$lines, $indent.'),'];
     }
 
     /**
@@ -218,7 +375,16 @@ final readonly class PhpTypeEditors implements Generator
         $choices = [];
 
         foreach ($field->choices as $choice) {
-            $choices[] = sprintf('%s        new EditorChoice(new FieldHandle(%s), %s),', $indent, PhpSource::literal($choice->value->value), PhpSource::literal($choice->label));
+            $choices = [
+                ...$choices,
+                ...($choice->labels === []
+                    ? [sprintf('%s        new EditorChoice(new FieldHandle(%s), %s),', $indent, PhpSource::literal($choice->value->value), PhpSource::literal($choice->label))]
+                    : [
+                        sprintf('%s        new EditorChoice(new FieldHandle(%s), %s, [', $indent, PhpSource::literal($choice->value->value), PhpSource::literal($choice->label)),
+                        ...array_map(static fn (EditorText $text): string => sprintf('%s            new EditorText(new Locale(%s), %s),', $indent, PhpSource::literal($text->locale->value), PhpSource::literal($text->text)), $choice->labels),
+                        sprintf('%s        ]),', $indent),
+                    ]),
+            ];
         }
 
         return [
@@ -240,6 +406,10 @@ final readonly class PhpTypeEditors implements Generator
             $indent.'    rule: '.($field->rule instanceof JsonDocument ? 'new JsonDocument('.PhpSource::literal($field->rule->value).')' : 'null').',',
             ...($field->translatable ? [$indent.'    translatable: true,'] : []),
             ...($field->fallback->value === FieldFallback::Variant->value ? [] : [$indent.'    fallback: FieldFallback::'.FieldFallback::from($field->fallback->value)->name.',']),
+            ...($field->labels === [] ? [] : $this->texts($field->labels, $indent.'    ', 'labels')),
+            ...($field->descriptions === [] ? [] : $this->texts($field->descriptions, $indent.'    ', 'descriptions')),
+            ...($field->ui->isEmpty() ? [] : $this->ui($field->ui, $indent.'    ')),
+            ...($field->defaultValue instanceof JsonDocument ? [$indent.'    defaultValue: new JsonDocument('.PhpSource::literal($field->defaultValue->value).'),'] : []),
             $indent.'),',
         ];
     }

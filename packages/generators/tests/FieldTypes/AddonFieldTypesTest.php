@@ -45,6 +45,7 @@ use Cbox\Cms\Generators\Tests\FieldTypes\Fixtures\SchemaAtFieldTypes;
 use Cbox\Cms\Generators\Tests\FieldTypes\Fixtures\StarsFieldType;
 use Cbox\Cms\Generators\Tests\Migrations\Fakes\FakeSchemaLocks;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
+use Cbox\Cms\Generators\TypeEditors\Boundary\DefaultJson;
 use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
 use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use Cbox\Cms\Tests\Support\Phpstan;
@@ -210,7 +211,7 @@ function everyGenerator(): array
         new PhpTypeHandleEnum,
         new PhpRecords,
         new PhpTypeCatalog(ServiceProvider::class),
-        new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))),
+        new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))),
         new PhpTypeQueries,
         new PhpTypeValidators,
         new TypeScriptTypeHandles,

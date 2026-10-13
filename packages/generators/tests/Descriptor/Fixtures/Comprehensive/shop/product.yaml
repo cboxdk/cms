@@ -3,12 +3,16 @@
 # the module shop that uses all ten core field types, select options, a group with nested fields
 # once and repeated, required, filterable and sortable fields, every classification and both agents
 # flags. The app extends it in ../app/product.yaml. TypeDescriptorTest compiles both and compares the
-# descriptor with ../descriptor.json.
+# descriptor with ../descriptor.json. The presentation keys (gap G2) reach only the editor
+# descriptor, ../editor.json: a label per locale, a layout of two tabs and a sidebar, which the
+# app's fragment joins, the ui hints of a select and of a repeated group, and form-only defaults.
 blueprint: 1
 kind: type
 type_id: 0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20
 handle: product
-label: Product
+label:
+  en: Product
+  da: Produkt
 description: A product of the shop, with its price, stock and supplier.
 version: 3
 capabilities:
@@ -18,7 +22,9 @@ capabilities:
   routable: true
 fields:
   - handle: name
-    label: Name
+    label:
+      en: Name
+      da: Navn
     description: The name of the product, as the shop shows it.
     type: text
     required: true
@@ -27,6 +33,8 @@ fields:
     sortable: true
     min_length: 1
     max_length: 120
+    ui:
+      input_hint: The name on the shelf
   - handle: support_email
     label: Support email
     description: Where customers write about the product.
@@ -49,6 +57,7 @@ fields:
     min: 0
     max: 1000000
     unit: pcs
+    default: 0
   - handle: weight
     label: Weight
     description: The weight of one item in grams.
@@ -67,12 +76,14 @@ fields:
     min: "0.00"
     max: "99999999.99"
     unit: EUR
+    default: "0.00"
   - handle: discontinued
     label: Discontinued
     description: Whether the shop no longer sells the product.
     type: boolean
     classification: public
     filterable: true
+    default: false
   - handle: launch_date
     label: Launch date
     description: The day the product went on sale.
@@ -81,12 +92,16 @@ fields:
     sortable: true
     min: "2000-01-01"
     max: "2099-12-31"
+    default: today
   - handle: checked_at
     label: Checked at
     description: When the product data was last checked.
     type: datetime
     classification: internal
     min: "2000-01-01T00:00:00Z"
+    default: now
+    ui:
+      read_only: true
   - handle: colour
     label: Colour
     description: The colour of the product.
@@ -94,9 +109,17 @@ fields:
     required: true
     classification: public
     filterable: true
+    default: red
+    ui:
+      display: radio
+      instructions:
+        en: Pick the colour of the product.
+        da: Vælg produktets farve.
     options:
       - value: red
-        label: Red
+        label:
+          en: Red
+          da: Rød
       - value: green
         label: Green
       - value: blue
@@ -109,6 +132,7 @@ fields:
     multiple: true
     min_items: 1
     max_items: 3
+    default: [new]
     options:
       - value: new
         label: New
@@ -159,6 +183,8 @@ fields:
     repeat:
       min_items: 1
       max_items: 5
+    ui:
+      summary: "{size}: {width} mm"
     fields:
       - handle: size
         label: Size
@@ -182,3 +208,54 @@ fields:
     classification: confidential
     precision: 10
     scale: 2
+    ui:
+      hidden: true
+layout:
+  tabs:
+    - handle: general
+      label:
+        en: General
+        da: Generelt
+      sections:
+        - handle: identity
+          fields:
+            - field: name
+              width: two_thirds
+            - field: colour
+              width: third
+            - field: summary
+            - field: body
+            - field: care
+        - handle: supply
+          label: Supply
+          instructions: Who supplies the product and what it costs.
+          collapsible: true
+          fields:
+            - field: supplier
+            - field: purchase_price
+              width: half
+            - field: stock
+              width: half
+    - handle: details
+      label: Details
+      sections:
+        - handle: measures
+          fields:
+            - field: weight
+              width: half
+            - field: price
+              width: half
+            - field: dimensions
+  sidebar:
+    sections:
+      - handle: status
+        label: Status
+        fields:
+          - field: discontinued
+          - field: launch_date
+          - field: checked_at
+          - field: tags
+      - handle: contact
+        label: Contact
+        fields:
+          - field: support_email

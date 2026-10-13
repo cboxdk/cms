@@ -166,6 +166,39 @@ enum GenerateErrorCode: string
      */
     case FieldNotQueryable = 'generate_field_not_queryable';
 
+    /**
+     * A type's or an extension's `layout` leaves out a top-level field of its file. Every field is
+     * placed exactly once (gap G2): add it to a section, or remove the layout so the fields land in
+     * one section in file order.
+     */
+    case LayoutFieldOmitted = 'generate_layout_field_omitted';
+
+    /** A `layout` places one field twice. */
+    case LayoutFieldRepeated = 'generate_layout_field_repeated';
+
+    /**
+     * A `layout` places a field its file does not have: an unknown handle, a field inside a group,
+     * which its group's input holds, or another owner's field.
+     */
+    case LayoutFieldUnknown = 'generate_layout_field_unknown';
+
+    /** A placement in a `layout` has a `width` that is not one of the presets full, half, third and two_thirds. */
+    case LayoutWidthUnknown = 'generate_layout_width_unknown';
+
+    /** Two tabs of a `layout`, or two sections of one tab or of the sidebar, have the same handle. */
+    case LayoutDuplicateHandle = 'generate_layout_duplicate_handle';
+
+    /**
+     * A field's `default` is not of the kind its field type takes: a string for text, an integer
+     * for integer, a decimal string for decimal, a boolean for boolean, a date or `today` for date,
+     * a time or `now` for datetime, one of the options for select or a list of them with
+     * `multiple`; a group and rich text take none.
+     */
+    case DefaultWrongKind = 'generate_default_wrong_kind';
+
+    /** A repeated group's `ui.summary` names a field in braces that the group does not have. */
+    case SummaryFieldUnknown = 'generate_summary_field_unknown';
+
     /** A generator produced a file outside its directory, or two files with the same path. */
     case InvalidOutput = 'generate_invalid_output';
 

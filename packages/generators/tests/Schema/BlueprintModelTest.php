@@ -11,12 +11,15 @@ use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Boundary\BlueprintSchemaFile;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LayoutSection;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
+use Cbox\Cms\Generators\Schema\Domain\LayoutWidth;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
@@ -85,7 +88,8 @@ function schemaDefaults(mixed $schema, string $pointer = ''): array
     $defaults = [];
 
     foreach (is_object($schema) ? get_object_vars($schema) : (is_array($schema) ? $schema : []) as $key => $value) {
-        if ($key === 'default') {
+        // Below "properties" a key is a property's name, such as a field's `default`, not a keyword.
+        if ($key === 'default' && ! str_ends_with($pointer, '/properties')) {
             $defaults[$pointer] = $value;
         } else {
             $defaults = [...$defaults, ...schemaDefaults($value, $pointer.'/'.$key)];
@@ -146,6 +150,10 @@ it('fills in exactly the defaults of the blueprint schema', function (): void {
         '/$defs/longTextOptions/properties/max_length' => LongTextOptions::DEFAULT_MAX_LENGTH,
         '/$defs/selectOptions/properties/multiple' => SelectOptions::DEFAULT_MULTIPLE,
         '/$defs/groupOptions/properties/repeat/properties/max_items' => GroupRepeat::DEFAULT_MAX_ITEMS,
+        '/$defs/layoutSection/properties/collapsible' => LayoutSection::DEFAULT_COLLAPSIBLE,
+        '/$defs/layoutField/properties/width' => LayoutWidth::DEFAULT->value,
+        '/$defs/ui/properties/read_only' => FieldUi::DEFAULT_READ_ONLY,
+        '/$defs/ui/properties/hidden' => FieldUi::DEFAULT_HIDDEN,
     ]);
 });
 

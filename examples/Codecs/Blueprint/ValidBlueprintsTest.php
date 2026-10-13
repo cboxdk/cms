@@ -26,4 +26,5 @@ it('accepts the blueprint file', function (string $file): void {
     'the extension of another owner\'s type' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml'],
     'the type product with the addon field type acme:colour' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml'],
     'the type notice with localization variants' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml'],
+    'the type event with labels per locale, a layout, ui hints and defaults' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml'],
 ]);

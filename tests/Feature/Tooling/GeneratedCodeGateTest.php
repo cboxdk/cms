@@ -66,13 +66,13 @@ afterEach(function (): void {
 });
 
 const SUMMARY_FIELD = <<<'YAML'
-      - handle: fixture_summary
-        label: Summary
-        description: A short summary of the article.
-        type: text
-        classification: public
+  - handle: fixture_summary
+    label: Summary
+    description: A short summary of the article.
+    type: text
+    classification: public
 
-    YAML;
+YAML;
 
 const PAGE_TYPE = <<<'YAML'
     blueprint: 1
@@ -203,6 +203,21 @@ function appendTo(string $path, string $text): void
     SchemaFixtures::write($path, (is_file($path) ? (string) file_get_contents($path) : '').$text);
 }
 
+/**
+ * Adds the summary field to the workbench's article in the repository: the field before the
+ * article's layout, and its placement in the first section, because a layout places every
+ * top-level field of the file exactly once.
+ */
+function addArticleSummary(string $root): void
+{
+    $path = $root.'/workbench/schema/fixture_article.yaml';
+    SchemaFixtures::write($path, str_replace(
+        ["\nlayout:\n", "            - field: fixture_body\n"],
+        ["\n".SUMMARY_FIELD."layout:\n", "            - field: fixture_body\n            - field: fixture_summary\n"],
+        (string) file_get_contents($path),
+    ));
+}
+
 it('regenerates, then fails on a diff or an untracked file under the generated paths, checked before and after', function (): void {
     $paths = implode(' ', [...GENERATED_PATHS, PROTOCOL_PATH, ...PANEL_PAGE_PATHS, ...PANEL_POINT_PATHS, ...TOKEN_PATHS]);
 
@@ -251,7 +266,12 @@ it('fails after a manual edit to a generated PHP file, and passes again after gi
 
 it('fails after a field or a type is added to the blueprints without regenerating', function (string $file, string $addition, string $generated): void {
     $root = gateRepository();
-    appendTo($root.'/workbench/schema/'.$file, $addition);
+
+    if ($addition === SUMMARY_FIELD) {
+        addArticleSummary($root);
+    } else {
+        appendTo($root.'/workbench/schema/'.$file, $addition);
+    }
 
     [$status, $output] = runGate($root);
 
@@ -264,7 +284,7 @@ it('fails after a field or a type is added to the blueprints without regeneratin
 
 it('passes once the regenerated code is staged with the blueprint change', function (): void {
     $root = gateRepository();
-    appendTo($root.'/workbench/schema/fixture_article.yaml', SUMMARY_FIELD);
+    addArticleSummary($root);
     app(Kernel::class)->call('cms:generate');
     git($root, 'add', '--all');
 
@@ -289,7 +309,7 @@ it('fails after a manual edit to a type table migration or schema lock, and pass
 
 it('writes the next step of the lock and an add_columns migration for a new optional field, which the gate wants committed', function (): void {
     $root = gateRepository();
-    appendTo($root.'/workbench/schema/fixture_article.yaml', SUMMARY_FIELD);
+    addArticleSummary($root);
 
     [$status, $output] = runGate($root);
 
@@ -304,7 +324,9 @@ it('fails when a field of a type that has a table is removed, and writes nothing
     $root = gateRepository();
     $blueprint = $root.'/workbench/schema/fixture_article.yaml';
     $contents = (string) file_get_contents($blueprint);
-    SchemaFixtures::write($blueprint, substr($contents, 0, (int) strpos($contents, '  - handle: fixture_reading_minutes')).substr($contents, (int) strpos($contents, '  - handle: fixture_featured')));
+    $without = substr($contents, 0, (int) strpos($contents, '  - handle: fixture_reading_minutes')).substr($contents, (int) strpos($contents, '  - handle: fixture_featured'));
+    // The layout places every field once, so the removed field's placement goes too.
+    SchemaFixtures::write($blueprint, (string) preg_replace('/^ +- field: fixture_reading_minutes\n +width: half\n/m', '', $without));
     git($root, 'add', '--all');
 
     [$status, $output] = runGate($root);

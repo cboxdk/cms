@@ -9,9 +9,20 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\DefaultToken;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
+use Cbox\Cms\Generators\Schema\Domain\Dto\DateOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\DatetimeOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldDefault;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
+use Cbox\Cms\Generators\Schema\Domain\Dto\Layout;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LayoutField;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LayoutSection;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LayoutTab;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LocalizedText;
+use Cbox\Cms\Generators\Schema\Domain\Dto\ShapedOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\FieldOptions;
@@ -19,8 +30,10 @@ use Cbox\Cms\Generators\Schema\Domain\FieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\History;
+use Cbox\Cms\Generators\Schema\Domain\LayoutWidth;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
+use Cbox\Cms\Generators\Schema\Domain\SelectDisplay;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
 use Cbox\Cms\Generators\Schema\Domain\Stages;
 use Cbox\Cms\Generators\Schema\Domain\TypeId;
@@ -55,13 +68,23 @@ final readonly class BlueprintDocumentReader
 {
     public const string PACKAGE = 'cboxdk/cms';
 
-    private const array TYPE_KEYS = ['blueprint', 'kind', 'type_id', 'handle', 'label', 'description', 'version', 'capabilities', 'fields'];
+    private const array TYPE_KEYS = ['blueprint', 'kind', 'type_id', 'handle', 'label', 'description', 'version', 'capabilities', 'fields', 'layout'];
 
-    private const array EXTENSION_KEYS = ['blueprint', 'kind', 'extends', 'version', 'fields'];
+    private const array EXTENSION_KEYS = ['blueprint', 'kind', 'extends', 'version', 'fields', 'layout'];
 
     private const array CAPABILITY_KEYS = ['history', 'stages', 'localization', 'routable'];
 
-    private const array FIELD_KEYS = ['handle', 'label', 'description', 'type', 'required', 'classification', 'filterable', 'sortable', 'translatable', 'fallback', 'agents'];
+    private const array FIELD_KEYS = ['handle', 'label', 'description', 'type', 'required', 'classification', 'filterable', 'sortable', 'translatable', 'fallback', 'agents', 'ui', 'default'];
+
+    private const array LAYOUT_KEYS = ['tabs', 'sidebar'];
+
+    private const array TAB_KEYS = ['handle', 'label', 'sections'];
+
+    private const array SECTION_KEYS = ['handle', 'label', 'instructions', 'collapsible', 'fields'];
+
+    private const array PLACEMENT_KEYS = ['field', 'width'];
+
+    private const array UI_KEYS = ['instructions', 'input_hint', 'read_only', 'hidden', 'display', 'summary'];
 
     public function __construct(private FieldTypeRegistry $fieldTypes) {}
 
@@ -115,17 +138,18 @@ final readonly class BlueprintDocumentReader
 
         $typeId = $document->typeId('type_id');
         $handle = $document->handle('handle');
-        $label = $document->string('label');
-        $description = $document->optionalString('description');
+        $label = $document->text('label');
+        $description = $document->optionalText('description');
         $version = $document->int('version');
         $capabilities = $this->capabilities($document);
         $fields = $this->fields($document->value('fields'), $owner, $document->at()->below('fields'), null, $problems);
+        $layout = $this->layout($document);
 
-        if (! $typeId instanceof TypeId || ! $handle instanceof Handle || $label === null || $version === null || ! $capabilities instanceof Capabilities || $fields === null) {
+        if (! $typeId instanceof TypeId || ! $handle instanceof Handle || ! $label instanceof LocalizedText || $version === null || ! $capabilities instanceof Capabilities || $fields === null || ($document->has('layout') && ! $layout instanceof Layout)) {
             return null;
         }
 
-        return new TypeBlueprint($typeId, $handle, $label, $description, $version, $capabilities, $fields, $owner, $document->at());
+        return new TypeBlueprint($typeId, $handle, $label->text, $description?->text, $version, $capabilities, $fields, $owner, $document->at(), $label->byLocale, $description->byLocale ?? [], $layout);
     }
 
     private function extension(DocumentValues $document, Owner $owner, ReadProblems $problems): ?ExtensionBlueprint
@@ -135,12 +159,13 @@ final readonly class BlueprintDocumentReader
         $extends = $document->typeId('extends');
         $version = $document->int('version');
         $fields = $this->fields($document->value('fields'), $owner, $document->at()->below('fields'), null, $problems);
+        $layout = $this->layout($document);
 
-        if (! $extends instanceof TypeId || $version === null || $fields === null) {
+        if (! $extends instanceof TypeId || $version === null || $fields === null || ($document->has('layout') && ! $layout instanceof Layout)) {
             return null;
         }
 
-        return new ExtensionBlueprint($extends, $version, $fields, $owner, $document->at());
+        return new ExtensionBlueprint($extends, $version, $fields, $owner, $document->at(), $layout);
     }
 
     private function capabilities(DocumentValues $document): ?Capabilities
@@ -232,19 +257,199 @@ final readonly class BlueprintDocumentReader
         }
 
         $handle = $field->handle('handle');
-        $label = $field->string('label');
-        $description = $field->optionalString('description');
+        $label = $field->text('label');
+        $description = $field->optionalText('description');
+        $ui = $this->ui($field);
+        $default = $this->default($field, $options);
         $required = $field->bool('required', FieldBlueprint::DEFAULT_REQUIRED);
         $filterable = $field->bool('filterable', FieldBlueprint::DEFAULT_FILTERABLE);
         $sortable = $field->bool('sortable', FieldBlueprint::DEFAULT_SORTABLE);
         $translatable = $field->bool('translatable', FieldBlueprint::DEFAULT_TRANSLATABLE);
         $fallback = $field->has('fallback') ? $field->enum(FieldFallback::class, 'fallback') : FieldBlueprint::DEFAULT_FALLBACK;
 
-        if (! $options instanceof FieldOptions || ! $handle instanceof Handle || $label === null || ! $fallback instanceof FieldFallback || (! $group instanceof EnclosingGroup && ! $classification instanceof Classification)) {
+        if (! $options instanceof FieldOptions || ! $handle instanceof Handle || ! $label instanceof LocalizedText || ! $fallback instanceof FieldFallback || (! $group instanceof EnclosingGroup && ! $classification instanceof Classification) || ($field->has('ui') && ! $ui instanceof FieldUi)) {
             return null;
         }
 
-        return new FieldBlueprint($handle, $label, $description, $required, $classification, $filterable, $sortable, $agents, $options, $owner, $field->at(), $translatable, $fallback);
+        return new FieldBlueprint($handle, $label->text, $description?->text, $required, $classification, $filterable, $sortable, $agents, $options, $owner, $field->at(), $translatable, $fallback, $label->byLocale, $description->byLocale ?? [], $ui, $default);
+    }
+
+    /**
+     * The `ui` of a field (gap G2), or null when the field has none or it could not be read.
+     */
+    private function ui(DocumentValues $field): ?FieldUi
+    {
+        if (! $field->has('ui')) {
+            return null;
+        }
+
+        $values = $field->object('ui');
+
+        if (! $values instanceof DocumentValues) {
+            return null;
+        }
+
+        $values->knownKeys(self::UI_KEYS);
+        $instructions = $values->optionalText('instructions');
+        $inputHint = $values->optionalText('input_hint');
+        $readOnly = $values->bool('read_only', FieldUi::DEFAULT_READ_ONLY);
+        $hidden = $values->bool('hidden', FieldUi::DEFAULT_HIDDEN);
+        $display = $values->optionalEnum(SelectDisplay::class, 'display');
+        $summary = $values->optionalString('summary');
+
+        if (($values->has('instructions') && ! $instructions instanceof LocalizedText)
+            || ($values->has('input_hint') && ! $inputHint instanceof LocalizedText)
+            || ($values->has('display') && ! $display instanceof SelectDisplay)
+            || ($values->has('summary') && $summary === null)) {
+            return null;
+        }
+
+        return new FieldUi($instructions, $inputHint, $readOnly, $hidden, $display, $summary);
+    }
+
+    /**
+     * The `default` of a field (gap G2), or null when the field has none or it could not be read.
+     * `today` on a date field and `now` on a datetime field, an addon's field type of that base
+     * included, are the tokens the form resolves; BlueprintRules holds every other default to the
+     * kind the field type takes.
+     */
+    private function default(DocumentValues $field, ?FieldOptions $options): ?FieldDefault
+    {
+        $raw = $field->rawDefault('default');
+        $base = $options instanceof ShapedOptions ? $options->base : $options;
+
+        if ($raw === null) {
+            return null;
+        }
+
+        if (is_array($raw)) {
+            return FieldDefault::values($raw);
+        }
+
+        if ($base instanceof DateOptions && $raw === DefaultToken::Today->value) {
+            return FieldDefault::token(DefaultToken::Today);
+        }
+
+        if ($base instanceof DatetimeOptions && $raw === DefaultToken::Now->value) {
+            return FieldDefault::token(DefaultToken::Now);
+        }
+
+        return FieldDefault::constant($raw);
+    }
+
+    /**
+     * The `layout` of a type file, or the layout fragment of an extension file (gap G2), or null
+     * when the file has none or it could not be read.
+     */
+    private function layout(DocumentValues $document): ?Layout
+    {
+        if (! $document->has('layout')) {
+            return null;
+        }
+
+        $values = $document->object('layout');
+
+        if (! $values instanceof DocumentValues) {
+            return null;
+        }
+
+        $values->knownKeys(self::LAYOUT_KEYS);
+        $tabs = [];
+
+        foreach ($values->has('tabs') ? ($values->objectList('tabs') ?? [null]) : [] as $item) {
+            $tab = $item instanceof DocumentValues ? $this->tab($item) : null;
+
+            if (! $tab instanceof LayoutTab) {
+                return null;
+            }
+
+            $tabs[] = $tab;
+        }
+
+        $sidebar = [];
+
+        if ($values->has('sidebar')) {
+            $sidebarValues = $values->object('sidebar');
+
+            if (! $sidebarValues instanceof DocumentValues) {
+                return null;
+            }
+
+            $sidebarValues->knownKeys(['sections']);
+            $sidebar = $this->sections($sidebarValues);
+
+            if ($sidebar === null) {
+                return null;
+            }
+        }
+
+        return new Layout($tabs, $sidebar, $values->at());
+    }
+
+    private function tab(DocumentValues $values): ?LayoutTab
+    {
+        $values->knownKeys(self::TAB_KEYS);
+        $handle = $values->handle('handle');
+        $label = $values->text('label');
+        $sections = $this->sections($values);
+
+        if (! $handle instanceof Handle || ! $label instanceof LocalizedText || $sections === null) {
+            return null;
+        }
+
+        return new LayoutTab($handle, $label, $sections, $values->at());
+    }
+
+    /**
+     * @return ?list<LayoutSection>
+     */
+    private function sections(DocumentValues $values): ?array
+    {
+        $sections = [];
+
+        foreach ($values->objectList('sections') ?? [null] as $item) {
+            $section = $item instanceof DocumentValues ? $this->section($item) : null;
+
+            if (! $section instanceof LayoutSection) {
+                return null;
+            }
+
+            $sections[] = $section;
+        }
+
+        return $sections;
+    }
+
+    private function section(DocumentValues $values): ?LayoutSection
+    {
+        $values->knownKeys(self::SECTION_KEYS);
+        $handle = $values->handle('handle');
+        $label = $values->optionalText('label');
+        $instructions = $values->optionalText('instructions');
+        $collapsible = $values->bool('collapsible', LayoutSection::DEFAULT_COLLAPSIBLE);
+        $fields = [];
+
+        foreach ($values->objectList('fields') ?? [null] as $item) {
+            if (! $item instanceof DocumentValues) {
+                return null;
+            }
+
+            $item->knownKeys(self::PLACEMENT_KEYS);
+            $field = $item->string('field');
+            $width = $item->optionalString('width') ?? LayoutWidth::DEFAULT->value;
+
+            if ($field === null) {
+                return null;
+            }
+
+            $fields[] = new LayoutField($field, $width, $item->at());
+        }
+
+        if (! $handle instanceof Handle || ($values->has('label') && ! $label instanceof LocalizedText) || ($values->has('instructions') && ! $instructions instanceof LocalizedText)) {
+            return null;
+        }
+
+        return new LayoutSection($handle, $label, $instructions, $collapsible, $fields, $values->at());
     }
 
     /**

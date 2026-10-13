@@ -13,6 +13,7 @@ use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
+use Cbox\Cms\Generators\TypeEditors\Boundary\DefaultJson;
 use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
 use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 
@@ -53,7 +54,7 @@ it('compiles the localized example to the committed golden descriptor', function
 });
 
 it('compiles the localized example to the committed golden editor descriptor, as its codec writes it', function (): void {
-    $editor = new TypeEditorCompiler(RuleJson::of(...))->compile(localizedDescriptor());
+    $editor = new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))->compile(localizedDescriptor());
     $json = new TypeEditorCodecV1()->encode($editor, ClassificationAccess::Sensitive);
     $pretty = json_encode(json_decode($json, false, 64, JSON_THROW_ON_ERROR), JSON_PRETTY_PRINT | JSON_UNESCAPED_SLASHES | JSON_UNESCAPED_UNICODE | JSON_THROW_ON_ERROR)."\n";
     $byPath = [];

@@ -8,6 +8,7 @@ use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\FieldTypes\FieldTypeOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LocalizedText;
 
 /**
  * The values of one object of a blueprint document that the blueprint schema v1 has accepted, as a
@@ -46,6 +47,17 @@ interface FieldValues
      * The string at the key, or null when the object has no such key.
      */
     public function optionalString(string $key): ?string;
+
+    /**
+     * The text at the key, which the object must have: a string, or a map of locale to string
+     * (gap G2), whose first text is the plain one.
+     */
+    public function text(string $key): ?LocalizedText;
+
+    /**
+     * The text at the key, or null when the object has no such key.
+     */
+    public function optionalText(string $key): ?LocalizedText;
 
     /**
      * The decimal number at the key, or null when the object has no such key.

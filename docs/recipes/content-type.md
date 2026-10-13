@@ -16,6 +16,7 @@ The kernel knows no content types (GUARDRAILS 2.4). A type is one blueprint file
 - **capabilities**: `history` (`full`, `audit-only` or `none`), `stages` (`draft-release` or `none`), `localization` (`none` or `variants`) and `routable`. An entry of a type with stages `none` has no release and is public once it is placed and published. A type with stages `draft-release` is released with `variant.release`, which the kernel allows only with history `full` and otherwise rejects as `type_not_releasable`.
 - **localization**: with `none`, the one shared variant holds every field. With `variants` (PRD 10.1), every language is a variant of the entry with its own revisions and release, and each field says which variant holds it with `translatable: true` (the language's) or `false` (the shared one, the default); a translatable field may add `fallback: field` to fall back on its own along the site's chain instead of with its whole variant. Both keys belong to a `variants` type only, and `fallback: field` to a translatable field only; `cms:generate` refuses anything else with `generate_translatable_without_variants` and `generate_fallback_without_translatable`. The type table of a `variants` type holds one row per language with the shared fields in each (PRD 11.6), so its query builder takes `locale()`, and the entry commands of version 1 refuse such a type until version 2 writes the languages' variants. The workbench's `fixture_notice` is one.
 - **fields**: each with its handle, core field type, `required`, `classification` and the options of its type, as [blueprint schema v1](../addons/blueprint-v1.md) lists them.
+- **presentation**, optional and form only (gap G2): a `label` and `description` as one text or a map of locale to text, such as `{ en: Title, da: Titel }`; a `layout` of tabs and a sidebar that places every top-level field exactly once, each with a width preset; per field a `ui` with `instructions`, an `input_hint`, `read_only`, `hidden`, the `display` of a select and the `summary` template of a repeated group; and a `default` of the field's kind, or the tokens `today` and `now`. They reach only the editor descriptor the panel's forms render the type from: no record, codec, validator or column changes, so a change of them is no new version and needs no migration. `cms:generate` refuses a layout that leaves a field out or places one twice, an unknown width and a default of the wrong kind with `generate_layout_field_omitted`, `generate_layout_field_repeated`, `generate_layout_width_unknown` and `generate_default_wrong_kind`. The workbench's `fixture_article` declares two tabs and a sidebar with Danish and English labels.
 
 From the owner and handle come the names every generator uses: the type's name `<owner>:<handle>`, its `TypeHandle` case `<Case>` (the owner and handle in TitleCase, `AppFixtureEvent`), and its table `<owner>__<handle>`.
 
@@ -29,6 +30,7 @@ From the owner and handle come the names every generator uses: the type's name `
 | `workbench/app/Cms/Generated/QueryBuilders/<Case>/` | `<Case>Query` with its filter and sort field enums | generated |
 | `workbench/app/Cms/Generated/Validators/<Case>Validator.php` | the runtime validator | generated |
 | `workbench/app/Cms/Generated/TypeHandle.php`, `GeneratedTypeCatalog.php`, `GeneratedTypeValidators.php`, `GeneratedRecordCodecs.php`, `GeneratedTypesServiceProvider.php` | the type added to the catalog, validators, codecs and bindings | generated |
+| `workbench/app/Cms/Generated/GeneratedTypeEditors.php` | the type's editor descriptor: its layout, labels per locale, form hints and defaults with its fields | generated |
 | `workbench/resources/js/cms/generated/index.ts` and `records/<Case>V1.ts` | the TypeScript types and validator | generated |
 | `workbench/database/migrations/cms/<owner>__<handle>_0001_create.php` and `<owner>__<handle>.lock` | the type table's migration and its schema lock | generated |
 | `tests/Feature/Workbench/WorkbenchSchemaTest.php` | the exact list of the workbench's blueprint files and generated files, and what the new type's blueprint reads as | hand |
@@ -37,7 +39,7 @@ From the owner and handle come the names every generator uses: the type's name `
 
 ## Steps
 
-1. Write the blueprint in `workbench/schema/<handle>.yaml`: `blueprint: 1`, `kind: type`, the `type_id`, `handle`, `label`, `description`, `version: 1`, the capabilities and the fields.
+1. Write the blueprint in `workbench/schema/<handle>.yaml`: `blueprint: 1`, `kind: type`, the `type_id`, `handle`, `label`, `description`, `version: 1`, the capabilities and the fields, and the presentation keys the form needs: a `layout` when the fields do not fit one section, `ui` and `default` per field, and the labels per language.
 2. Run `vendor/bin/testbench cms:schema:editor`. It gives the file its first line, `# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json`, so an editor validates the file as you write it.
 3. Run `vendor/bin/testbench cms:generate`. It validates every blueprint, stops with a code such as `generate_duplicate_type_id` or `generate_schema_invalid` and the path of what is wrong, and otherwise writes the generated files above, the migration and the schema lock included. Never edit a generated file; change the blueprint and run the command again.
 4. Update the two tests that list the workbench's types, then stage everything with `git add`. The migration runs in the tests on its own, because the Postgres harness runs `migrate:fresh`; for the shared dev database, `composer dev:prepare` runs it from the main checkout.
@@ -201,6 +203,195 @@ fields:
 ```
 
 The test that lists the workbench's schema exactly, and reads the new type as its blueprint says:
+
+The workbench's first type, `app:fixture_article`, carries the presentation keys: labels in English and Danish, a layout of the tabs `fixture_content` and `fixture_restrictions` and a sidebar, hints on its fields and form-only defaults. The fixture addon's extension has no layout fragment, so its field lands in the tab `extensions`:
+
+<!-- example-file: workbench/schema/fixture_article.yaml -->
+```yaml
+# yaml-language-server: $schema=../../packages/contracts/resources/schemas/blueprint.v1.json
+# The workbench's fixture type (GUARDRAILS 2.4, 2.6, PRD 11.12), a blueprint v1 file of the
+# workbench's schema root, owner app. Every handle starts with fixture_, so no ordinary word in code
+# is a handle, and tests/Arch/ContentTypesTest.php can reject each handle in the core packages in
+# any spelling. cms:generate reads it and writes the committed code in
+# workbench/app/Cms/Generated and workbench/resources/js/cms/generated, and
+# `composer check:generated` fails when that code is not what the blueprints generate. The first
+# line, which points editors at the blueprint schema, is written by cms:schema:editor.
+# Version 2 adds the owner's fixture_slug, the handle of the fixture addon's extension field in
+# workbench/addons/fixtureaddon/schema: the two are different fields, fixture_slug and
+# ext.fixtureaddon.fixture_slug, side by side (PRD 11.12 point 2).
+# The presentation keys (gap G2, B2-T72) reach only the editor descriptor: the labels in Danish
+# and English, the layout of two tabs and a sidebar, the ui hints and the form-only defaults.
+# The fixture addon's extension has no layout fragment, so its field lands in the tab extensions.
+blueprint: 1
+kind: type
+type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
+handle: fixture_article
+label:
+  en: Fixture article
+  da: Fixture-artikel
+description:
+  en: A news article with a title, a body, its topics and sources, and an embargo.
+  da: En nyhedsartikel med en titel, en brødtekst, dens emner og kilder, og en embargo.
+version: 2
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+  routable: true
+fields:
+  - handle: fixture_title
+    label:
+      en: Title
+      da: Titel
+    description: The title of the article, as it is shown on the page and in lists.
+    type: text
+    classification: public
+    ui:
+      input_hint:
+        en: The headline
+        da: Overskriften
+  - handle: fixture_slug
+    label: Slug
+    description: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.
+    type: text
+    classification: public
+    max_length: 160
+  - handle: fixture_body
+    label:
+      en: Body
+      da: Brødtekst
+    description: The body of the article.
+    type: rich_text
+    classification: public
+    ui:
+      instructions:
+        en: Write the article; the first paragraph is shown in lists.
+        da: Skriv artiklen; det første afsnit vises i lister.
+  - handle: fixture_published_on
+    label: Published on
+    description: The day the article was first published.
+    type: date
+    classification: public
+    sortable: true
+    min: '2000-01-01'
+    default: today
+  - handle: fixture_reading_minutes
+    label: Reading minutes
+    description: How many minutes the article takes to read.
+    type: integer
+    classification: public
+    min: 1
+    max: 600
+  - handle: fixture_featured
+    label: Featured
+    description: Whether the article is featured on the front page.
+    type: boolean
+    required: true
+    classification: public
+    filterable: true
+    default: false
+  - handle: fixture_topics
+    label: Topics
+    description: The topics the article is listed under.
+    type: select
+    classification: public
+    multiple: true
+    max_items: 2
+    ui:
+      display: buttons
+    options:
+      - value: fixture_politics
+        label:
+          en: Politics
+          da: Politik
+      - value: fixture_science
+        label:
+          en: Science
+          da: Videnskab
+      - value: fixture_culture
+        label:
+          en: Culture
+          da: Kultur
+  - handle: fixture_sources
+    label: Sources
+    description: The sources the article cites.
+    type: group
+    classification: internal
+    repeat:
+      max_items: 10
+    ui:
+      summary: '{fixture_source_title}'
+    fields:
+      - handle: fixture_source_title
+        label: Source title
+        description: The title of the source.
+        type: text
+        required: true
+      - handle: fixture_source_url
+        label: Source URL
+        description: Where the source can be read.
+        type: text
+        format: url
+  - handle: fixture_embargo
+    label: Embargo
+    type: group
+    classification: confidential
+    fields:
+      - handle: fixture_embargo_until
+        label: Embargo until
+        type: datetime
+        required: true
+      - handle: fixture_embargo_reason
+        label: Embargo reason
+        type: long_text
+        ui:
+          read_only: true
+layout:
+  tabs:
+    - handle: fixture_content
+      label:
+        en: Content
+        da: Indhold
+      sections:
+        - handle: fixture_headline
+          fields:
+            - field: fixture_title
+              width: two_thirds
+            - field: fixture_slug
+              width: third
+            - field: fixture_body
+        - handle: fixture_sources_section
+          label:
+            en: Sources
+            da: Kilder
+          instructions:
+            en: Cite every source the article relies on.
+            da: Angiv hver kilde artiklen bygger på.
+          collapsible: true
+          fields:
+            - field: fixture_sources
+    - handle: fixture_restrictions
+      label:
+        en: Restrictions
+        da: Begrænsninger
+      sections:
+        - handle: fixture_embargo_section
+          fields:
+            - field: fixture_embargo
+  sidebar:
+    sections:
+      - handle: fixture_publishing
+        label:
+          en: Publishing
+          da: Udgivelse
+        fields:
+          - field: fixture_published_on
+            width: half
+          - field: fixture_reading_minutes
+            width: half
+          - field: fixture_featured
+          - field: fixture_topics
+```
 
 <!-- example: tests/Feature/Workbench/WorkbenchSchemaTest.php -->
 ```php

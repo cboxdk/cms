@@ -7,10 +7,19 @@ namespace Cbox\Cms\Core\Codecs\Boundary\Generated;
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Editors\EditorBase;
 use Cbox\Cms\Contracts\Editors\EditorChoice;
 use Cbox\Cms\Contracts\Editors\EditorField;
+use Cbox\Cms\Contracts\Editors\EditorLayout;
+use Cbox\Cms\Contracts\Editors\EditorPlacement;
 use Cbox\Cms\Contracts\Editors\EditorRepeat;
+use Cbox\Cms\Contracts\Editors\EditorSection;
+use Cbox\Cms\Contracts\Editors\EditorTab;
+use Cbox\Cms\Contracts\Editors\EditorText;
+use Cbox\Cms\Contracts\Editors\EditorUi;
+use Cbox\Cms\Contracts\Editors\EditorWidth;
+use Cbox\Cms\Contracts\Editors\SelectDisplay;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
@@ -78,10 +87,13 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json = new stdClass;
         $json->capabilities = $this->encodeTypeCapabilities($object->capabilities);
         $json->description = $object->description;
+        $json->descriptions = array_map($this->encodeEditorText(...), $object->descriptions);
         $json->extensions = array_map($this->encodeExtensionVersion(...), $object->extensions);
         $json->fields = array_map($this->encodeEditorField(...), $object->fields);
         $json->id = $object->id->toString();
         $json->label = $object->label;
+        $json->labels = array_map($this->encodeEditorText(...), $object->labels);
+        $json->layout = $this->encodeEditorLayout($object->layout);
         $json->name = $object->name->value;
         $json->title_field = $object->titleField;
         $json->version = $object->version;
@@ -91,7 +103,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
 
     private function decodeTypeEditor(stdClass $value): TypeEditor
     {
-        $object = JsonValues::object($value, null, ['capabilities', 'description', 'extensions', 'fields', 'id', 'label', 'name', 'title_field', 'version']);
+        $object = JsonValues::object($value, null, ['capabilities', 'description', 'descriptions', 'extensions', 'fields', 'id', 'label', 'labels', 'layout', 'name', 'title_field', 'version']);
 
         return JsonValues::build(null, fn (): TypeEditor => new TypeEditor(
             id: JsonValues::required($object, 'id', null, static fn (mixed $value, FieldPath $at): TypeId => JsonValues::id($value, $at, TypeId::fromString(...))),
@@ -103,6 +115,9 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
             titleField: JsonValues::present($object, 'title_field', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
             extensions: JsonValues::required($object, 'extensions', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeExtensionVersion(...))),
             fields: JsonValues::required($object, 'fields', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorField(...))),
+            layout: JsonValues::required($object, 'layout', null, $this->decodeEditorLayout(...)),
+            labels: JsonValues::required($object, 'labels', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            descriptions: JsonValues::required($object, 'descriptions', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
         ));
     }
 
@@ -126,6 +141,25 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
             stages: JsonValues::required($object, 'stages', $path, static fn (mixed $value, FieldPath $at): Stages => JsonValues::enum($value, $at, Stages::class)),
             localization: JsonValues::required($object, 'localization', $path, static fn (mixed $value, FieldPath $at): Localization => JsonValues::enum($value, $at, Localization::class)),
             routable: JsonValues::required($object, 'routable', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+        ));
+    }
+
+    private function encodeEditorText(EditorText $object): stdClass
+    {
+        $json = new stdClass;
+        $json->locale = $object->locale->value;
+        $json->text = $object->text;
+
+        return $json;
+    }
+
+    private function decodeEditorText(mixed $value, FieldPath $path): EditorText
+    {
+        $object = JsonValues::object($value, $path, ['locale', 'text']);
+
+        return JsonValues::build($path, static fn (): EditorText => new EditorText(
+            locale: JsonValues::required($object, 'locale', $path, static fn (mixed $value, FieldPath $at): Locale => JsonValues::value($value, $at, static fn (string $text): Locale => new Locale($text))),
+            text: JsonValues::required($object, 'text', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 1000)),
         ));
     }
 
@@ -155,11 +189,14 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json->base = $object->base->value;
         $json->choices = array_map($this->encodeEditorChoice(...), $object->choices);
         $json->classification = $object->classification->value;
+        $json->default = $object->defaultValue instanceof JsonDocument ? JsonValues::encodeDocument($object->defaultValue->value) : null;
         $json->description = $object->description;
+        $json->descriptions = array_map($this->encodeEditorText(...), $object->descriptions);
         $json->encrypted = $object->encrypted;
         $json->fallback = $object->fallback->value;
         $json->handle = $object->handle->value;
         $json->label = $object->label;
+        $json->labels = array_map($this->encodeEditorText(...), $object->labels);
         $json->namespace = $object->namespace instanceof FieldNamespace ? $object->namespace->value : null;
         $json->parent = $object->parent;
         $json->path = $object->path;
@@ -168,13 +205,14 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         $json->rule = $object->rule instanceof JsonDocument ? JsonValues::encodeDocument($object->rule->value) : null;
         $json->translatable = $object->translatable;
         $json->type = $object->fieldType;
+        $json->ui = $this->encodeEditorUi($object->ui);
 
         return $json;
     }
 
     private function decodeEditorField(mixed $value, FieldPath $path): EditorField
     {
-        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'description', 'encrypted', 'fallback', 'handle', 'label', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'translatable', 'type']);
+        $object = JsonValues::object($value, $path, ['agents', 'base', 'choices', 'classification', 'default', 'description', 'descriptions', 'encrypted', 'fallback', 'handle', 'label', 'labels', 'namespace', 'parent', 'path', 'presence', 'repeat', 'rule', 'translatable', 'type', 'ui']);
 
         return JsonValues::build($path, fn (): EditorField => new EditorField(
             path: JsonValues::required($object, 'path', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at)),
@@ -194,6 +232,10 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
             rule: JsonValues::present($object, 'rule', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
             translatable: JsonValues::required($object, 'translatable', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             fallback: JsonValues::required($object, 'fallback', $path, static fn (mixed $value, FieldPath $at): FieldFallback => JsonValues::enum($value, $at, FieldFallback::class)),
+            labels: JsonValues::required($object, 'labels', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            descriptions: JsonValues::required($object, 'descriptions', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            ui: JsonValues::required($object, 'ui', $path, $this->decodeEditorUi(...)),
+            defaultValue: JsonValues::present($object, 'default', $path, static fn (mixed $value, FieldPath $at): JsonDocument => JsonValues::document($value, $at, static fn (string $text): JsonDocument => new JsonDocument($text))),
         ));
     }
 
@@ -201,6 +243,7 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
     {
         $json = new stdClass;
         $json->label = $object->label;
+        $json->labels = array_map($this->encodeEditorText(...), $object->labels);
         $json->value = $object->value->value;
 
         return $json;
@@ -208,11 +251,12 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
 
     private function decodeEditorChoice(mixed $value, FieldPath $path): EditorChoice
     {
-        $object = JsonValues::object($value, $path, ['label', 'value']);
+        $object = JsonValues::object($value, $path, ['label', 'labels', 'value']);
 
-        return JsonValues::build($path, static fn (): EditorChoice => new EditorChoice(
+        return JsonValues::build($path, fn (): EditorChoice => new EditorChoice(
             value: JsonValues::required($object, 'value', $path, static fn (mixed $value, FieldPath $at): FieldHandle => JsonValues::value($value, $at, static fn (string $text): FieldHandle => new FieldHandle($text))),
             label: JsonValues::required($object, 'label', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 100)),
+            labels: JsonValues::required($object, 'labels', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
         ));
     }
 
@@ -232,6 +276,127 @@ final readonly class TypeEditorCodecV1 implements JsonCodec
         return JsonValues::build($path, static fn (): EditorRepeat => new EditorRepeat(
             minItems: JsonValues::present($object, 'min_items', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 0)),
             maxItems: JsonValues::present($object, 'max_items', $path, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1)),
+        ));
+    }
+
+    private function encodeEditorUi(EditorUi $object): stdClass
+    {
+        $json = new stdClass;
+        $json->display = $object->display instanceof SelectDisplay ? $object->display->value : null;
+        $json->hidden = $object->hidden;
+        $json->input_hint = $object->inputHint;
+        $json->input_hint_by_locale = array_map($this->encodeEditorText(...), $object->inputHintByLocale);
+        $json->instructions = $object->instructions;
+        $json->instructions_by_locale = array_map($this->encodeEditorText(...), $object->instructionsByLocale);
+        $json->read_only = $object->readOnly;
+        $json->summary = $object->summary;
+
+        return $json;
+    }
+
+    private function decodeEditorUi(mixed $value, FieldPath $path): EditorUi
+    {
+        $object = JsonValues::object($value, $path, ['display', 'hidden', 'input_hint', 'input_hint_by_locale', 'instructions', 'instructions_by_locale', 'read_only', 'summary']);
+
+        return JsonValues::build($path, fn (): EditorUi => new EditorUi(
+            instructions: JsonValues::present($object, 'instructions', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 1000)),
+            instructionsByLocale: JsonValues::required($object, 'instructions_by_locale', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            inputHint: JsonValues::present($object, 'input_hint', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 100)),
+            inputHintByLocale: JsonValues::required($object, 'input_hint_by_locale', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            readOnly: JsonValues::required($object, 'read_only', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            hidden: JsonValues::required($object, 'hidden', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            display: JsonValues::present($object, 'display', $path, static fn (mixed $value, FieldPath $at): SelectDisplay => JsonValues::enum($value, $at, SelectDisplay::class)),
+            summary: JsonValues::present($object, 'summary', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 200)),
+        ));
+    }
+
+    private function encodeEditorLayout(EditorLayout $object): stdClass
+    {
+        $json = new stdClass;
+        $json->sidebar = array_map($this->encodeEditorSection(...), $object->sidebar);
+        $json->tabs = array_map($this->encodeEditorTab(...), $object->tabs);
+
+        return $json;
+    }
+
+    private function decodeEditorLayout(mixed $value, FieldPath $path): EditorLayout
+    {
+        $object = JsonValues::object($value, $path, ['sidebar', 'tabs']);
+
+        return JsonValues::build($path, fn (): EditorLayout => new EditorLayout(
+            tabs: JsonValues::required($object, 'tabs', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorTab(...))),
+            sidebar: JsonValues::required($object, 'sidebar', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorSection(...))),
+        ));
+    }
+
+    private function encodeEditorSection(EditorSection $object): stdClass
+    {
+        $json = new stdClass;
+        $json->collapsible = $object->collapsible;
+        $json->fields = array_map($this->encodeEditorPlacement(...), $object->fields);
+        $json->handle = $object->handle->value;
+        $json->instructions = $object->instructions;
+        $json->instructions_by_locale = array_map($this->encodeEditorText(...), $object->instructionsByLocale);
+        $json->label = $object->label;
+        $json->labels = array_map($this->encodeEditorText(...), $object->labels);
+
+        return $json;
+    }
+
+    private function decodeEditorSection(mixed $value, FieldPath $path): EditorSection
+    {
+        $object = JsonValues::object($value, $path, ['collapsible', 'fields', 'handle', 'instructions', 'instructions_by_locale', 'label', 'labels']);
+
+        return JsonValues::build($path, fn (): EditorSection => new EditorSection(
+            handle: JsonValues::required($object, 'handle', $path, static fn (mixed $value, FieldPath $at): FieldHandle => JsonValues::value($value, $at, static fn (string $text): FieldHandle => new FieldHandle($text))),
+            label: JsonValues::present($object, 'label', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 100)),
+            labels: JsonValues::required($object, 'labels', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            instructions: JsonValues::present($object, 'instructions', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 1000)),
+            instructionsByLocale: JsonValues::required($object, 'instructions_by_locale', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            collapsible: JsonValues::required($object, 'collapsible', $path, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
+            fields: JsonValues::required($object, 'fields', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorPlacement(...))),
+        ));
+    }
+
+    private function encodeEditorPlacement(EditorPlacement $object): stdClass
+    {
+        $json = new stdClass;
+        $json->path = $object->path;
+        $json->width = $object->width->value;
+
+        return $json;
+    }
+
+    private function decodeEditorPlacement(mixed $value, FieldPath $path): EditorPlacement
+    {
+        $object = JsonValues::object($value, $path, ['path', 'width']);
+
+        return JsonValues::build($path, static fn (): EditorPlacement => new EditorPlacement(
+            path: JsonValues::required($object, 'path', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1)),
+            width: JsonValues::required($object, 'width', $path, static fn (mixed $value, FieldPath $at): EditorWidth => JsonValues::enum($value, $at, EditorWidth::class)),
+        ));
+    }
+
+    private function encodeEditorTab(EditorTab $object): stdClass
+    {
+        $json = new stdClass;
+        $json->handle = $object->handle->value;
+        $json->label = $object->label;
+        $json->labels = array_map($this->encodeEditorText(...), $object->labels);
+        $json->sections = array_map($this->encodeEditorSection(...), $object->sections);
+
+        return $json;
+    }
+
+    private function decodeEditorTab(mixed $value, FieldPath $path): EditorTab
+    {
+        $object = JsonValues::object($value, $path, ['handle', 'label', 'labels', 'sections']);
+
+        return JsonValues::build($path, fn (): EditorTab => new EditorTab(
+            handle: JsonValues::required($object, 'handle', $path, static fn (mixed $value, FieldPath $at): FieldHandle => JsonValues::value($value, $at, static fn (string $text): FieldHandle => new FieldHandle($text))),
+            label: JsonValues::required($object, 'label', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 100)),
+            labels: JsonValues::required($object, 'labels', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorText(...))),
+            sections: JsonValues::required($object, 'sections', $path, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeEditorSection(...))),
         ));
     }
 }

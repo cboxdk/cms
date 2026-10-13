@@ -12,7 +12,8 @@ use Cbox\Cms\Generators\Schema\Domain\TypeId;
 /**
  * A file of `kind: extension`: fields that the owner of its schema root adds to another owner's
  * type, in the extender's namespace (PRD 11.12). The type is named by its id, so a rename by its
- * owner does not break the extension.
+ * owner does not break the extension. Its `layout` is a fragment that places the file's fields in
+ * the type's form (gap G2), or null, so they land in the tab `extensions`.
  */
 #[Internal]
 final readonly class ExtensionBlueprint
@@ -27,5 +28,6 @@ final readonly class ExtensionBlueprint
         public array $fields,
         public Owner $owner,
         public SourceLocation $location,
+        public ?Layout $layout = null,
     ) {}
 }

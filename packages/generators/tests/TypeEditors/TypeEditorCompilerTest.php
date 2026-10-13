@@ -6,7 +6,13 @@ namespace Cbox\Cms\Generators\Tests\TypeEditors;
 
 use Cbox\Cms\Contracts\Editors\EditorBase;
 use Cbox\Cms\Contracts\Editors\EditorField;
+use Cbox\Cms\Contracts\Editors\EditorPlacement;
 use Cbox\Cms\Contracts\Editors\EditorRepeat;
+use Cbox\Cms\Contracts\Editors\EditorSection;
+use Cbox\Cms\Contracts\Editors\EditorTab;
+use Cbox\Cms\Contracts\Editors\EditorText;
+use Cbox\Cms\Contracts\Editors\EditorWidth;
+use Cbox\Cms\Contracts\Editors\SelectDisplay;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Schema\ExtensionVersion;
@@ -22,6 +28,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\Descriptor\ComprehensiveExample;
 use Cbox\Cms\Generators\Tests\SchemaFixtures;
+use Cbox\Cms\Generators\TypeEditors\Boundary\DefaultJson;
 use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
 use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use LogicException;
@@ -40,7 +47,7 @@ afterEach(function (): void {
 
 function editorCompiler(): TypeEditorCompiler
 {
-    return new TypeEditorCompiler(RuleJson::of(...));
+    return new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...));
 }
 
 function comprehensiveEditor(): TypeEditor
@@ -215,4 +222,77 @@ it('refuses to write the rule of a group, which only the record\'s module declar
     }
 
     throw new LogicException('The rule of a group was written.');
+});
+
+it('carries the layout, the labels per locale, the hints and the defaults of the comprehensive example (gap G2)', function (): void {
+    $editor = comprehensiveEditor();
+    $tabs = array_map(static fn (EditorTab $tab): string => $tab->handle->value.': '.implode(' | ', array_map(static fn (EditorSection $section): string => $section->handle->value.' '.implode(',', $section->paths()), $tab->sections)), $editor->layout->tabs);
+
+    expect($tabs)->toBe([
+        'general: identity name,colour,summary,body,care | supply supplier,purchase_price,stock,ext.app.tax_code',
+        'details: measures weight,price,dimensions',
+        'local: names ext.app.name',
+    ])
+        ->and(array_map(static fn (EditorSection $section): string => $section->handle->value.' '.implode(',', $section->paths()), $editor->layout->sidebar))->toBe(['status discontinued,launch_date,checked_at,tags', 'contact support_email'])
+        ->and($editor->layout->tabs[0]->label)->toBe('General')
+        ->and(array_map(static fn (EditorText $text): string => $text->locale->value.'='.$text->text, $editor->layout->tabs[0]->labels))->toBe(['da=Generelt', 'en=General'])
+        ->and($editor->layout->tabs[0]->sections[0]->fields[0])->toEqual(new EditorPlacement('name', EditorWidth::TwoThirds))
+        ->and($editor->layout->tabs[0]->sections[1]->collapsible)->toBeTrue()
+        ->and($editor->layout->tabs[0]->sections[1]->instructions)->toBe('Who supplies the product and what it costs.')
+        ->and($editor->layout->tabs[0]->sections[1]->fields[3])->toEqual(new EditorPlacement('ext.app.tax_code', EditorWidth::Half))
+        ->and($editor->label)->toBe('Product')
+        ->and(array_map(static fn (EditorText $text): string => $text->locale->value.'='.$text->text, $editor->labels))->toBe(['da=Produkt', 'en=Product'])
+        ->and($editor->field('name')?->label)->toBe('Name')
+        ->and(array_map(static fn (EditorText $text): string => $text->locale->value.'='.$text->text, $editor->field('name')->labels ?? []))->toBe(['da=Navn', 'en=Name'])
+        ->and($editor->field('name')?->ui->inputHint)->toBe('The name on the shelf')
+        ->and($editor->field('colour')?->ui->display)->toBe(SelectDisplay::Radio)
+        ->and(array_map(static fn (EditorText $text): string => $text->locale->value.'='.$text->text, $editor->field('colour')->ui->instructionsByLocale ?? []))->toBe(['da=Vælg produktets farve.', 'en=Pick the colour of the product.'])
+        ->and(array_map(static fn (EditorText $text): string => $text->locale->value.'='.$text->text, $editor->field('colour')->choices[0]->labels ?? []))->toBe(['da=Rød', 'en=Red'])
+        ->and($editor->field('checked_at')?->ui->readOnly)->toBeTrue()
+        ->and($editor->field('purchase_price')?->ui->hidden)->toBeTrue()
+        ->and($editor->field('dimensions')?->ui->summary)->toBe('{size}: {width} mm')
+        ->and($editor->field('support_email')?->ui->isEmpty())->toBeTrue()
+        ->and($editor->field('stock')?->defaultValue?->value)->toBe('{"kind":"constant","value":0}')
+        ->and($editor->field('price')?->defaultValue?->value)->toBe('{"kind":"constant","value":"0.00"}')
+        ->and($editor->field('discontinued')?->defaultValue?->value)->toBe('{"kind":"constant","value":false}')
+        ->and($editor->field('launch_date')?->defaultValue?->value)->toBe('{"kind":"token","token":"today"}')
+        ->and($editor->field('checked_at')?->defaultValue?->value)->toBe('{"kind":"token","token":"now"}')
+        ->and($editor->field('colour')?->defaultValue?->value)->toBe('{"kind":"constant","value":"red"}')
+        ->and($editor->field('tags')?->defaultValue?->value)->toBe('{"kind":"constant","value":["new"]}')
+        ->and($editor->field('name')?->defaultValue)->toBeNull();
+});
+
+it('gives a type without a layout the tab content with its fields in file order, and an extension without a fragment the tab extensions', function (): void {
+    $editor = editorOf(<<<'YAML'
+          - handle: teaser
+            label: Teaser
+            description: The teaser.
+            type: text
+            classification: public
+          - handle: title
+            label: Title
+            description: The title.
+            type: text
+            required: true
+            classification: public
+        YAML, <<<'YAML'
+          - handle: tag
+            label: Tag
+            description: The tag.
+            type: text
+            classification: public
+        YAML);
+
+    expect(array_map(static fn (EditorTab $tab): string => $tab->handle->value.' '.$tab->label.': '.implode(' | ', array_map(static fn (EditorSection $section): string => $section->handle->value.' '.implode(',', $section->paths()), $tab->sections)), $editor->layout->tabs))
+        ->toBe(['content Content: fields teaser,title', 'extensions Extensions: acme ext.acme.tag'])
+        ->and($editor->layout->sidebar)->toBe([])
+        ->and($editor->layout->paths())->toBe(['teaser', 'title', 'ext.acme.tag']);
+});
+
+it('keeps only the placements of the fields a reader sees, and drops the sections and tabs left empty', function (): void {
+    $editor = comprehensiveEditor()->visibleTo(ClassificationAccess::Public, agent: false);
+
+    expect($editor->layout->paths())->toBe(['name', 'colour', 'body', 'care', 'weight', 'price', 'dimensions', 'ext.app.name', 'discontinued', 'launch_date', 'tags', 'support_email'])
+        ->and(array_map(static fn (EditorTab $tab): string => $tab->handle->value, $editor->layout->tabs))->toBe(['general', 'details', 'local'])
+        ->and(array_map(static fn (EditorSection $section): string => $section->handle->value, $editor->layout->tabs[0]->sections))->toBe(['identity']);
 });

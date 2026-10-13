@@ -1,16 +1,19 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Type editor descriptor, contract version 1",
-  "description": "What the panel's forms render a type from (PRD 11.12, 14.1, GUARDRAILS 2.4): the type's name, labels, capabilities and inferred title field, and its field tree as a flat list in form order, each field with its type and base, labels, presence, classification, agents flag, the choices of a select, how a group repeats, and its value rule in the form of the generated validation runtime. The PHP form is Cbox\\Cms\\Contracts\\Editors\\TypeEditor, compiled by cms:generate into the application's TypeEditors, and the generated codec TypeEditorCodecV1 writes its canonical JSON: keys sorted, no whitespace. The queries type.list and type.describe answer with it, filtered to the reader.",
+  "description": "What the panel's forms render a type from (PRD 11.12, 14.1, GUARDRAILS 2.4): the type's name, labels, capabilities and inferred title field, its layout of tabs and a sidebar that places every top-level field once, and its field tree as a flat list in form order, each field with its type and base, labels, presence, classification, agents flag, the choices of a select, how a group repeats, its value rule in the form of the generated validation runtime, the hints its form takes and its form-only default. The PHP form is Cbox\\Cms\\Contracts\\Editors\\TypeEditor, compiled by cms:generate into the application's TypeEditors, and the generated codec TypeEditorCodecV1 writes its canonical JSON: keys sorted, no whitespace. The queries type.list and type.describe answer with it, filtered to the reader.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "capabilities",
     "description",
+    "descriptions",
     "extensions",
     "fields",
     "id",
     "label",
+    "labels",
+    "layout",
     "name",
     "title_field",
     "version"
@@ -25,6 +28,13 @@
       "type": ["string", "null"],
       "minLength": 1,
       "maxLength": 1000
+    },
+    "descriptions": {
+      "description": "The description of the type per locale the blueprint names, sorted by locale; empty when the blueprint gives one text.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
     },
     "extensions": {
       "description": "The extenders of the type, sorted by namespace, each with the version of its extension; the fields each adds are under ext.<namespace> among the fields.",
@@ -50,6 +60,17 @@
       "type": "string",
       "minLength": 1,
       "maxLength": 100
+    },
+    "labels": {
+      "description": "The label of the type per locale the blueprint names, sorted by locale; empty when the blueprint gives one text.",
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/text"
+      }
+    },
+    "layout": {
+      "description": "The form's tabs and sidebar: every top-level field of the type is placed in exactly one section, and the fields below a group are never placed, because the group's input holds them. A type whose blueprint declares no layout gets the tab content with the section fields holding its fields in blueprint order, and the fields of an extender without a layout fragment land in the tab extensions, a section per namespace.",
+      "$ref": "#/$defs/layout"
     },
     "name": {
       "description": "The name of the type, <owner>:<handle>, such as app:blog_post.",
@@ -95,6 +116,33 @@
         }
       }
     },
+    "choice": {
+      "description": "One option of a select field: the value the field stores and its label.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "labels", "value"],
+      "properties": {
+        "label": {
+          "description": "The label of the option, as its blueprint gives it.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "labels": {
+          "description": "The label per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "value": {
+          "description": "The value the field stores, a handle.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        }
+      }
+    },
     "extension": {
       "description": "An extender of the type and the version of its extension.",
       "type": "object",
@@ -114,44 +162,6 @@
         }
       }
     },
-    "choice": {
-      "description": "One option of a select field: the value the field stores and its label.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["label", "value"],
-      "properties": {
-        "label": {
-          "description": "The label of the option, as its blueprint gives it.",
-          "type": "string",
-          "minLength": 1,
-          "maxLength": 100
-        },
-        "value": {
-          "description": "The value the field stores, a handle.",
-          "type": "string",
-          "maxLength": 63,
-          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
-        }
-      }
-    },
-    "repeat": {
-      "description": "How a repeated group repeats: the fewest and the most items the form lets an editor add, each null when the blueprint leaves it out.",
-      "type": "object",
-      "additionalProperties": false,
-      "required": ["max_items", "min_items"],
-      "properties": {
-        "max_items": {
-          "description": "The most items, or null for the blueprint's default.",
-          "type": ["integer", "null"],
-          "minimum": 1
-        },
-        "min_items": {
-          "description": "The fewest items, or null for none.",
-          "type": ["integer", "null"],
-          "minimum": 0
-        }
-      }
-    },
     "field": {
       "description": "A field of the type as a form renders it: one input, and its value rule.",
       "type": "object",
@@ -161,11 +171,14 @@
         "base",
         "choices",
         "classification",
+        "default",
         "description",
+        "descriptions",
         "encrypted",
         "fallback",
         "handle",
         "label",
+        "labels",
         "namespace",
         "parent",
         "path",
@@ -173,7 +186,8 @@
         "repeat",
         "rule",
         "translatable",
-        "type"
+        "type",
+        "ui"
       ],
       "properties": {
         "agents": {
@@ -197,11 +211,22 @@
           "type": "string",
           "enum": ["public", "internal", "confidential", "personal", "sensitive"]
         },
+        "default": {
+          "description": "The form's starting value from the blueprint's default, or null: {\"kind\":\"constant\",\"value\":...} with the value in the record's JSON form, or {\"kind\":\"token\",\"token\":\"today\"} or \"now\" for a date or datetime the form takes from the clock. It is form only, never filled in by a command, and a group or rich text has none.",
+          "type": ["object", "null"]
+        },
         "description": {
           "description": "What the field holds, as its blueprint describes it, the help text of its input; or null.",
           "type": ["string", "null"],
           "minLength": 1,
           "maxLength": 1000
+        },
+        "descriptions": {
+          "description": "The description per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
         },
         "encrypted": {
           "description": "Whether the value is stored as ciphertext (PRD 12.2).",
@@ -223,6 +248,13 @@
           "type": "string",
           "minLength": 1,
           "maxLength": 100
+        },
+        "labels": {
+          "description": "The label per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
         },
         "namespace": {
           "description": "The extender's namespace for an extension field, which a nested field takes from its group; null for a field of the type's owner.",
@@ -265,6 +297,254 @@
         "type": {
           "description": "The field type as the blueprint names it: a core field type such as text, or <namespace>:<handle> for a field type an addon contributes (PRD 13.1).",
           "type": "string"
+        },
+        "ui": {
+          "description": "The hints the form takes for the input.",
+          "$ref": "#/$defs/ui"
+        }
+      }
+    },
+    "layout": {
+      "description": "The tabs of a form and the sections of its sidebar.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["sidebar", "tabs"],
+      "properties": {
+        "sidebar": {
+          "description": "The sections of the sidebar in form order, each handle once; empty for a form without one.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/section"
+          }
+        },
+        "tabs": {
+          "description": "The tabs in form order, each handle once.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/tab"
+          }
+        }
+      }
+    },
+    "placement": {
+      "description": "The place of one top-level field in a section: its path among the fields and the width it takes in the row.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["path", "width"],
+      "properties": {
+        "path": {
+          "description": "The path of the field, as the fields have it: a handle, or ext.<namespace>.<handle> for an extension field.",
+          "type": "string",
+          "minLength": 1
+        },
+        "width": {
+          "description": "The width preset: the whole row, or a half, a third or two thirds of it.",
+          "type": "string",
+          "enum": ["full", "half", "third", "two_thirds"]
+        }
+      }
+    },
+    "repeat": {
+      "description": "How a repeated group repeats: the fewest and the most items the form lets an editor add, each null when the blueprint leaves it out.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["max_items", "min_items"],
+      "properties": {
+        "max_items": {
+          "description": "The most items, or null for the blueprint's default.",
+          "type": ["integer", "null"],
+          "minimum": 1
+        },
+        "min_items": {
+          "description": "The fewest items, or null for none.",
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "section": {
+      "description": "A section: a run of placed fields, with an optional label and instructions, which a form may let the editor collapse.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "collapsible",
+        "fields",
+        "handle",
+        "instructions",
+        "instructions_by_locale",
+        "label",
+        "labels"
+      ],
+      "properties": {
+        "collapsible": {
+          "description": "Whether a form lets the editor collapse the section.",
+          "type": "boolean"
+        },
+        "fields": {
+          "description": "The placements of the section in form order, each path once.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/placement"
+          }
+        },
+        "handle": {
+          "description": "The handle of the section, as the blueprint declares it, once in its tab or in the sidebar.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        },
+        "instructions": {
+          "description": "The instructions shown with the section, or null.",
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "instructions_by_locale": {
+          "description": "The instructions per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "label": {
+          "description": "The label of the section, or null for a section without a heading.",
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "labels": {
+          "description": "The label per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        }
+      }
+    },
+    "select_display": {
+      "description": "How a form shows the choices of a select: radio buttons, a row of buttons or a dropdown.",
+      "type": "string",
+      "enum": ["radio", "buttons", "dropdown"]
+    },
+    "tab": {
+      "description": "A tab: a labelled page of sections.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["handle", "label", "labels", "sections"],
+      "properties": {
+        "handle": {
+          "description": "The handle of the tab, as the blueprint declares it.",
+          "type": "string",
+          "maxLength": 63,
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+        },
+        "label": {
+          "description": "The label of the tab.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "labels": {
+          "description": "The label per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "sections": {
+          "description": "The sections of the tab in form order, each handle once.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/section"
+          }
+        }
+      }
+    },
+    "text": {
+      "description": "A text in one language: the locale in its canonical case, as the kernel writes a locale, and the text.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locale", "text"],
+      "properties": {
+        "locale": {
+          "description": "The locale, such as da or en-GB.",
+          "type": "string",
+          "maxLength": 12,
+          "pattern": "^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$"
+        },
+        "text": {
+          "description": "The text, 1 to 1,000 characters.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 1000
+        }
+      }
+    },
+    "ui": {
+      "description": "The hints a form takes for the input, from the field's ui in its blueprint. Every member is presentation only: a read-only or hidden field is still written by the commands and validated as its rule says.",
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "display",
+        "hidden",
+        "input_hint",
+        "input_hint_by_locale",
+        "instructions",
+        "instructions_by_locale",
+        "read_only",
+        "summary"
+      ],
+      "properties": {
+        "display": {
+          "description": "How a select shows its choices, or null to leave it to the form; null for every other base.",
+          "anyOf": [
+            {
+              "$ref": "#/$defs/select_display"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "hidden": {
+          "description": "Whether the form hides the input.",
+          "type": "boolean"
+        },
+        "input_hint": {
+          "description": "The hint shown in the empty input, or null.",
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 100
+        },
+        "input_hint_by_locale": {
+          "description": "The input hint per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "instructions": {
+          "description": "The instructions shown with the input, or null.",
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 1000
+        },
+        "instructions_by_locale": {
+          "description": "The instructions per locale the blueprint names, sorted by locale.",
+          "type": "array",
+          "items": {
+            "$ref": "#/$defs/text"
+          }
+        },
+        "read_only": {
+          "description": "Whether the form shows the value without an input to change it.",
+          "type": "boolean"
+        },
+        "summary": {
+          "description": "The summary template of a repeated group, which names the group's nested fields in braces, such as {title} ({year}), so a collapsed item shows its values; null for every other field.",
+          "type": ["string", "null"],
+          "minLength": 1,
+          "maxLength": 200
         }
       }
     }

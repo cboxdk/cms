@@ -1,7 +1,7 @@
 ---
 title: Blueprint schema v1
 weight: 38
-description: "The reference of blueprint.v1.json: types, extensions of another owner's type, fields, core and addon field types, and the rules cms:generate checks across files."
+description: "The reference of blueprint.v1.json: types, extensions of another owner's type, fields, core and addon field types, the presentation keys of the panel's forms, and the rules cms:generate checks across files."
 ---
 
 # Blueprint schema, version 1
@@ -35,11 +35,12 @@ A `type` has these keys:
 |---|---|---|
 | `type_id` | yes | A UUIDv7 in lowercase. It stays the same when the type is renamed (PRD 11.2). |
 | `handle` | yes | The type's handle, see [Handles](#handles). |
-| `label` | yes | The name shown in the panel, 1 to 100 characters. |
-| `description` | no | What the type is for, 1 to 1,000 characters. |
+| `label` | yes | The name shown in the panel, 1 to 100 characters, or a map of locale to such a text, see [Texts per language](#texts-per-language). |
+| `description` | no | What the type is for, 1 to 1,000 characters, or a map of locale to such a text. |
 | `version` | yes | An integer from 1. The owner raises it when the definition changes (PRD 11.4). |
 | `capabilities` | yes | See [Capabilities](#capabilities). |
 | `fields` | yes | 1 to 200 fields, in the order the form shows them. The type's own fields and those extensions add are at most 200 together. |
+| `layout` | no | The tabs and sidebar of the type's form, see [Layout](#layout). Without it the fields land in one tab of one section in file order. |
 
 An `extension` adds fields to a type that someone else owns (PRD 11.12). The fields belong to the extender's namespace:
 
@@ -48,6 +49,7 @@ An `extension` adds fields to a type that someone else owns (PRD 11.12). The fie
 | `extends` | yes | The `type_id` of the type it extends. |
 | `version` | yes | An integer from 1: the extender's part of the type's composite version (PRD 11.2). Every extension file of one owner for one type has the same version. |
 | `fields` | yes | 1 to 200 fields. The type's own fields and those extensions add are at most 200 together. |
+| `layout` | no | A layout fragment that places the file's fields in the type's form, see [Layout](#layout). Without it the fields land in the tab `extensions`. |
 
 No other keys are allowed in either kind.
 
@@ -71,11 +73,13 @@ Every field has these keys:
 | Key | Required | Value |
 |---|---|---|
 | `handle` | yes | The field's handle. |
-| `label` | yes | 1 to 100 characters. |
+| `label` | yes | 1 to 100 characters, or a map of locale to such a text, see [Texts per language](#texts-per-language). |
 | `type` | yes | A core field type from the table below, or an addon's field type. |
-| `description` | when agents see the field | What the field holds, 1 to 1,000 characters. MCP tools and agents read it, and the panel shows it as help text (PRD 14.5). |
+| `description` | when agents see the field | What the field holds, 1 to 1,000 characters, or a map of locale to such a text. MCP tools and agents read it, and the panel shows it as help text (PRD 14.5). |
 | `agents` | no | Whether MCP tools and agents see the field. The default follows the classification, see [Agents](#agents). |
 | `required` | no | `true` or `false`, default `false`. |
+| `ui` | no | The hints the panel's form takes for the input, see [Form hints](#form-hints). |
+| `default` | no | The value the form starts the input with, see [Form defaults](#form-defaults). |
 
 A field in `fields` at the top of the document also has:
 
@@ -87,7 +91,49 @@ A field in `fields` at the top of the document also has:
 | `translatable` | no | `true` or `false`, default `false`. In a type with `localization: variants`, which variant holds the field (PRD 10.1): a language's variant when `true`, the shared variant when `false`. Only a type with `localization: variants` may have it. |
 | `fallback` | no | `variant` or `field`, default `variant`. How a translatable field falls back when the reader's language has no value for it (PRD 10.3): with its whole variant along the site's chain, so a page never mixes languages, or on its own. Only a translatable field may have it. |
 
-A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the five keys: it inherits the group's classification, `translatable` and `fallback`.
+A field that is `confidential` cannot be `filterable` or `sortable`. The types `long_text`, `rich_text` and `group` cannot have either key. A field inside a group has none of the five keys: it inherits the group's classification, `translatable` and `fallback`. A field inside a group may have `ui` and `default`.
+
+## Presentation keys
+
+The keys of this section are presentation only (gap G2): they reach the editor descriptor that `cms:generate` writes for the panel's forms, see [type editor descriptors](type-editors.md), and nothing else. They change no record, no JSON codec, no validator and no column of the type's table, so a change of them is no new version of the type and needs no migration.
+
+### Texts per language
+
+Every `label` and `description`, of a type, a field, a select option, a tab or a section, and the `instructions` and `input_hint` of a form, is one text, such as `label: Title`, or a map of locale to text, such as `label: { en: Title, da: Titel }`. A locale is a language of two or three letters with an optional script and region, such as `da`, `en-GB` or `zh-Hant-TW`, and a map has at least one entry. Where one text is needed, the descriptor, the catalog, the records' documentation and the tools agents read take the first text of the map in file order, so list the primary language first. The editor descriptor carries every text with its locale, so a form shows the panel's language and falls back to the first.
+
+### Layout
+
+`layout` places the top-level fields of its file in tabs and a sidebar:
+
+| Key | Required | Value |
+|---|---|---|
+| `tabs` | one of the two | 1 to 50 tabs, each with a `handle`, a `label` and 1 to 50 `sections`. |
+| `sidebar` | one of the two | An object with 1 to 50 `sections`, shown beside the tabs. An extension's fragment may place its fields in the sidebar alone. |
+
+A section has a `handle`, an optional `label` and `instructions`, `collapsible` (`true` or `false`, default `false`, whether the form lets the editor fold it) and 1 to 200 `fields`, each a placement with the `field` (a handle of the file) and a `width`: `full` (the default), `half`, `third` or `two_thirds` of the section's row. Tab handles are unique in a layout, and section handles within a tab and within the sidebar.
+
+Every top-level field of the file is placed exactly once: a layout that leaves one out, places one twice or places a handle the file has no top-level field for is refused, see [Rules across values and files](#rules-across-values-and-files). The fields inside a group are never placed, because the group's input holds them. A type without a `layout` gets the tab `content` with the section `fields` holding its fields in file order.
+
+An extension places its own fields with a fragment of the same shape, as paths `ext.<namespace>.<handle>` in the type's form: a tab whose handle the type's layout has joins that tab, and in it a section whose handle the tab has gets the placements appended; every other tab or section is appended, and the sidebar's sections merge the same way. An extension without a fragment lands in the tab `extensions`, in a section named after its namespace. So every field of the type is in the form exactly once, whatever the files say.
+
+### Form hints
+
+`ui` holds what a form needs beyond the field's type:
+
+| Key | Value |
+|---|---|
+| `instructions` | A text, or a map of locale to text, shown with the input, 1 to 1,000 characters. |
+| `input_hint` | A text, or a map, shown in the empty input, 1 to 100 characters. |
+| `read_only` | `true` or `false`, default `false`: the form shows the value without an input to change it. |
+| `hidden` | `true` or `false`, default `false`: the form hides the input. |
+| `display` | `radio`, `buttons` or `dropdown`: how a `select` shows its choices. Only a `select` field may have it. |
+| `summary` | The summary template of a repeated group, 1 to 200 characters, which names the group's nested fields in braces, such as `{title} ({year})`, so a collapsed item shows its values. Only a `group` with `repeat` may have it. |
+
+A read-only or hidden field is still written by the commands and validated as its rules say; the hints bind the form, not the kernel.
+
+### Form defaults
+
+`default` is the value the form starts a new entry's input with, and nothing more: a command never fills it in, and an entry written without the field has no value. Its kind follows the field type: a string for `text` and `long_text`, an integer for `integer`, a decimal as a quoted string for `decimal`, `true` or `false` for `boolean`, a quoted date for `date` or the token `today`, a quoted time with its offset for `datetime` or the token `now`, an option's value for `select`, or a list of them with `multiple: true`. The tokens are resolved by the form from the clock when it opens. `rich_text` and `group` take no default, and an addon's field type takes what its base takes.
 
 ### Agents
 
@@ -152,6 +198,13 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. The records' DTOs also give different classes: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class `AppAV1BV1`. See [Records and JSON codecs](codecs.md). | `generate_name_collision` |
 | `translatable` and `fallback` belong to the fields of a type with `localization: variants`, its own and those its extensions add; a type with `localization: none` has only the shared variant, which holds every field (PRD 10.1). | `generate_translatable_without_variants` |
 | `fallback: field` belongs to a translatable field: only a translatable field falls back on its own (PRD 10.3). | `generate_fallback_without_translatable` |
+| A `layout` places every top-level field of its file, a type's own fields in the type file and an extension's fields in its fragment. The problem is at the layout and names the field. | `generate_layout_field_omitted` |
+| A `layout` places a field once. The second placement is named with the first. | `generate_layout_field_repeated` |
+| A placement names a top-level field of its own file: no field inside a group, which the group's input holds, and no field of another owner. | `generate_layout_field_unknown` |
+| A placement's `width` is `full`, `half`, `third` or `two_thirds`. The schema takes any word, so a new preset can arrive as an addition; `cms:generate` knows these four. | `generate_layout_width_unknown` |
+| The tabs of a layout have different handles, and so do the sections of one tab and the sections of the sidebar, because a fragment joins a tab or a section by its handle. | `generate_layout_duplicate_handle` |
+| A `default` is of the kind the field's type takes, see [Form defaults](#form-defaults): a `select` default is one of its options, or a list of them, each once, with `multiple: true`; `rich_text` and `group` take none. | `generate_default_wrong_kind` |
+| The `ui.summary` of a repeated group names, in braces, only fields the group has. | `generate_summary_field_unknown` |
 | A field declared `filterable` or `sortable` has an order the typed query builder can compare: a `select` field that allows several options with `multiple: true` has none, so it is neither. The blueprint schema already refuses both flags on `long_text`, `rich_text` and `group`. See [Type tables and query builders](contracts/type-table-reader.md). | `generate_field_not_queryable` |
 | A type's table name, `<owner>__<handle>`, has at most 54 bytes, so the names of its row level security policies, `<table>_actor` and `<table>_released`, fit in Postgres' 63: an owner of `app` leaves 49 bytes for the handle. | `generate_table_name_too_long` |
 | A schema lock in the migrations directory, `<table>.lock`, is exactly what `cms:generate` wrote, and its file is named after its table. | `generate_lock_invalid` |
@@ -165,7 +218,7 @@ An unknown `extends` is reported only when every file was read, because a file t
 
 ## What cms:generate compiles
 
-Once the rules hold, `cms:generate` compiles every type, with the fields every extension adds to it, into a type descriptor, and every generator reads the descriptor instead of the blueprint files (PRD 11.12). The descriptor holds the type's `type_id`, owner, handle, version, the version of each extender's namespace, its capabilities, and for each field its column, its Postgres type with NOT NULL and CHECK constraints, its PHP and TypeScript types, the rules of its runtime validator, its classification, whether agents see it, whether it is filterable or sortable, whether it is encrypted, and whether it is translatable and how it falls back.
+Once the rules hold, `cms:generate` compiles every type, with the fields every extension adds to it, into a type descriptor, and every generator reads the descriptor instead of the blueprint files (PRD 11.12). The descriptor holds the type's `type_id`, owner, handle, version, the version of each extender's namespace, its capabilities, and for each field its column, its Postgres type with NOT NULL and CHECK constraints, its PHP and TypeScript types, the rules of its runtime validator, its classification, whether agents see it, whether it is filterable or sortable, whether it is encrypted, and whether it is translatable and how it falls back. The presentation keys ride along for the editor descriptor alone: the canonical JSON of the descriptor, which `schema_versions` stores, leaves them out.
 
 | Field type | Column | PHP | TypeScript |
 |---|---|---|---|
@@ -196,7 +249,7 @@ The rules of each field's runtime validator become a validator per type, which c
 
 ## Examples
 
-These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the four files against the schema, as an application's or addon's own tests can.
+These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the five files against the schema, as an application's or addon's own tests can.
 
 A type with every core field type:
 
@@ -404,6 +457,138 @@ fields:
 
 The test that validates them, in the `Codecs` suite:
 
+A type with the presentation keys: labels per language, a layout of two tabs and a sidebar, form hints and form defaults.
+
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml -->
+```yaml
+# A type with the presentation keys of version 1 (gap G2): a label and a description per locale,
+# a layout of two tabs and a sidebar that places every top-level field once, ui hints on a text,
+# a select and a repeated group, and form-only defaults. They reach only the editor descriptor
+# that cms:generate writes for the panel's forms.
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-0c1d2e3f4a5c
+handle: event
+label:
+  en: Event
+  da: Begivenhed
+description:
+  en: An event with a name, a day and its sessions.
+  da: En begivenhed med et navn, en dag og dens sessioner.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+  routable: true
+fields:
+  - handle: name
+    label:
+      en: Name
+      da: Navn
+    description: The name of the event.
+    type: text
+    required: true
+    classification: public
+    ui:
+      input_hint:
+        en: The name on the poster
+        da: Navnet på plakaten
+  - handle: held_on
+    label: Held on
+    description: The day the event is held.
+    type: date
+    classification: public
+    default: today
+  - handle: format
+    label: Format
+    description: How the event is held.
+    type: select
+    classification: public
+    default: in_person
+    ui:
+      display: radio
+      instructions:
+        en: Online events need no venue.
+        da: Online begivenheder har ikke brug for et sted.
+    options:
+      - value: in_person
+        label:
+          en: In person
+          da: Fysisk
+      - value: online
+        label: Online
+  - handle: seats
+    label: Seats
+    description: How many seats the venue has.
+    type: integer
+    classification: internal
+    min: 0
+    default: 100
+  - handle: sessions
+    label: Sessions
+    description: The sessions of the event.
+    type: group
+    classification: public
+    repeat:
+      max_items: 20
+    ui:
+      summary: "{title} ({minutes} min)"
+    fields:
+      - handle: title
+        label: Title
+        description: The title of the session.
+        type: text
+        required: true
+      - handle: minutes
+        label: Minutes
+        description: How long the session takes.
+        type: integer
+        min: 1
+        default: 45
+  - handle: notes
+    label: Notes
+    description: Notes for the organisers.
+    type: long_text
+    classification: internal
+    ui:
+      read_only: true
+layout:
+  tabs:
+    - handle: content
+      label:
+        en: Content
+        da: Indhold
+      sections:
+        - handle: about
+          fields:
+            - field: name
+              width: two_thirds
+            - field: format
+              width: third
+        - handle: programme
+          label: Programme
+          instructions: One session per row.
+          collapsible: true
+          fields:
+            - field: sessions
+    - handle: internal
+      label: Internal
+      sections:
+        - handle: organisers
+          fields:
+            - field: notes
+  sidebar:
+    sections:
+      - handle: when
+        label: When
+        fields:
+          - field: held_on
+            width: half
+          - field: seats
+            width: half
+```
+
 <!-- example: examples/Codecs/Blueprint/ValidBlueprintsTest.php -->
 ```php
 <?php
@@ -434,5 +619,6 @@ it('accepts the blueprint file', function (string $file): void {
     'the extension of another owner\'s type' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml'],
     'the type product with the addon field type acme:colour' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml'],
     'the type notice with localization variants' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml'],
+    'the type event with labels per locale, a layout, ui hints and defaults' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml'],
 ]);
 ```

@@ -94,13 +94,18 @@ export interface AppFixtureArticleV1FixtureSources {
   fixture_source_url?: string | null;
 }
 
-const appFixtureArticleV1FixtureSourcesRule: ObjectRule = {
+const appFixtureArticleV1ExtFixtureaddonRule: ObjectRule = {
   properties: [
-    { key: 'fixture_source_title', presence: 'required', value: { kind: 'text', maxLength: 255 } },
+    { key: 'fixture_slug', presence: 'optional', value: { kind: 'text', maxLength: 120 } },
+  ],
+};
+
+const appFixtureArticleV1ExtRule: ObjectRule = {
+  properties: [
     {
-      key: 'fixture_source_url',
-      presence: 'optional',
-      value: { kind: 'text', maxLength: 255, format: 'url' },
+      key: 'fixtureaddon',
+      presence: 'required',
+      value: { kind: 'object', object: appFixtureArticleV1ExtFixtureaddonRule },
     },
   ],
 };
@@ -116,18 +121,13 @@ const appFixtureArticleV1FixtureEmbargoRule: ObjectRule = {
   ],
 };
 
-const appFixtureArticleV1ExtFixtureaddonRule: ObjectRule = {
+const appFixtureArticleV1FixtureSourcesRule: ObjectRule = {
   properties: [
-    { key: 'fixture_slug', presence: 'optional', value: { kind: 'text', maxLength: 120 } },
-  ],
-};
-
-const appFixtureArticleV1ExtRule: ObjectRule = {
-  properties: [
+    { key: 'fixture_source_title', presence: 'required', value: { kind: 'text', maxLength: 255 } },
     {
-      key: 'fixtureaddon',
-      presence: 'required',
-      value: { kind: 'object', object: appFixtureArticleV1ExtFixtureaddonRule },
+      key: 'fixture_source_url',
+      presence: 'optional',
+      value: { kind: 'text', maxLength: 255, format: 'url' },
     },
   ],
 };

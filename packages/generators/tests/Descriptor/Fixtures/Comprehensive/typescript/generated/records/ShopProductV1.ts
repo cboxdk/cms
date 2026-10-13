@@ -111,15 +111,10 @@ export interface ShopProductV1Supplier {
   website?: string | null;
 }
 
-const shopProductV1SupplierRule: ObjectRule = {
+const shopProductV1DimensionsRule: ObjectRule = {
   properties: [
-    { key: 'company', presence: 'required', value: { kind: 'text', maxLength: 255 } },
-    { key: 'notes', presence: 'optional', value: { kind: 'text', maxLength: 10000 } },
-    {
-      key: 'website',
-      presence: 'optional',
-      value: { kind: 'text', maxLength: 255, format: 'url' },
-    },
+    { key: 'size', presence: 'required', value: { kind: 'choice', choices: ['small', 'large'] } },
+    { key: 'width', presence: 'optional', value: { kind: 'integer', min: 1 } },
   ],
 };
 
@@ -140,10 +135,15 @@ const shopProductV1ExtRule: ObjectRule = {
   ],
 };
 
-const shopProductV1DimensionsRule: ObjectRule = {
+const shopProductV1SupplierRule: ObjectRule = {
   properties: [
-    { key: 'size', presence: 'required', value: { kind: 'choice', choices: ['small', 'large'] } },
-    { key: 'width', presence: 'optional', value: { kind: 'integer', min: 1 } },
+    { key: 'company', presence: 'required', value: { kind: 'text', maxLength: 255 } },
+    { key: 'notes', presence: 'optional', value: { kind: 'text', maxLength: 10000 } },
+    {
+      key: 'website',
+      presence: 'optional',
+      value: { kind: 'text', maxLength: 255, format: 'url' },
+    },
   ],
 };
 

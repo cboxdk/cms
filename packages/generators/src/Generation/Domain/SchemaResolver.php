@@ -12,6 +12,7 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedSchema;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedType;
 use Cbox\Cms\Generators\Schema\Domain\ColumnName;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Blueprints;
+use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\TypeBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\TypeFieldLimit;
 
@@ -97,6 +98,8 @@ final readonly class SchemaResolver
 
         // The first extension file of each extended type and extender, whose version the others must have.
         $firsts = [];
+        // The extension files of other owners that add to each type, by type_id, for the form's layout.
+        $files = [];
 
         foreach ($blueprints->extensions as $extension) {
             $id = $extension->extends->toString();
@@ -140,6 +143,8 @@ final readonly class SchemaResolver
                 continue;
             }
 
+            $files[$id][] = $extension;
+
             foreach ($extension->fields as $field) {
                 $resolved = ResolvedField::extension($field);
 
@@ -169,7 +174,7 @@ final readonly class SchemaResolver
         ksort($firsts, SORT_STRING);
 
         return new ResolvedSchema(array_values(array_map(
-            static function (TypeBlueprint $type) use ($fields, $firsts): ResolvedType {
+            static function (TypeBlueprint $type) use ($fields, $firsts, $files): ResolvedType {
                 $id = $type->typeId->toString();
                 $typeFields = $fields[$id];
                 ksort($typeFields, SORT_STRING);
@@ -181,7 +186,10 @@ final readonly class SchemaResolver
                     }
                 }
 
-                return new ResolvedType($type, array_values($typeFields), $extensions);
+                $extensionFiles = $files[$id] ?? [];
+                usort($extensionFiles, static fn (ExtensionBlueprint $a, ExtensionBlueprint $b): int => [$a->owner->value, $a->location->file] <=> [$b->owner->value, $b->location->file]);
+
+                return new ResolvedType($type, array_values($typeFields), $extensions, $extensionFiles);
             },
             $byName,
         )));

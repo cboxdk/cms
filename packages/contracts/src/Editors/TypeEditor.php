@@ -27,6 +27,9 @@ use Cbox\Cms\Contracts\Schema\TypeName;
  *   each group followed by its nested fields, then each extender's fields the same way, by
  *   namespace. A nested field names its group's path as `parent`, and every group comes before
  *   the fields below it.
+ * - `layout` is the form's tabs and sidebar (gap G2): every top-level field is placed in exactly
+ *   one section, and nothing else is placed. `labels` and `descriptions` are the type's label and
+ *   description per locale the blueprint names, beside the plain ones.
  *
  * visibleTo() is what the queries type.list and type.describe answer a reader with: the fields
  * the reader may see, and the fields below a group only while the group is seen.
@@ -40,9 +43,18 @@ final readonly class TypeEditor
     /** @var list<EditorField> in form order, each path once */
     public array $fields;
 
+    /** @var list<EditorText> sorted by locale */
+    public array $labels;
+
+    /** @var list<EditorText> sorted by locale */
+    public array $descriptions;
+
     /**
      * @param  list<ExtensionVersion>  $extensions
      * @param  list<EditorField>  $fields
+     * @param  EditorLayout  $layout  places every top-level field once
+     * @param  list<EditorText>  $labels  the label per locale
+     * @param  list<EditorText>  $descriptions  the description per locale
      *
      * @throws InvalidTypeEditor when the descriptor breaks its rules
      */
@@ -56,6 +68,9 @@ final readonly class TypeEditor
         public ?string $titleField,
         array $extensions,
         array $fields,
+        public EditorLayout $layout,
+        array $labels = [],
+        array $descriptions = [],
     ) {
         if ($version < 1) {
             throw InvalidTypeEditor::version($name->value, $version);
@@ -98,6 +113,10 @@ final readonly class TypeEditor
                 throw InvalidTypeEditor::titleField($name->value, $titleField);
             }
         }
+
+        $this->assertLayout($layout);
+        $this->labels = EditorText::checked($labels, 'the label of the type '.$name->value);
+        $this->descriptions = EditorText::checked($descriptions, 'the description of the type '.$name->value);
     }
 
     /**
@@ -150,7 +169,40 @@ final readonly class TypeEditor
             $this->titleField !== null && isset($paths[$this->titleField]) ? $this->titleField : null,
             $this->extensions,
             $kept,
+            $this->layout->keeping($paths),
+            $this->labels,
+            $this->descriptions,
         );
+    }
+
+    /**
+     * The layout places every top-level field exactly once, and nothing else.
+     *
+     * @throws InvalidTypeEditor
+     */
+    private function assertLayout(EditorLayout $layout): void
+    {
+        $placed = [];
+
+        foreach ($layout->paths() as $path) {
+            if (isset($placed[$path])) {
+                throw InvalidTypeEditor::layoutPlacesTwice($this->name->value, $path);
+            }
+
+            $field = $this->field($path);
+
+            if (! $field instanceof EditorField || $field->parent !== null) {
+                throw InvalidTypeEditor::layoutPlacesUnknown($this->name->value, $path);
+            }
+
+            $placed[$path] = true;
+        }
+
+        foreach ($this->below(null) as $field) {
+            if (! isset($placed[$field->path])) {
+                throw InvalidTypeEditor::layoutLeavesOut($this->name->value, $field->path);
+            }
+        }
     }
 
     /**

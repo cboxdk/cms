@@ -20,6 +20,7 @@ use Cbox\Cms\Generators\Generation\Domain\Generators\TypeScriptContracts;
 use Cbox\Cms\Generators\Generation\Domain\SchemaResolver;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
+use Cbox\Cms\Generators\TypeEditors\Boundary\DefaultJson;
 use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
 use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use FilesystemIterator;
@@ -87,7 +88,7 @@ final class LocalizedExample
      */
     public static function php(): array
     {
-        return self::generated(new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))), new PhpTypeQueries, new PhpTypeValidators]));
+        return self::generated(new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))), new PhpTypeQueries, new PhpTypeValidators]));
     }
 
     /**

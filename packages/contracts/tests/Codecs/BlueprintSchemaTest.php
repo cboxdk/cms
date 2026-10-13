@@ -180,6 +180,9 @@ function blueprintInvalidCases(): array
         'translatable on a field inside a group' => ['translatable-in-group.yaml', '/fields/0/fields/0', 'must not match schema'],
         'fallback: entry' => ['fallback-entry.yaml', '/fields/0/fallback', 'enum'],
         'an extension without fields' => ['extension-without-fields.yaml', '/', '(fields)'],
+        'a display on a text field, which only a select has' => ['ui-display-on-text.yaml', '/fields/0/ui', 'must not match schema'],
+        'a summary on a group without repeat, which only a repeated group has' => ['ui-summary-without-repeat.yaml', '/fields/0/ui', 'must not match schema'],
+        'a label map without a locale' => ['label-map-empty.yaml', '/label', 'at least 1 properties'],
         'blueprint: 2' => ['blueprint-2.yaml', '/blueprint', 'const'],
         'a missing blueprint' => ['missing-blueprint.yaml', '/', '(blueprint)'],
     ];
@@ -202,6 +205,7 @@ it('accepts the valid fixtures', function (string $fixture): void {
     'an extension' => ['valid/extension.yaml'],
     'a type with the addon field type acme:colour and its options' => ['valid/addon-field-type.yaml'],
     'a type with localization variants, translatable fields and a field fallback' => ['valid/localized.yaml'],
+    'a type with labels per locale, a layout, ui hints and defaults' => ['valid/layout.yaml'],
 ]);
 
 it('covers every core field type of the schema in the valid article', function (): void {
@@ -331,6 +335,7 @@ it('embeds each valid fixture on the reference page, byte for byte', function ()
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/extension.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/addon-field-type.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml',
     ]);
 
     foreach ($examples as $path => $body) {

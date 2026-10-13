@@ -67,6 +67,25 @@ export interface ListedNavEntryV1 {
   page: string;
 }
 
+const listedActionV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'name',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$',
+        minLength: 1,
+        maxLength: 100,
+      },
+    },
+    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'kind', presence: 'required', value: { kind: 'enum', values: ['command', 'query'] } },
+    { key: 'title', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
+    { key: 'description', presence: 'required', value: { kind: 'text', maxLength: 4000 } },
+  ],
+};
+
 const listedNavEntryV1Rule: ObjectRule = {
   properties: [
     {
@@ -90,25 +109,6 @@ const listedNavEntryV1Rule: ObjectRule = {
         maxLength: 96,
       },
     },
-  ],
-};
-
-const listedActionV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'name',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[a-z][a-z0-9_]*(\\.[a-z][a-z0-9_]*)+$',
-        minLength: 1,
-        maxLength: 100,
-      },
-    },
-    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
-    { key: 'kind', presence: 'required', value: { kind: 'enum', values: ['command', 'query'] } },
-    { key: 'title', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
-    { key: 'description', presence: 'required', value: { kind: 'text', maxLength: 4000 } },
   ],
 };
 

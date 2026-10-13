@@ -100,7 +100,7 @@ final readonly class TypeScriptEmitter
 
         $rules = [];
 
-        foreach (array_reverse($objects) as $object) {
+        foreach (self::inDependencyOrder($contract->root) as $object) {
             $name = self::ruleName($names[$object->className]);
             $literal = self::objectRule($object, $names);
             $rules = [...$rules, '', ...LiteralPrinter::constant($name, 'ObjectRule', $literal)];
@@ -706,6 +706,45 @@ final readonly class TypeScriptEmitter
     private static function ruleName(string $name): string
     {
         return lcfirst($name).'Rule';
+    }
+
+    /**
+     * The objects of the contract with each after the objects its properties hold, each once, so
+     * every rule constant is declared before the constant of an object that refers to it: a
+     * depth-first walk from the root that lists an object after its children.
+     *
+     * @return list<CodecObject>
+     */
+    private static function inDependencyOrder(CodecObject $root): array
+    {
+        $ordered = [];
+        self::listAfterChildren($root, $ordered);
+
+        return array_values($ordered);
+    }
+
+    /**
+     * @param  array<string, CodecObject>  $ordered  by class name
+     */
+    private static function listAfterChildren(CodecObject $object, array &$ordered): void
+    {
+        if (isset($ordered[$object->className])) {
+            return;
+        }
+
+        foreach ($object->properties as $property) {
+            $value = $property->value;
+
+            while ($value->item instanceof CodecValue) {
+                $value = $value->item;
+            }
+
+            if ($value->object instanceof CodecObject) {
+                self::listAfterChildren($value->object, $ordered);
+            }
+        }
+
+        $ordered[$object->className] = $object;
     }
 
     /**

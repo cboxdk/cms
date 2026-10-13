@@ -1,0 +1,23 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-0c1d2e3f4a5e
+handle: note
+label: Note
+version: 1
+capabilities:
+  history: none
+  stages: none
+  localization: none
+fields:
+  - handle: author
+    label: Author
+    description: Who wrote the note.
+    type: group
+    classification: public
+    ui:
+      summary: "{name}"
+    fields:
+      - handle: name
+        label: Name
+        description: The author's name.
+        type: text

@@ -6,11 +6,20 @@ namespace Cbox\Cms\Generators\TypeEditors\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Codecs\JsonDocument;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Editors\EditorBase;
 use Cbox\Cms\Contracts\Editors\EditorChoice;
 use Cbox\Cms\Contracts\Editors\EditorField;
+use Cbox\Cms\Contracts\Editors\EditorLayout;
+use Cbox\Cms\Contracts\Editors\EditorPlacement;
 use Cbox\Cms\Contracts\Editors\EditorRepeat;
+use Cbox\Cms\Contracts\Editors\EditorSection;
+use Cbox\Cms\Contracts\Editors\EditorTab;
+use Cbox\Cms\Contracts\Editors\EditorText;
+use Cbox\Cms\Contracts\Editors\EditorUi;
+use Cbox\Cms\Contracts\Editors\EditorWidth;
 use Cbox\Cms\Contracts\Editors\InvalidTypeEditor;
+use Cbox\Cms\Contracts\Editors\SelectDisplay as EditorDisplay;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
@@ -28,13 +37,21 @@ use Cbox\Cms\Generators\Codec\Domain\Dto\CodecValue;
 use Cbox\Cms\Generators\Codec\Domain\PhpSource;
 use Cbox\Cms\Generators\Codec\Domain\RecordContracts;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldPlacement;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\LayoutDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\SectionDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\TabDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
+use Cbox\Cms\Generators\Descriptor\Domain\LayoutCompiler;
 use Cbox\Cms\Generators\Descriptor\Domain\ValidationRuleName;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ExtensionVersion as ExtenderVersion;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldDefault;
+use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
+use Cbox\Cms\Generators\Schema\Domain\SelectDisplay;
 use Closure;
 
 /**
@@ -52,14 +69,20 @@ use Closure;
  *
  * The title field is the first required text field of the owner in blueprint order, else the
  * owner's first text field, or null when the owner has no text field.
+ *
+ * The presentation keys (gap G2) come from the descriptor as the blueprints gave them: the label
+ * and the description per locale as EditorTexts, the composed layout as the EditorLayout, each
+ * field's `ui` as its EditorUi, and its `default` as one JSON document written by the second
+ * closure (DefaultJson in the Boundary).
  */
 #[Internal]
 final readonly class TypeEditorCompiler
 {
     /**
      * @param  Closure(CodecValue): string  $ruleJson  writes the ValueRule of a leaf field as JSON
+     * @param  Closure(FieldDefault): string  $defaultJson  writes the default of a field as JSON
      */
-    public function __construct(private Closure $ruleJson) {}
+    public function __construct(private Closure $ruleJson, private Closure $defaultJson) {}
 
     /**
      * @throws GenerationFailed with GenerateErrorCode::InvalidOutput
@@ -99,6 +122,9 @@ final readonly class TypeEditorCompiler
                     $type->extensions,
                 ),
                 $fields,
+                $this->layout($type->layout()),
+                self::texts($type->labels),
+                self::texts($type->descriptions),
             );
         } catch (InvalidTypeEditor $invalid) {
             throw GenerationFailed::because(GenerateErrorCode::InvalidOutput, sprintf('The editor descriptor of %s is invalid: %s', $type->name(), $invalid->getMessage()), $invalid);
@@ -137,11 +163,15 @@ final readonly class TypeEditorCompiler
             classification: ClassificationAccess::from($field->classification->value),
             agents: $field->agents,
             encrypted: $field->encrypted,
-            choices: array_map(static fn (SelectOption $option): EditorChoice => new EditorChoice(new FieldHandle($option->value->value), $option->label), $field->choices),
+            choices: array_map(static fn (SelectOption $option): EditorChoice => new EditorChoice(new FieldHandle($option->value->value), $option->label, self::texts($option->labels)), $field->choices),
             repeat: $group ? $this->repeat($value) : null,
             rule: $group ? null : new JsonDocument(($this->ruleJson)($value)),
             translatable: $field->translatable,
             fallback: FieldFallback::from($field->fallback->value),
+            labels: self::texts($field->labels),
+            descriptions: self::texts($field->descriptions),
+            ui: $field->ui instanceof FieldUi ? $this->ui($field->ui) : new EditorUi,
+            defaultValue: $field->default instanceof FieldDefault ? new JsonDocument(($this->defaultJson)($field->default)) : null,
         )];
 
         foreach ($this->inFileOrder($field->fields) as $nested) {
@@ -149,6 +179,63 @@ final readonly class TypeEditorCompiler
         }
 
         return $fields;
+    }
+
+    /**
+     * The composed layout as the descriptor carries it.
+     */
+    private function layout(LayoutDescriptor $layout): EditorLayout
+    {
+        return new EditorLayout(
+            array_map(static fn (TabDescriptor $tab): EditorTab => new EditorTab(new FieldHandle($tab->handle->value), $tab->label->text, self::texts($tab->label->byLocale), self::sections($tab->sections)), $layout->tabs),
+            self::sections($layout->sidebar),
+        );
+    }
+
+    /**
+     * @param  list<SectionDescriptor>  $sections
+     * @return list<EditorSection>
+     */
+    private static function sections(array $sections): array
+    {
+        return array_map(static fn (SectionDescriptor $section): EditorSection => new EditorSection(
+            new FieldHandle($section->handle->value),
+            $section->label?->text,
+            self::texts($section->label->byLocale ?? []),
+            $section->instructions?->text,
+            self::texts($section->instructions->byLocale ?? []),
+            $section->collapsible,
+            array_map(static fn (FieldPlacement $placement): EditorPlacement => new EditorPlacement($placement->path, EditorWidth::from($placement->width->value)), $section->fields),
+        ), $sections);
+    }
+
+    private function ui(FieldUi $ui): EditorUi
+    {
+        return new EditorUi(
+            instructions: $ui->instructions?->text,
+            instructionsByLocale: self::texts($ui->instructions->byLocale ?? []),
+            inputHint: $ui->inputHint?->text,
+            inputHintByLocale: self::texts($ui->inputHint->byLocale ?? []),
+            readOnly: $ui->readOnly,
+            hidden: $ui->hidden,
+            display: $ui->display instanceof SelectDisplay ? EditorDisplay::from($ui->display->value) : null,
+            summary: $ui->summary,
+        );
+    }
+
+    /**
+     * @param  array<string, string>  $byLocale
+     * @return list<EditorText>
+     */
+    private static function texts(array $byLocale): array
+    {
+        $texts = [];
+
+        foreach ($byLocale as $locale => $text) {
+            $texts[] = new EditorText(new Locale($locale), $text);
+        }
+
+        return $texts;
     }
 
     /**
@@ -190,25 +277,13 @@ final readonly class TypeEditorCompiler
     }
 
     /**
-     * The fields in the order of their blueprint file: by the index of each field's place among
-     * its siblings, the last `/fields/<n>` of its source location, then by handle.
+     * The fields in the order of their blueprint file (LayoutCompiler::inFileOrder()).
      *
      * @param  list<FieldDescriptor>  $fields
      * @return list<FieldDescriptor>
      */
     private function inFileOrder(array $fields): array
     {
-        usort($fields, static function (FieldDescriptor $a, FieldDescriptor $b): int {
-            $byIndex = self::index($a) <=> self::index($b);
-
-            return $byIndex !== 0 ? $byIndex : strcmp($a->handle->value, $b->handle->value);
-        });
-
-        return $fields;
-    }
-
-    private static function index(FieldDescriptor $field): int
-    {
-        return preg_match('/\/fields\/([0-9]+)\z/', $field->location->pointer, $match) === 1 ? (int) $match[1] : PHP_INT_MAX;
+        return LayoutCompiler::inFileOrder($fields);
     }
 }

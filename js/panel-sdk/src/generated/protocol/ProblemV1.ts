@@ -85,6 +85,7 @@ export type ErrorCode =
   | 'fake_check_failed'
   | 'field_encryption_unavailable'
   | 'generate_column_name_too_long'
+  | 'generate_default_wrong_kind'
   | 'generate_duplicate_field_handle'
   | 'generate_duplicate_select_value'
   | 'generate_duplicate_type_handle'
@@ -98,6 +99,11 @@ export type ErrorCode =
   | 'generate_invalid_case_name'
   | 'generate_invalid_config'
   | 'generate_invalid_output'
+  | 'generate_layout_duplicate_handle'
+  | 'generate_layout_field_omitted'
+  | 'generate_layout_field_repeated'
+  | 'generate_layout_field_unknown'
+  | 'generate_layout_width_unknown'
   | 'generate_lock_invalid'
   | 'generate_min_above_max'
   | 'generate_min_items_above_max_items'
@@ -114,6 +120,7 @@ export type ErrorCode =
   | 'generate_schema_missing'
   | 'generate_schema_unsupported_version'
   | 'generate_schema_unwritable'
+  | 'generate_summary_field_unknown'
   | 'generate_table_changed'
   | 'generate_table_name_too_long'
   | 'generate_too_many_fields'
@@ -410,6 +417,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'fake_check_failed',
           'field_encryption_unavailable',
           'generate_column_name_too_long',
+          'generate_default_wrong_kind',
           'generate_duplicate_field_handle',
           'generate_duplicate_select_value',
           'generate_duplicate_type_handle',
@@ -423,6 +431,11 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_invalid_case_name',
           'generate_invalid_config',
           'generate_invalid_output',
+          'generate_layout_duplicate_handle',
+          'generate_layout_field_omitted',
+          'generate_layout_field_repeated',
+          'generate_layout_field_unknown',
+          'generate_layout_width_unknown',
           'generate_lock_invalid',
           'generate_min_above_max',
           'generate_min_items_above_max_items',
@@ -439,6 +452,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_schema_missing',
           'generate_schema_unsupported_version',
           'generate_schema_unwritable',
+          'generate_summary_field_unknown',
           'generate_table_changed',
           'generate_table_name_too_long',
           'generate_too_many_fields',
@@ -699,6 +713,7 @@ const problemV1Rule: ObjectRule = {
           'fake_check_failed',
           'field_encryption_unavailable',
           'generate_column_name_too_long',
+          'generate_default_wrong_kind',
           'generate_duplicate_field_handle',
           'generate_duplicate_select_value',
           'generate_duplicate_type_handle',
@@ -712,6 +727,11 @@ const problemV1Rule: ObjectRule = {
           'generate_invalid_case_name',
           'generate_invalid_config',
           'generate_invalid_output',
+          'generate_layout_duplicate_handle',
+          'generate_layout_field_omitted',
+          'generate_layout_field_repeated',
+          'generate_layout_field_unknown',
+          'generate_layout_width_unknown',
           'generate_lock_invalid',
           'generate_min_above_max',
           'generate_min_items_above_max_items',
@@ -728,6 +748,7 @@ const problemV1Rule: ObjectRule = {
           'generate_schema_missing',
           'generate_schema_unsupported_version',
           'generate_schema_unwritable',
+          'generate_summary_field_unknown',
           'generate_table_changed',
           'generate_table_name_too_long',
           'generate_too_many_fields',

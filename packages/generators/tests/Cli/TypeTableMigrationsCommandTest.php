@@ -30,13 +30,43 @@ const WORKBENCH_ARTICLE_MIGRATIONS = ['app__fixture_article.lock', 'app__fixture
 const WORKBENCH_MIGRATIONS = 'workbench/database/migrations/cms';
 
 const ARTICLE_SUMMARY = <<<'YAML'
-      - handle: fixture_summary
-        label: Summary
-        description: A short summary of the article.
-        type: text
-        classification: public
+  - handle: fixture_summary
+    label: Summary
+    description: A short summary of the article.
+    type: text
+    classification: public
 
-    YAML;
+YAML;
+
+/** The placement of the added field in the article's layout, which places every field once. */
+const ARTICLE_SUMMARY_PLACEMENT = <<<'YAML'
+            - field: fixture_summary
+
+YAML;
+
+/**
+ * The article's blueprint with a field added: the field before the layout, and its placement in
+ * the first section, because a layout places every top-level field of the file exactly once.
+ */
+function articleWithSummary(string $blueprint): string
+{
+    return str_replace(
+        ["\nlayout:\n", "            - field: fixture_body\n"],
+        ["\n".ARTICLE_SUMMARY."layout:\n", "            - field: fixture_body\n".ARTICLE_SUMMARY_PLACEMENT],
+        $blueprint,
+    );
+}
+
+/**
+ * The article's blueprint with a top-level field removed, its placement in the layout included.
+ */
+function articleWithout(string $blueprint, string $field, string $next): string
+{
+    $start = (int) strpos($blueprint, '  - handle: '.$field);
+    $end = (int) strpos($blueprint, '  - handle: '.$next);
+
+    return (string) preg_replace('/^ +- field: '.preg_quote($field, '/').'\n(?: +width: [a-z_]+\n)?/m', '', substr($blueprint, 0, $start).substr($blueprint, $end));
+}
 
 /**
  * A scratch root with a copy of the workbench's fixture article, the fixture addon's extension of
@@ -104,7 +134,7 @@ it('keeps the committed migration and lock of an unchanged copy of the fixture',
 it('writes one ADD COLUMN migration when an optional field is added to a copy of the fixture', function (): void {
     $root = articleCopy();
     $before = migrationHashes($root);
-    SchemaFixtures::write($root.'/schema/fixture_article.yaml', file_get_contents($root.'/schema/fixture_article.yaml').ARTICLE_SUMMARY);
+    SchemaFixtures::write($root.'/schema/fixture_article.yaml', articleWithSummary((string) file_get_contents($root.'/schema/fixture_article.yaml')));
 
     [$status, $output] = generateArticle();
     $after = migrationHashes($root);
@@ -124,10 +154,7 @@ it('writes one ADD COLUMN migration when an optional field is added to a copy of
 it('refuses to generate when a field is removed from a copy of the fixture, and writes nothing', function (): void {
     $root = articleCopy();
     $before = migrationHashes($root);
-    $blueprint = (string) file_get_contents($root.'/schema/fixture_article.yaml');
-    $start = (int) strpos($blueprint, '  - handle: fixture_reading_minutes');
-    $end = (int) strpos($blueprint, '  - handle: fixture_featured');
-    SchemaFixtures::write($root.'/schema/fixture_article.yaml', substr($blueprint, 0, $start).substr($blueprint, $end));
+    SchemaFixtures::write($root.'/schema/fixture_article.yaml', articleWithout((string) file_get_contents($root.'/schema/fixture_article.yaml'), 'fixture_reading_minutes', 'fixture_featured'));
 
     [$status, $output] = generateArticle();
 

@@ -1,0 +1,126 @@
+# A type with the presentation keys of version 1 (gap G2): a label and a description per locale,
+# a layout of two tabs and a sidebar that places every top-level field once, ui hints on a text,
+# a select and a repeated group, and form-only defaults. They reach only the editor descriptor
+# that cms:generate writes for the panel's forms.
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-0c1d2e3f4a5c
+handle: event
+label:
+  en: Event
+  da: Begivenhed
+description:
+  en: An event with a name, a day and its sessions.
+  da: En begivenhed med et navn, en dag og dens sessioner.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+  routable: true
+fields:
+  - handle: name
+    label:
+      en: Name
+      da: Navn
+    description: The name of the event.
+    type: text
+    required: true
+    classification: public
+    ui:
+      input_hint:
+        en: The name on the poster
+        da: Navnet på plakaten
+  - handle: held_on
+    label: Held on
+    description: The day the event is held.
+    type: date
+    classification: public
+    default: today
+  - handle: format
+    label: Format
+    description: How the event is held.
+    type: select
+    classification: public
+    default: in_person
+    ui:
+      display: radio
+      instructions:
+        en: Online events need no venue.
+        da: Online begivenheder har ikke brug for et sted.
+    options:
+      - value: in_person
+        label:
+          en: In person
+          da: Fysisk
+      - value: online
+        label: Online
+  - handle: seats
+    label: Seats
+    description: How many seats the venue has.
+    type: integer
+    classification: internal
+    min: 0
+    default: 100
+  - handle: sessions
+    label: Sessions
+    description: The sessions of the event.
+    type: group
+    classification: public
+    repeat:
+      max_items: 20
+    ui:
+      summary: "{title} ({minutes} min)"
+    fields:
+      - handle: title
+        label: Title
+        description: The title of the session.
+        type: text
+        required: true
+      - handle: minutes
+        label: Minutes
+        description: How long the session takes.
+        type: integer
+        min: 1
+        default: 45
+  - handle: notes
+    label: Notes
+    description: Notes for the organisers.
+    type: long_text
+    classification: internal
+    ui:
+      read_only: true
+layout:
+  tabs:
+    - handle: content
+      label:
+        en: Content
+        da: Indhold
+      sections:
+        - handle: about
+          fields:
+            - field: name
+              width: two_thirds
+            - field: format
+              width: third
+        - handle: programme
+          label: Programme
+          instructions: One session per row.
+          collapsible: true
+          fields:
+            - field: sessions
+    - handle: internal
+      label: Internal
+      sections:
+        - handle: organisers
+          fields:
+            - field: notes
+  sidebar:
+    sections:
+      - handle: when
+        label: When
+        fields:
+          - field: held_on
+            width: half
+          - field: seats
+            width: half

@@ -29,6 +29,7 @@ use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\CoreFieldTypes;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Cbox\Cms\Generators\Tests\Migrations\Fakes\FakeSchemaLocks;
+use Cbox\Cms\Generators\TypeEditors\Boundary\DefaultJson;
 use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
 use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use FilesystemIterator;
@@ -148,7 +149,7 @@ final class ComprehensiveExample
     {
         $files = [];
 
-        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
+        foreach (new GeneratorRunner([new PhpRecordDtos, new PhpTypeHandleEnum, new PhpRecords, new PhpTypeCatalog(ServiceProvider::class), new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))), new PhpTypeQueries, new PhpTypeValidators])->run(self::compile(), self::target())->files as $file) {
             $files[$file->path] = $file->contents;
         }
 

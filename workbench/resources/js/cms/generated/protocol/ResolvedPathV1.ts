@@ -292,102 +292,41 @@ export interface TimeWindowV1 {
   until: string | null;
 }
 
-const timeWindowV1Rule: ObjectRule = {
-  properties: [
-    { key: 'from', presence: 'present', value: { kind: 'datetime' } },
-    { key: 'until', presence: 'present', value: { kind: 'datetime' } },
-  ],
-};
-
-const visibilityStepV1Rule: ObjectRule = {
+const readContentV1Rule: ObjectRule = {
   properties: [
     {
-      key: 'decision',
+      key: 'entry',
       presence: 'required',
-      value: {
-        kind: 'enum',
-        values: [
-          'entry_not_active',
-          'variant_withdrawn',
-          'placement_withdrawn',
-          'mount_hidden',
-          'no_released_revision',
-          'placement_hidden',
-          'before_window',
-          'after_window',
-          'visible',
-        ],
-      },
-    },
-    { key: 'at', presence: 'required', value: { kind: 'datetime' } },
-    {
-      key: 'lifecycle',
-      presence: 'present',
-      value: { kind: 'enum', values: ['active', 'archived', 'merged', 'tombstoned', 'purged'] },
-    },
-    {
-      key: 'release',
-      presence: 'present',
-      value: { kind: 'enum', values: ['unreleased', 'released', 'withdrawn'] },
-    },
-    {
-      key: 'stored',
-      presence: 'required',
-      value: { kind: 'enum', values: ['hidden', 'scheduled', 'live', 'expired', 'withdrawn'] },
-    },
-    { key: 'window', presence: 'present', value: { kind: 'object', object: timeWindowV1Rule } },
-    { key: 'valid_until', presence: 'present', value: { kind: 'datetime' } },
-  ],
-};
-
-const siteStepV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'host',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[1-9][0-9]{0,4})?$',
-      },
-    },
-    {
-      key: 'locale',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
-      },
-    },
-    {
-      key: 'handle',
-      presence: 'present',
-      value: { kind: 'string', pattern: '^[a-z][a-z0-9_]{0,62}$' },
-    },
-    {
-      key: 'site',
-      presence: 'present',
       value: {
         kind: 'string',
         pattern:
           '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
       },
     },
-    { key: 'locale_published', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'node',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    {
+      key: 'type',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    { key: 'fields', presence: 'required', value: { kind: 'fields' } },
   ],
 };
 
-const routeStepV1Rule: ObjectRule = {
+const canonicalStepV1Rule: ObjectRule = {
   properties: [
-    { key: 'path', presence: 'required', value: { kind: 'string', pattern: '^(/|(/[^/\\s]+)+)$' } },
-    { key: 'route', presence: 'present', value: { kind: 'text' } },
-    { key: 'rest', presence: 'present', value: { kind: 'text' } },
-  ],
-};
-
-const redirectStepV1Rule: ObjectRule = {
-  properties: [
-    { key: 'url', presence: 'required', value: { kind: 'text' } },
     {
       key: 'placement',
       presence: 'present',
@@ -397,8 +336,50 @@ const redirectStepV1Rule: ObjectRule = {
           '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
       },
     },
-    { key: 'reason', presence: 'required', value: { kind: 'enum', values: ['own_placement'] } },
-    { key: 'valid_until', presence: 'present', value: { kind: 'datetime' } },
+    { key: 'url', presence: 'present', value: { kind: 'text' } },
+    { key: 'here', presence: 'required', value: { kind: 'boolean' } },
+  ],
+};
+
+const mountStepV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'mount',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    {
+      key: 'source',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+  ],
+};
+
+const nodeStepV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'node',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    {
+      key: 'kind',
+      presence: 'required',
+      value: { kind: 'enum', values: ['site', 'section', 'page', 'list', 'storage', 'mount'] },
+    },
   ],
 };
 
@@ -450,50 +431,9 @@ const placementStepV1Rule: ObjectRule = {
   ],
 };
 
-const nodeStepV1Rule: ObjectRule = {
+const redirectStepV1Rule: ObjectRule = {
   properties: [
-    {
-      key: 'node',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
-    },
-    {
-      key: 'kind',
-      presence: 'required',
-      value: { kind: 'enum', values: ['site', 'section', 'page', 'list', 'storage', 'mount'] },
-    },
-  ],
-};
-
-const mountStepV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'mount',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
-    },
-    {
-      key: 'source',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
-    },
-  ],
-};
-
-const canonicalStepV1Rule: ObjectRule = {
-  properties: [
+    { key: 'url', presence: 'required', value: { kind: 'text' } },
     {
       key: 'placement',
       presence: 'present',
@@ -503,8 +443,101 @@ const canonicalStepV1Rule: ObjectRule = {
           '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
       },
     },
-    { key: 'url', presence: 'present', value: { kind: 'text' } },
-    { key: 'here', presence: 'required', value: { kind: 'boolean' } },
+    { key: 'reason', presence: 'required', value: { kind: 'enum', values: ['own_placement'] } },
+    { key: 'valid_until', presence: 'present', value: { kind: 'datetime' } },
+  ],
+};
+
+const routeStepV1Rule: ObjectRule = {
+  properties: [
+    { key: 'path', presence: 'required', value: { kind: 'string', pattern: '^(/|(/[^/\\s]+)+)$' } },
+    { key: 'route', presence: 'present', value: { kind: 'text' } },
+    { key: 'rest', presence: 'present', value: { kind: 'text' } },
+  ],
+};
+
+const siteStepV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'host',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?(\\.[a-zA-Z0-9]([a-zA-Z0-9-]{0,61}[a-zA-Z0-9])?)*(:[1-9][0-9]{0,4})?$',
+      },
+    },
+    {
+      key: 'locale',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
+      },
+    },
+    {
+      key: 'handle',
+      presence: 'present',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9_]{0,62}$' },
+    },
+    {
+      key: 'site',
+      presence: 'present',
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
+    },
+    { key: 'locale_published', presence: 'required', value: { kind: 'boolean' } },
+  ],
+};
+
+const timeWindowV1Rule: ObjectRule = {
+  properties: [
+    { key: 'from', presence: 'present', value: { kind: 'datetime' } },
+    { key: 'until', presence: 'present', value: { kind: 'datetime' } },
+  ],
+};
+
+const visibilityStepV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'decision',
+      presence: 'required',
+      value: {
+        kind: 'enum',
+        values: [
+          'entry_not_active',
+          'variant_withdrawn',
+          'placement_withdrawn',
+          'mount_hidden',
+          'no_released_revision',
+          'placement_hidden',
+          'before_window',
+          'after_window',
+          'visible',
+        ],
+      },
+    },
+    { key: 'at', presence: 'required', value: { kind: 'datetime' } },
+    {
+      key: 'lifecycle',
+      presence: 'present',
+      value: { kind: 'enum', values: ['active', 'archived', 'merged', 'tombstoned', 'purged'] },
+    },
+    {
+      key: 'release',
+      presence: 'present',
+      value: { kind: 'enum', values: ['unreleased', 'released', 'withdrawn'] },
+    },
+    {
+      key: 'stored',
+      presence: 'required',
+      value: { kind: 'enum', values: ['hidden', 'scheduled', 'live', 'expired', 'withdrawn'] },
+    },
+    { key: 'window', presence: 'present', value: { kind: 'object', object: timeWindowV1Rule } },
+    { key: 'valid_until', presence: 'present', value: { kind: 'datetime' } },
   ],
 };
 
@@ -549,39 +582,6 @@ const pathExplanationV1Rule: ObjectRule = {
       value: { kind: 'object', object: canonicalStepV1Rule },
     },
     { key: 'redirect', presence: 'present', value: { kind: 'object', object: redirectStepV1Rule } },
-  ],
-};
-
-const readContentV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'entry',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
-    },
-    {
-      key: 'node',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
-    },
-    {
-      key: 'type',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
-    },
-    { key: 'fields', presence: 'required', value: { kind: 'fields' } },
   ],
 };
 

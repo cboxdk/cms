@@ -114,6 +114,78 @@ final class InvalidTypeEditor extends InvalidArgumentException
         return new self(sprintf('The title field %s of %s is not a top-level text field of the owner.', $path, $type));
     }
 
+    public static function text(string $locale): self
+    {
+        return new self(sprintf('A text for the locale %s is 1 to %d characters.', $locale, EditorText::MAX_TEXT));
+    }
+
+    public static function duplicateLocale(string $what, string $locale): self
+    {
+        return new self(sprintf('%s has the locale %s twice.', ucfirst($what), $locale));
+    }
+
+    public static function instructions(string $what): self
+    {
+        return new self(sprintf('The instructions of %s are null or 1 to %d characters.', $what, EditorText::MAX_TEXT));
+    }
+
+    public static function inputHint(): self
+    {
+        return new self(sprintf('The input hint of a field is null or 1 to %d characters.', EditorField::MAX_LABEL));
+    }
+
+    public static function summary(?string $path = null): self
+    {
+        return $path === null
+            ? new self(sprintf('The summary of a field is null or 1 to %d characters.', EditorUi::MAX_SUMMARY))
+            : new self(sprintf('The field %s has a summary, which only a repeated group has.', $path));
+    }
+
+    public static function display(string $path): self
+    {
+        return new self(sprintf('The field %s has a display, which only a select has.', $path));
+    }
+
+    public static function defaultValue(string $path): self
+    {
+        return new self(sprintf('The field %s has a default, which a group or rich text never has.', $path));
+    }
+
+    public static function placement(): self
+    {
+        return new self('A placement names the path of a field.');
+    }
+
+    public static function placedTwice(string $path): self
+    {
+        return new self(sprintf('The layout places the field %s twice.', $path));
+    }
+
+    public static function duplicateTab(string $handle): self
+    {
+        return new self(sprintf('The layout has the tab %s twice.', $handle));
+    }
+
+    public static function duplicateSection(string $where, string $handle): self
+    {
+        return new self(sprintf('%s has the section %s twice.', ucfirst($where), $handle));
+    }
+
+    public static function layoutPlacesTwice(string $type, string $path): self
+    {
+        return new self(sprintf('The layout of %s places the field %s twice; every top-level field is placed exactly once.', $type, $path));
+    }
+
+    public static function layoutPlacesUnknown(string $type, string $path): self
+    {
+        return new self(sprintf('The layout of %s places %s, which is not a top-level field of the type; a layout places only those, each exactly once.', $type, $path));
+    }
+
+    public static function layoutLeavesOut(string $type, string $path): self
+    {
+        return new self(sprintf('The layout of %s leaves out the field %s; every top-level field is placed exactly once.', $type, $path));
+    }
+
     private static function shown(string $value): string
     {
         return strlen($value) > 80 ? substr($value, 0, 77).'...' : $value;

@@ -75,31 +75,6 @@ export interface ActorProfileV1 {
   email: string;
 }
 
-const actorProfileV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'display_name',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$',
-        minLength: 1,
-        maxLength: 200,
-      },
-    },
-    {
-      key: 'email',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$',
-        minLength: 5,
-        maxLength: 254,
-      },
-    },
-  ],
-};
-
 const ownGrantV1Rule: ObjectRule = {
   properties: [
     {
@@ -148,6 +123,31 @@ const ownGrantV1Rule: ObjectRule = {
       },
     },
     { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
+  ],
+};
+
+const actorProfileV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'display_name',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[^\\s\\x00-\\x1F\\x7F]([^\\x00-\\x1F\\x7F]*[^\\s\\x00-\\x1F\\x7F])?$',
+        minLength: 1,
+        maxLength: 200,
+      },
+    },
+    {
+      key: 'email',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[^\\s@\\x00-\\x1F\\x7F]+@[^\\s@\\x00-\\x1F\\x7F]+\\.[^\\s@\\x00-\\x1F\\x7F]+$',
+        minLength: 5,
+        maxLength: 254,
+      },
+    },
   ],
 };
 

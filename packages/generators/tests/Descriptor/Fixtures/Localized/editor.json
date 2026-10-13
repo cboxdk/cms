@@ -6,6 +6,7 @@
         "stages": "draft-release"
     },
     "description": "A post of the blog in several languages, with a title, a teaser and a body per language, and a date and a category shared by every language.",
+    "descriptions": [],
     "extensions": [
         {
             "namespace": "app",
@@ -18,11 +19,14 @@
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The title of the post in the language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "title",
             "label": "Title",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "title",
@@ -33,18 +37,31 @@
                 "maxLength": 120
             },
             "translatable": true,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "long_text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "A short teaser of the post in the language, shown in another language of the chain when the language has none.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "field",
             "handle": "teaser",
             "label": "Teaser",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "teaser",
@@ -55,18 +72,31 @@
                 "maxLength": 500
             },
             "translatable": true,
-            "type": "long_text"
+            "type": "long_text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "rich_text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The body of the post in the language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "body",
             "label": "Body",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "body",
@@ -101,18 +131,31 @@
                 ]
             },
             "translatable": true,
-            "type": "rich_text"
+            "type": "rich_text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "group",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The quotes of the post in the language, each with its source.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "quotes",
             "label": "Quotes",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "quotes",
@@ -123,18 +166,31 @@
             },
             "rule": null,
             "translatable": true,
-            "type": "group"
+            "type": "group",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The quoted text.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "text",
             "label": "Text",
+            "labels": [],
             "namespace": null,
             "parent": "quotes",
             "path": "quotes.text",
@@ -145,18 +201,31 @@
                 "maxLength": 255
             },
             "translatable": true,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "Who said it.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "source",
             "label": "Source",
+            "labels": [],
             "namespace": null,
             "parent": "quotes",
             "path": "quotes.source",
@@ -167,18 +236,31 @@
                 "maxLength": 255
             },
             "translatable": true,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "date",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The day the post was published, the same in every language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "published_on",
             "label": "Published on",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "published_on",
@@ -188,7 +270,17 @@
                 "kind": "date"
             },
             "translatable": false,
-            "type": "date"
+            "type": "date",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
@@ -196,19 +288,24 @@
             "choices": [
                 {
                     "label": "News",
+                    "labels": [],
                     "value": "news"
                 },
                 {
                     "label": "Essay",
+                    "labels": [],
                     "value": "essay"
                 }
             ],
             "classification": "public",
+            "default": null,
             "description": "The category of the post, the same in every language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "category",
             "label": "Category",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "category",
@@ -222,18 +319,31 @@
                 ]
             },
             "translatable": false,
-            "type": "select"
+            "type": "select",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": false,
             "base": "text",
             "choices": [],
             "classification": "internal",
+            "default": null,
             "description": "The e-mail address of the author, the same in every language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "author_email",
             "label": "Author e-mail",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "author_email",
@@ -245,18 +355,31 @@
                 "format": "email"
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The subtitle of the post in the language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "subtitle",
             "label": "Subtitle",
+            "labels": [],
             "namespace": "app",
             "parent": null,
             "path": "ext.app.subtitle",
@@ -267,18 +390,31 @@
                 "maxLength": 160
             },
             "translatable": true,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The customer's own tag of the post, the same in every language.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "tag",
             "label": "Tag",
+            "labels": [],
             "namespace": "app",
             "parent": null,
             "path": "ext.app.tag",
@@ -289,11 +425,97 @@
                 "maxLength": 40
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         }
     ],
     "id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d30",
     "label": "Post",
+    "labels": [],
+    "layout": {
+        "sidebar": [],
+        "tabs": [
+            {
+                "handle": "content",
+                "label": "Content",
+                "labels": [],
+                "sections": [
+                    {
+                        "collapsible": false,
+                        "fields": [
+                            {
+                                "path": "title",
+                                "width": "full"
+                            },
+                            {
+                                "path": "teaser",
+                                "width": "full"
+                            },
+                            {
+                                "path": "body",
+                                "width": "full"
+                            },
+                            {
+                                "path": "quotes",
+                                "width": "full"
+                            },
+                            {
+                                "path": "published_on",
+                                "width": "full"
+                            },
+                            {
+                                "path": "category",
+                                "width": "full"
+                            },
+                            {
+                                "path": "author_email",
+                                "width": "full"
+                            }
+                        ],
+                        "handle": "fields",
+                        "instructions": null,
+                        "instructions_by_locale": [],
+                        "label": null,
+                        "labels": []
+                    }
+                ]
+            },
+            {
+                "handle": "extensions",
+                "label": "Extensions",
+                "labels": [],
+                "sections": [
+                    {
+                        "collapsible": false,
+                        "fields": [
+                            {
+                                "path": "ext.app.subtitle",
+                                "width": "full"
+                            },
+                            {
+                                "path": "ext.app.tag",
+                                "width": "full"
+                            }
+                        ],
+                        "handle": "app",
+                        "instructions": null,
+                        "instructions_by_locale": [],
+                        "label": "app",
+                        "labels": []
+                    }
+                ]
+            }
+        ]
+    },
     "name": "blog:post",
     "title_field": "title",
     "version": 2

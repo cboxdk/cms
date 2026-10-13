@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Descriptor\Domain\Dto;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Descriptor\Domain\LayoutCompiler;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ExtensionVersion;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ResolvedType;
 use Cbox\Cms\Generators\Schema\Domain\Dto\Capabilities;
@@ -18,7 +19,9 @@ use Cbox\Cms\Generators\Schema\Domain\TypeId;
  * version of each extender's namespace, its capabilities and its top-level fields sorted by column.
  * Every generator reads the descriptor, never the blueprint, and TypeDescriptorJson gives its
  * canonical JSON, the form a test compares with a committed golden file and that schema_versions
- * stores (PRD 11.2).
+ * stores (PRD 11.2). The presentation keys (gap G2), the label and the description per locale and
+ * the form's layout, reach only the editor descriptor: the canonical JSON leaves them out, so a
+ * change of them is no change of the schema.
  */
 #[Internal]
 final readonly class TypeDescriptor
@@ -27,6 +30,9 @@ final readonly class TypeDescriptor
      * @param  int  $version  the owner's version of the definition
      * @param  list<ExtensionVersion>  $extensions  sorted by namespace, each once
      * @param  list<FieldDescriptor>  $fields  sorted by column name, each column once
+     * @param  array<string, string>  $labels  the label by locale, in file order, when the blueprint gives a map
+     * @param  array<string, string>  $descriptions  the description by locale, in file order, when the blueprint gives a map
+     * @param  ?LayoutDescriptor  $layout  the form's layout, or null for the one LayoutCompiler::ofFields() gives
      */
     public function __construct(
         public TypeId $typeId,
@@ -39,7 +45,19 @@ final readonly class TypeDescriptor
         public array $extensions,
         public array $fields,
         public SourceLocation $location,
+        public array $labels = [],
+        public array $descriptions = [],
+        private ?LayoutDescriptor $layout = null,
     ) {}
+
+    /**
+     * The form's layout: the compiled one, or for a descriptor built without one the default tab
+     * with the owner's fields and the tab `extensions` with each extender's.
+     */
+    public function layout(): LayoutDescriptor
+    {
+        return $this->layout ?? LayoutCompiler::ofFields($this);
+    }
 
     /**
      * The name of the type in generated code, `<owner>:<handle>` (ResolvedType::name()).

@@ -90,6 +90,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`fake_check_failed`](#fake_check_failed) | 500 | 78 | internal_error | no |
 | [`field_encryption_unavailable`](#field_encryption_unavailable) | 422 | 65 | tool_error | no |
 | [`generate_column_name_too_long`](#generate_column_name_too_long) | 500 | 65 | internal_error | no |
+| [`generate_default_wrong_kind`](#generate_default_wrong_kind) | 500 | 65 | internal_error | no |
 | [`generate_duplicate_field_handle`](#generate_duplicate_field_handle) | 500 | 65 | internal_error | no |
 | [`generate_duplicate_select_value`](#generate_duplicate_select_value) | 500 | 65 | internal_error | no |
 | [`generate_duplicate_type_handle`](#generate_duplicate_type_handle) | 500 | 65 | internal_error | no |
@@ -103,6 +104,11 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_invalid_case_name`](#generate_invalid_case_name) | 500 | 65 | internal_error | no |
 | [`generate_invalid_config`](#generate_invalid_config) | 500 | 78 | internal_error | no |
 | [`generate_invalid_output`](#generate_invalid_output) | 500 | 70 | internal_error | no |
+| [`generate_layout_duplicate_handle`](#generate_layout_duplicate_handle) | 500 | 65 | internal_error | no |
+| [`generate_layout_field_omitted`](#generate_layout_field_omitted) | 500 | 65 | internal_error | no |
+| [`generate_layout_field_repeated`](#generate_layout_field_repeated) | 500 | 65 | internal_error | no |
+| [`generate_layout_field_unknown`](#generate_layout_field_unknown) | 500 | 65 | internal_error | no |
+| [`generate_layout_width_unknown`](#generate_layout_width_unknown) | 500 | 65 | internal_error | no |
 | [`generate_lock_invalid`](#generate_lock_invalid) | 500 | 65 | internal_error | no |
 | [`generate_min_above_max`](#generate_min_above_max) | 500 | 65 | internal_error | no |
 | [`generate_min_items_above_max_items`](#generate_min_items_above_max_items) | 500 | 65 | internal_error | no |
@@ -119,6 +125,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_schema_missing`](#generate_schema_missing) | 500 | 66 | internal_error | no |
 | [`generate_schema_unsupported_version`](#generate_schema_unsupported_version) | 500 | 65 | internal_error | no |
 | [`generate_schema_unwritable`](#generate_schema_unwritable) | 500 | 73 | internal_error | no |
+| [`generate_summary_field_unknown`](#generate_summary_field_unknown) | 500 | 65 | internal_error | no |
 | [`generate_table_changed`](#generate_table_changed) | 500 | 65 | internal_error | no |
 | [`generate_table_name_too_long`](#generate_table_name_too_long) | 500 | 65 | internal_error | no |
 | [`generate_too_many_fields`](#generate_too_many_fields) | 500 | 65 | internal_error | no |
@@ -961,6 +968,15 @@ A field's column name is longer than 63 bytes, the limit Postgres has for a name
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
+### generate_default_wrong_kind
+
+A field's default is not of the kind its field type takes: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, true or false for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, and one of the options for select, or a list of them with multiple: true. A group and rich text take no default. Correct the default, or remove it.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
 ### generate_duplicate_field_handle
 
 Two fields in one namespace have the same handle: the fields of a type, of a group, or the fields one owner adds to one type. Rename one of them.
@@ -1075,6 +1091,51 @@ A generator produced a file outside its directory, or two files with the same pa
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 70 (EX_SOFTWARE)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_layout_duplicate_handle
+
+Two tabs of a layout, or two sections of one tab or of the sidebar, have the same handle. Give each tab, and each section of a tab or of the sidebar, its own handle.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_layout_field_omitted
+
+A layout leaves out a top-level field of its file. Every field is placed exactly once: add it to a section of a tab or of the sidebar, or remove the layout so the fields land in one section in file order.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_layout_field_repeated
+
+A layout places one field twice. Every field is placed exactly once: remove one of the placements.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_layout_field_unknown
+
+A layout places a field its file does not have: a handle no top-level field has, a field inside a group, which the group's input holds, or a field of another owner, which only that owner's file places. Name a top-level field of the file.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_layout_width_unknown
+
+A placement in a layout has a width that is not one of the presets full, half, third and two_thirds. Use one of them, or leave the width out for full.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 
@@ -1219,6 +1280,15 @@ cms:schema:editor could not write the editor line into a blueprint file. Check t
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 73 (EX_CANTCREAT)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_summary_field_unknown
+
+A repeated group's ui.summary names a field in braces that the group does not have. Name the handles of the group's own fields, such as {title}.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 

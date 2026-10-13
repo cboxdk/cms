@@ -97,6 +97,21 @@ export interface ProjectionStatusV1 {
   state: ProjectionState;
 }
 
+const consistencyTokenV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'generation',
+      presence: 'required',
+      value: { kind: 'integer', min: 1, max: 4294967295 },
+    },
+    {
+      key: 'lsn',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[0-9A-F]{1,8}/[0-9A-F]{1,8}$' },
+    },
+  ],
+};
+
 const projectionStatusV1Rule: ObjectRule = {
   properties: [
     {
@@ -110,21 +125,6 @@ const projectionStatusV1Rule: ObjectRule = {
       value: { kind: 'enum', values: ['pending', 'acknowledged'] },
     },
     { key: 'acknowledged_at', presence: 'present', value: { kind: 'datetime' } },
-  ],
-};
-
-const consistencyTokenV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'generation',
-      presence: 'required',
-      value: { kind: 'integer', min: 1, max: 4294967295 },
-    },
-    {
-      key: 'lsn',
-      presence: 'required',
-      value: { kind: 'string', pattern: '^[0-9A-F]{1,8}/[0-9A-F]{1,8}$' },
-    },
   ],
 };
 

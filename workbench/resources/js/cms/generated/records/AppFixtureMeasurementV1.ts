@@ -77,21 +77,6 @@ export interface AppFixtureMeasurementV1FixtureSeries {
   fixture_series_value: string;
 }
 
-const appFixtureMeasurementV1FixtureSeriesRule: ObjectRule = {
-  properties: [
-    {
-      key: 'fixture_series_taken_at',
-      presence: 'optional',
-      value: { kind: 'datetime', min: '2000-01-01T00:00:00Z', max: '2099-12-31T23:59:59Z' },
-    },
-    {
-      key: 'fixture_series_value',
-      presence: 'required',
-      value: { kind: 'decimal', precision: 6, scale: 2, min: '-100.00', max: '1000.00' },
-    },
-  ],
-};
-
 const appFixtureMeasurementV1FixtureSensorRule: ObjectRule = {
   properties: [
     { key: 'fixture_sensor_code', presence: 'required', value: { kind: 'text', maxLength: 255 } },
@@ -104,6 +89,21 @@ const appFixtureMeasurementV1FixtureSensorRule: ObjectRule = {
       key: 'fixture_sensor_manual',
       presence: 'optional',
       value: { kind: 'text', maxLength: 255, format: 'url' },
+    },
+  ],
+};
+
+const appFixtureMeasurementV1FixtureSeriesRule: ObjectRule = {
+  properties: [
+    {
+      key: 'fixture_series_taken_at',
+      presence: 'optional',
+      value: { kind: 'datetime', min: '2000-01-01T00:00:00Z', max: '2099-12-31T23:59:59Z' },
+    },
+    {
+      key: 'fixture_series_value',
+      presence: 'required',
+      value: { kind: 'decimal', precision: 6, scale: 2, min: '-100.00', max: '1000.00' },
     },
   ],
 };

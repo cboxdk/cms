@@ -25,7 +25,15 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Editors\EditorBase;
 use Cbox\Cms\Contracts\Editors\EditorChoice;
 use Cbox\Cms\Contracts\Editors\EditorField;
+use Cbox\Cms\Contracts\Editors\EditorLayout;
+use Cbox\Cms\Contracts\Editors\EditorPlacement;
 use Cbox\Cms\Contracts\Editors\EditorRepeat;
+use Cbox\Cms\Contracts\Editors\EditorSection;
+use Cbox\Cms\Contracts\Editors\EditorTab;
+use Cbox\Cms\Contracts\Editors\EditorText;
+use Cbox\Cms\Contracts\Editors\EditorUi;
+use Cbox\Cms\Contracts\Editors\EditorWidth;
+use Cbox\Cms\Contracts\Editors\SelectDisplay;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\GenerationModel;
@@ -420,7 +428,13 @@ final readonly class ProtocolSchemas
                     '#/$defs/choice' => EditorChoice::class,
                     '#/$defs/extension' => ExtensionVersion::class,
                     '#/$defs/field' => EditorField::class,
+                    '#/$defs/layout' => EditorLayout::class,
+                    '#/$defs/placement' => EditorPlacement::class,
                     '#/$defs/repeat' => EditorRepeat::class,
+                    '#/$defs/section' => EditorSection::class,
+                    '#/$defs/tab' => EditorTab::class,
+                    '#/$defs/text' => EditorText::class,
+                    '#/$defs/ui' => EditorUi::class,
                 ],
                 values: [
                     '#/properties/id' => $id(TypeId::class),
@@ -432,13 +446,20 @@ final readonly class ProtocolSchemas
                     '#/$defs/extension/properties/namespace' => ValueBinding::value(FieldNamespace::class),
                     '#/$defs/field/properties/base' => ValueBinding::enum(EditorBase::class),
                     '#/$defs/field/properties/classification' => ValueBinding::enum(ClassificationAccess::class),
+                    '#/$defs/field/properties/default' => $document,
                     '#/$defs/field/properties/fallback' => ValueBinding::enum(FieldFallback::class),
                     '#/$defs/field/properties/handle' => ValueBinding::value(FieldHandle::class),
                     '#/$defs/field/properties/namespace' => ValueBinding::value(FieldNamespace::class),
                     '#/$defs/field/properties/presence' => ValueBinding::enum(Presence::class),
                     '#/$defs/field/properties/rule' => $document,
+                    '#/$defs/placement/properties/width' => ValueBinding::enum(EditorWidth::class),
+                    '#/$defs/section/properties/handle' => ValueBinding::value(FieldHandle::class),
+                    '#/$defs/tab/properties/handle' => ValueBinding::value(FieldHandle::class),
+                    '#/$defs/text/properties/locale' => ValueBinding::value(Locale::class),
+                    '#/$defs/ui/properties/display' => ValueBinding::enum(SelectDisplay::class),
                 ],
                 names: [
+                    '#/$defs/field/properties/default' => 'defaultValue',
                     '#/$defs/field/properties/type' => 'fieldType',
                 ],
             ),

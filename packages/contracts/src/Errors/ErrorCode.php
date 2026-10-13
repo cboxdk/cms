@@ -102,6 +102,7 @@ enum ErrorCode: string
     case FakeCheckFailed = 'fake_check_failed';
     case FieldEncryptionUnavailable = 'field_encryption_unavailable';
     case GenerateColumnNameTooLong = 'generate_column_name_too_long';
+    case GenerateDefaultWrongKind = 'generate_default_wrong_kind';
     case GenerateDuplicateFieldHandle = 'generate_duplicate_field_handle';
     case GenerateDuplicateSelectValue = 'generate_duplicate_select_value';
     case GenerateDuplicateTypeHandle = 'generate_duplicate_type_handle';
@@ -115,6 +116,11 @@ enum ErrorCode: string
     case GenerateInvalidCaseName = 'generate_invalid_case_name';
     case GenerateInvalidConfig = 'generate_invalid_config';
     case GenerateInvalidOutput = 'generate_invalid_output';
+    case GenerateLayoutDuplicateHandle = 'generate_layout_duplicate_handle';
+    case GenerateLayoutFieldOmitted = 'generate_layout_field_omitted';
+    case GenerateLayoutFieldRepeated = 'generate_layout_field_repeated';
+    case GenerateLayoutFieldUnknown = 'generate_layout_field_unknown';
+    case GenerateLayoutWidthUnknown = 'generate_layout_width_unknown';
     case GenerateLockInvalid = 'generate_lock_invalid';
     case GenerateMinAboveMax = 'generate_min_above_max';
     case GenerateMinItemsAboveMaxItems = 'generate_min_items_above_max_items';
@@ -131,6 +137,7 @@ enum ErrorCode: string
     case GenerateSchemaMissing = 'generate_schema_missing';
     case GenerateSchemaUnsupportedVersion = 'generate_schema_unsupported_version';
     case GenerateSchemaUnwritable = 'generate_schema_unwritable';
+    case GenerateSummaryFieldUnknown = 'generate_summary_field_unknown';
     case GenerateTableChanged = 'generate_table_changed';
     case GenerateTableNameTooLong = 'generate_table_name_too_long';
     case GenerateTooManyFields = 'generate_too_many_fields';
@@ -547,6 +554,9 @@ enum ErrorCode: string
             self::GenerateColumnNameTooLong => $this->refusedInput(
                 'A field\'s column name is longer than 63 bytes, the limit Postgres has for a name. The column of an extension field is ext__<namespace>__<handle>. Give the field, or the namespace, a shorter handle.',
             ),
+            self::GenerateDefaultWrongKind => $this->refusedInput(
+                'A field\'s default is not of the kind its field type takes: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, true or false for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, and one of the options for select, or a list of them with multiple: true. A group and rich text take no default. Correct the default, or remove it.',
+            ),
             self::GenerateDuplicateFieldHandle => $this->refusedInput(
                 'Two fields in one namespace have the same handle: the fields of a type, of a group, or the fields one owner adds to one type. Rename one of them.',
             ),
@@ -587,6 +597,21 @@ enum ErrorCode: string
             self::GenerateInvalidOutput => $this->tooling(
                 ExitCode::Software,
                 'A generator produced a file outside its directory, or two files with the same path, so nothing was written. This is a bug in the generator. Report it with the cause.',
+            ),
+            self::GenerateLayoutDuplicateHandle => $this->refusedInput(
+                'Two tabs of a layout, or two sections of one tab or of the sidebar, have the same handle. Give each tab, and each section of a tab or of the sidebar, its own handle.',
+            ),
+            self::GenerateLayoutFieldOmitted => $this->refusedInput(
+                'A layout leaves out a top-level field of its file. Every field is placed exactly once: add it to a section of a tab or of the sidebar, or remove the layout so the fields land in one section in file order.',
+            ),
+            self::GenerateLayoutFieldRepeated => $this->refusedInput(
+                'A layout places one field twice. Every field is placed exactly once: remove one of the placements.',
+            ),
+            self::GenerateLayoutFieldUnknown => $this->refusedInput(
+                'A layout places a field its file does not have: a handle no top-level field has, a field inside a group, which the group\'s input holds, or a field of another owner, which only that owner\'s file places. Name a top-level field of the file.',
+            ),
+            self::GenerateLayoutWidthUnknown => $this->refusedInput(
+                'A placement in a layout has a width that is not one of the presets full, half, third and two_thirds. Use one of them, or leave the width out for full.',
             ),
             self::GenerateLockInvalid => $this->refusedInput(
                 'A schema lock (<table>.lock) in the migrations directory is not one cms:generate wrote: it is not valid JSON, lacks a value, has an unknown format, or its file name does not match its table. Restore the committed file with git, then run cms:generate again.',
@@ -654,6 +679,9 @@ enum ErrorCode: string
             self::GenerateSchemaUnwritable => $this->tooling(
                 ExitCode::CantCreat,
                 'cms:schema:editor could not write the editor line into a blueprint file. Check the permissions of the file, then run the command again.',
+            ),
+            self::GenerateSummaryFieldUnknown => $this->refusedInput(
+                'A repeated group\'s ui.summary names a field in braces that the group does not have. Name the handles of the group\'s own fields, such as {title}.',
             ),
             self::GenerateTableChanged => $this->refusedInput(
                 'A type\'s type_id, stages or localization differ from its schema lock, which would change its table\'s key or system columns. Until schema evolution comes (B3), undo the change, or define a new type.',

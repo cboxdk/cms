@@ -37,8 +37,34 @@
       "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
       "not": { "anyOf": [{ "const": "ext" }, { "pattern": "^cms_" }] }
     },
-    "label": { "type": "string", "minLength": 1, "maxLength": 100 },
-    "description": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "locale": {
+      "description": "A locale as a key of a text map: a language of two or three letters, with an optional script and an optional region, such as da, en-GB or zh-Hant-TW.",
+      "type": "string",
+      "maxLength": 12,
+      "pattern": "^[a-z]{2,3}(-[A-Za-z]{4})?(-([A-Za-z]{2}|[0-9]{3}))?$"
+    },
+    "label": {
+      "description": "A label: one text of 1 to 100 characters, or a map of locale to such a text, whose first entry is the text used where one text is needed (gap G2).",
+      "anyOf": [{ "$ref": "#/$defs/labelText" }, { "$ref": "#/$defs/labelMap" }]
+    },
+    "labelText": { "type": "string", "minLength": 1, "maxLength": 100 },
+    "labelMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/locale" },
+      "additionalProperties": { "$ref": "#/$defs/labelText" }
+    },
+    "description": {
+      "description": "A description: one text of 1 to 1,000 characters, or a map of locale to such a text, whose first entry is the text used where one text is needed (gap G2).",
+      "anyOf": [{ "$ref": "#/$defs/descriptionText" }, { "$ref": "#/$defs/descriptionMap" }]
+    },
+    "descriptionText": { "type": "string", "minLength": 1, "maxLength": 1000 },
+    "descriptionMap": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": { "$ref": "#/$defs/locale" },
+      "additionalProperties": { "$ref": "#/$defs/descriptionText" }
+    },
     "classification": {
       "description": "The data classification of the field (PRD 12.2). Fields inside a group inherit it. This edition has no `personal` or `sensitive`: such a field must declare its purpose, legal basis, retention, recipients and subject (PRD 12.4, 12.14), which this edition cannot express, so it is refused until an addition to version 1 brings them with those keys.",
       "enum": ["public", "internal", "confidential"]
@@ -65,7 +91,11 @@
         "description": { "$ref": "#/$defs/description" },
         "version": { "$ref": "#/$defs/version" },
         "capabilities": { "$ref": "#/$defs/capabilities" },
-        "fields": { "$ref": "#/$defs/topLevelFields" }
+        "fields": { "$ref": "#/$defs/topLevelFields" },
+        "layout": {
+          "description": "The layout of the type's form: tabs and a sidebar that place every top-level field of the file exactly once (gap G2). Without it the fields land in one tab of one section in file order.",
+          "$ref": "#/$defs/layout"
+        }
       }
     },
 
@@ -97,7 +127,96 @@
           "$ref": "#/$defs/uuid7"
         },
         "version": { "$ref": "#/$defs/version" },
-        "fields": { "$ref": "#/$defs/topLevelFields" }
+        "fields": { "$ref": "#/$defs/topLevelFields" },
+        "layout": {
+          "description": "A layout fragment that places the file's fields in the type's form (gap G2): a tab or a section whose handle the type's layout has joins it, the rest are appended. Without it the fields land in the tab `extensions`.",
+          "$ref": "#/$defs/layout"
+        }
+      }
+    },
+
+    "layout": {
+      "description": "The tabs of a form and its sidebar (gap G2). Every top-level field of the file is placed exactly once, in a tab or in the sidebar; the fields inside a group are never placed, because the group's input holds them. The handles of the tabs, and of the sections within a tab and within the sidebar, are unique.",
+      "type": "object",
+      "anyOf": [{ "required": ["tabs"] }, { "required": ["sidebar"] }],
+      "additionalProperties": false,
+      "properties": {
+        "tabs": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/layoutTab" } },
+        "sidebar": {
+          "description": "The sections shown beside the tabs.",
+          "type": "object",
+          "required": ["sections"],
+          "additionalProperties": false,
+          "properties": {
+            "sections": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/layoutSection" } }
+          }
+        }
+      }
+    },
+    "layoutTab": {
+      "description": "A tab: a labelled page of sections.",
+      "type": "object",
+      "required": ["handle", "label", "sections"],
+      "additionalProperties": false,
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "label": { "$ref": "#/$defs/label" },
+        "sections": { "type": "array", "minItems": 1, "maxItems": 50, "items": { "$ref": "#/$defs/layoutSection" } }
+      }
+    },
+    "layoutSection": {
+      "description": "A section: a run of fields, with an optional label and instructions, which the form lets the editor collapse when it is collapsible.",
+      "type": "object",
+      "required": ["handle", "fields"],
+      "additionalProperties": false,
+      "properties": {
+        "handle": { "$ref": "#/$defs/handle" },
+        "label": { "$ref": "#/$defs/label" },
+        "instructions": { "$ref": "#/$defs/description" },
+        "collapsible": { "type": "boolean", "default": false },
+        "fields": { "type": "array", "minItems": 1, "maxItems": 200, "items": { "$ref": "#/$defs/layoutField" } }
+      }
+    },
+    "layoutField": {
+      "description": "The place of one top-level field of the file: its handle and the width it takes in the section's row.",
+      "type": "object",
+      "required": ["field"],
+      "additionalProperties": false,
+      "properties": {
+        "field": { "$ref": "#/$defs/handle" },
+        "width": {
+          "description": "A width preset: full (the default), half, third or two_thirds. cms:generate refuses any other word with generate_layout_width_unknown.",
+          "type": "string",
+          "maxLength": 20,
+          "pattern": "^[a-z][a-z0-9]*(_[a-z0-9]+)*$",
+          "default": "full"
+        }
+      }
+    },
+
+    "ui": {
+      "description": "The hints a form takes for a field's input (gap G2). They are presentation only: a read-only or hidden field is still written by the commands and validated as its rules say.",
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "instructions": { "description": "Instructions shown with the input.", "$ref": "#/$defs/description" },
+        "input_hint": { "description": "A hint shown in the empty input.", "$ref": "#/$defs/label" },
+        "read_only": {
+          "description": "Whether the form shows the value without an input to change it.",
+          "type": "boolean",
+          "default": false
+        },
+        "hidden": { "description": "Whether the form hides the input.", "type": "boolean", "default": false },
+        "display": {
+          "description": "How a select shows its choices. Only a select field may have it.",
+          "enum": ["radio", "buttons", "dropdown"]
+        },
+        "summary": {
+          "description": "The summary template of a repeated group, which names the group's nested fields in braces, such as `{title} ({year})`, so a collapsed item shows its values. Only a group with repeat may have it, and cms:generate refuses a handle the group does not have with generate_summary_field_unknown.",
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 200
+        }
       }
     },
 
@@ -227,9 +346,26 @@
         "agents": {
           "description": "Whether MCP tools and agents see the field (PRD 12.2, 14.5). Without it, a top-level field is seen when it is public or internal, and a field inside a group as the group is. A field agents see needs a description.",
           "type": "boolean"
+        },
+        "ui": { "description": "The hints a form takes for the input, see the ui definition.", "$ref": "#/$defs/ui" },
+        "default": {
+          "description": "The value the form starts the input with (gap G2), form only and never filled in by a command: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, a boolean for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, an option's value for select, or a list of them with multiple: true. A group and rich text take none. cms:generate refuses another kind with generate_default_wrong_kind.",
+          "type": ["string", "integer", "boolean", "array"],
+          "maxItems": 500,
+          "items": { "type": "string" }
         }
       },
       "allOf": [
+        {
+          "if": { "properties": { "type": { "const": "select" } } },
+          "then": true,
+          "else": { "properties": { "ui": { "not": { "required": ["display"] } } } }
+        },
+        {
+          "if": { "properties": { "type": { "const": "group" } }, "required": ["repeat"] },
+          "then": true,
+          "else": { "properties": { "ui": { "not": { "required": ["summary"] } } } }
+        },
         {
           "if": { "required": ["classification"], "properties": { "classification": { "const": "confidential" } } },
           "then": { "properties": { "filterable": { "const": false }, "sortable": { "const": false } } }

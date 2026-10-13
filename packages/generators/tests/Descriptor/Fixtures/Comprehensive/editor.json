@@ -6,6 +6,7 @@
         "stages": "draft-release"
     },
     "description": "A product of the shop, with its price, stock and supplier.",
+    "descriptions": [],
     "extensions": [
         {
             "namespace": "app",
@@ -18,11 +19,23 @@
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The name of the product, as the shop shows it.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "name",
             "label": "Name",
+            "labels": [
+                {
+                    "locale": "da",
+                    "text": "Navn"
+                },
+                {
+                    "locale": "en",
+                    "text": "Name"
+                }
+            ],
             "namespace": null,
             "parent": null,
             "path": "name",
@@ -34,18 +47,31 @@
                 "maxLength": 120
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": "The name on the shelf",
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "Where customers write about the product.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "support_email",
             "label": "Support email",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "support_email",
@@ -57,18 +83,31 @@
                 "format": "email"
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": false,
             "base": "long_text",
             "choices": [],
             "classification": "internal",
+            "default": null,
             "description": null,
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "summary",
             "label": "Summary",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "summary",
@@ -79,18 +118,34 @@
                 "maxLength": 2000
             },
             "translatable": false,
-            "type": "long_text"
+            "type": "long_text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "integer",
             "choices": [],
             "classification": "internal",
+            "default": {
+                "kind": "constant",
+                "value": 0
+            },
             "description": "How many items the warehouse holds.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "stock",
             "label": "Stock",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "stock",
@@ -102,18 +157,31 @@
                 "max": 1000000
             },
             "translatable": false,
-            "type": "integer"
+            "type": "integer",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "integer",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The weight of one item in grams.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "weight",
             "label": "Weight",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "weight",
@@ -124,18 +192,34 @@
                 "min": 1
             },
             "translatable": false,
-            "type": "integer"
+            "type": "integer",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "decimal",
             "choices": [],
             "classification": "public",
+            "default": {
+                "kind": "constant",
+                "value": "0.00"
+            },
             "description": "The price of one item, in euro.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "price",
             "label": "Price",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "price",
@@ -149,18 +233,34 @@
                 "max": "99999999.99"
             },
             "translatable": false,
-            "type": "decimal"
+            "type": "decimal",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "boolean",
             "choices": [],
             "classification": "public",
+            "default": {
+                "kind": "constant",
+                "value": false
+            },
             "description": "Whether the shop no longer sells the product.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "discontinued",
             "label": "Discontinued",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "discontinued",
@@ -170,18 +270,34 @@
                 "kind": "boolean"
             },
             "translatable": false,
-            "type": "boolean"
+            "type": "boolean",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "date",
             "choices": [],
             "classification": "public",
+            "default": {
+                "kind": "token",
+                "token": "today"
+            },
             "description": "The day the product went on sale.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "launch_date",
             "label": "Launch date",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "launch_date",
@@ -193,18 +309,34 @@
                 "max": "2099-12-31"
             },
             "translatable": false,
-            "type": "date"
+            "type": "date",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "datetime",
             "choices": [],
             "classification": "internal",
+            "default": {
+                "kind": "token",
+                "token": "now"
+            },
             "description": "When the product data was last checked.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "checked_at",
             "label": "Checked at",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "checked_at",
@@ -215,7 +347,17 @@
                 "min": "2000-01-01T00:00:00Z"
             },
             "translatable": false,
-            "type": "datetime"
+            "type": "datetime",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": true,
+                "summary": null
+            }
         },
         {
             "agents": true,
@@ -223,23 +365,41 @@
             "choices": [
                 {
                     "label": "Red",
+                    "labels": [
+                        {
+                            "locale": "da",
+                            "text": "Rød"
+                        },
+                        {
+                            "locale": "en",
+                            "text": "Red"
+                        }
+                    ],
                     "value": "red"
                 },
                 {
                     "label": "Green",
+                    "labels": [],
                     "value": "green"
                 },
                 {
                     "label": "Blue",
+                    "labels": [],
                     "value": "blue"
                 }
             ],
             "classification": "public",
+            "default": {
+                "kind": "constant",
+                "value": "red"
+            },
             "description": "The colour of the product.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "colour",
             "label": "Colour",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "colour",
@@ -254,7 +414,26 @@
                 ]
             },
             "translatable": false,
-            "type": "select"
+            "type": "select",
+            "ui": {
+                "display": "radio",
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": "Pick the colour of the product.",
+                "instructions_by_locale": [
+                    {
+                        "locale": "da",
+                        "text": "Vælg produktets farve."
+                    },
+                    {
+                        "locale": "en",
+                        "text": "Pick the colour of the product."
+                    }
+                ],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
@@ -262,23 +441,34 @@
             "choices": [
                 {
                     "label": "New",
+                    "labels": [],
                     "value": "new"
                 },
                 {
                     "label": "Sale",
+                    "labels": [],
                     "value": "sale"
                 },
                 {
                     "label": "Eco",
+                    "labels": [],
                     "value": "eco"
                 }
             ],
             "classification": "public",
+            "default": {
+                "kind": "constant",
+                "value": [
+                    "new"
+                ]
+            },
             "description": "The tags the shop lists the product under.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "tags",
             "label": "Tags",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "tags",
@@ -299,18 +489,31 @@
                 "distinct": true
             },
             "translatable": false,
-            "type": "select"
+            "type": "select",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "rich_text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The description of the product on its page.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "body",
             "label": "Body",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "body",
@@ -335,18 +538,31 @@
                 ]
             },
             "translatable": false,
-            "type": "rich_text"
+            "type": "rich_text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "rich_text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "How to take care of the product.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "care",
             "label": "Care",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "care",
@@ -381,18 +597,31 @@
                 ]
             },
             "translatable": false,
-            "type": "rich_text"
+            "type": "rich_text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "group",
             "choices": [],
             "classification": "confidential",
+            "default": null,
             "description": "Who supplies the product, and how to reach them.",
+            "descriptions": [],
             "encrypted": true,
             "fallback": "variant",
             "handle": "supplier",
             "label": "Supplier",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "supplier",
@@ -400,18 +629,31 @@
             "repeat": null,
             "rule": null,
             "translatable": false,
-            "type": "group"
+            "type": "group",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "confidential",
+            "default": null,
             "description": "The name of the supplier.",
+            "descriptions": [],
             "encrypted": true,
             "fallback": "variant",
             "handle": "company",
             "label": "Company",
+            "labels": [],
             "namespace": null,
             "parent": "supplier",
             "path": "supplier.company",
@@ -422,18 +664,31 @@
                 "maxLength": 255
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "confidential",
+            "default": null,
             "description": "The supplier's website.",
+            "descriptions": [],
             "encrypted": true,
             "fallback": "variant",
             "handle": "website",
             "label": "Website",
+            "labels": [],
             "namespace": null,
             "parent": "supplier",
             "path": "supplier.website",
@@ -445,18 +700,31 @@
                 "format": "url"
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": false,
             "base": "long_text",
             "choices": [],
             "classification": "confidential",
+            "default": null,
             "description": null,
+            "descriptions": [],
             "encrypted": true,
             "fallback": "variant",
             "handle": "notes",
             "label": "Notes",
+            "labels": [],
             "namespace": null,
             "parent": "supplier",
             "path": "supplier.notes",
@@ -467,18 +735,31 @@
                 "maxLength": 10000
             },
             "translatable": false,
-            "type": "long_text"
+            "type": "long_text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "group",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The sizes the product comes in.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "dimensions",
             "label": "Dimensions",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "dimensions",
@@ -489,7 +770,17 @@
             },
             "rule": null,
             "translatable": false,
-            "type": "group"
+            "type": "group",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": "{size}: {width} mm"
+            }
         },
         {
             "agents": true,
@@ -497,19 +788,24 @@
             "choices": [
                 {
                     "label": "Small",
+                    "labels": [],
                     "value": "small"
                 },
                 {
                     "label": "Large",
+                    "labels": [],
                     "value": "large"
                 }
             ],
             "classification": "public",
+            "default": null,
             "description": "The name of the size.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "size",
             "label": "Size",
+            "labels": [],
             "namespace": null,
             "parent": "dimensions",
             "path": "dimensions.size",
@@ -523,18 +819,31 @@
                 ]
             },
             "translatable": false,
-            "type": "select"
+            "type": "select",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "integer",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The width in millimetres.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "width",
             "label": "Width",
+            "labels": [],
             "namespace": null,
             "parent": "dimensions",
             "path": "dimensions.width",
@@ -545,18 +854,31 @@
                 "min": 1
             },
             "translatable": false,
-            "type": "integer"
+            "type": "integer",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": false,
             "base": "decimal",
             "choices": [],
             "classification": "confidential",
+            "default": null,
             "description": "What the shop pays the supplier for one item.",
+            "descriptions": [],
             "encrypted": true,
             "fallback": "variant",
             "handle": "purchase_price",
             "label": "Purchase price",
+            "labels": [],
             "namespace": null,
             "parent": null,
             "path": "purchase_price",
@@ -568,18 +890,31 @@
                 "scale": 2
             },
             "translatable": false,
-            "type": "decimal"
+            "type": "decimal",
+            "ui": {
+                "display": null,
+                "hidden": true,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "internal",
+            "default": null,
             "description": "The customer's tax code for the product.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "tax_code",
             "label": "Tax code",
+            "labels": [],
             "namespace": "app",
             "parent": null,
             "path": "ext.app.tax_code",
@@ -590,18 +925,31 @@
                 "maxLength": 20
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         },
         {
             "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",
+            "default": null,
             "description": "The name the customer's own systems use for the product.",
+            "descriptions": [],
             "encrypted": false,
             "fallback": "variant",
             "handle": "name",
             "label": "Local name",
+            "labels": [],
             "namespace": "app",
             "parent": null,
             "path": "ext.app.name",
@@ -612,11 +960,199 @@
                 "maxLength": 255
             },
             "translatable": false,
-            "type": "text"
+            "type": "text",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            }
         }
     ],
     "id": "0198d2a4-5c3e-7a41-9b2f-3c8e1f6a7d20",
     "label": "Product",
+    "labels": [
+        {
+            "locale": "da",
+            "text": "Produkt"
+        },
+        {
+            "locale": "en",
+            "text": "Product"
+        }
+    ],
+    "layout": {
+        "sidebar": [
+            {
+                "collapsible": false,
+                "fields": [
+                    {
+                        "path": "discontinued",
+                        "width": "full"
+                    },
+                    {
+                        "path": "launch_date",
+                        "width": "full"
+                    },
+                    {
+                        "path": "checked_at",
+                        "width": "full"
+                    },
+                    {
+                        "path": "tags",
+                        "width": "full"
+                    }
+                ],
+                "handle": "status",
+                "instructions": null,
+                "instructions_by_locale": [],
+                "label": "Status",
+                "labels": []
+            },
+            {
+                "collapsible": false,
+                "fields": [
+                    {
+                        "path": "support_email",
+                        "width": "full"
+                    }
+                ],
+                "handle": "contact",
+                "instructions": null,
+                "instructions_by_locale": [],
+                "label": "Contact",
+                "labels": []
+            }
+        ],
+        "tabs": [
+            {
+                "handle": "general",
+                "label": "General",
+                "labels": [
+                    {
+                        "locale": "da",
+                        "text": "Generelt"
+                    },
+                    {
+                        "locale": "en",
+                        "text": "General"
+                    }
+                ],
+                "sections": [
+                    {
+                        "collapsible": false,
+                        "fields": [
+                            {
+                                "path": "name",
+                                "width": "two_thirds"
+                            },
+                            {
+                                "path": "colour",
+                                "width": "third"
+                            },
+                            {
+                                "path": "summary",
+                                "width": "full"
+                            },
+                            {
+                                "path": "body",
+                                "width": "full"
+                            },
+                            {
+                                "path": "care",
+                                "width": "full"
+                            }
+                        ],
+                        "handle": "identity",
+                        "instructions": null,
+                        "instructions_by_locale": [],
+                        "label": null,
+                        "labels": []
+                    },
+                    {
+                        "collapsible": true,
+                        "fields": [
+                            {
+                                "path": "supplier",
+                                "width": "full"
+                            },
+                            {
+                                "path": "purchase_price",
+                                "width": "half"
+                            },
+                            {
+                                "path": "stock",
+                                "width": "half"
+                            },
+                            {
+                                "path": "ext.app.tax_code",
+                                "width": "half"
+                            }
+                        ],
+                        "handle": "supply",
+                        "instructions": "Who supplies the product and what it costs.",
+                        "instructions_by_locale": [],
+                        "label": "Supply",
+                        "labels": []
+                    }
+                ]
+            },
+            {
+                "handle": "details",
+                "label": "Details",
+                "labels": [],
+                "sections": [
+                    {
+                        "collapsible": false,
+                        "fields": [
+                            {
+                                "path": "weight",
+                                "width": "half"
+                            },
+                            {
+                                "path": "price",
+                                "width": "half"
+                            },
+                            {
+                                "path": "dimensions",
+                                "width": "full"
+                            }
+                        ],
+                        "handle": "measures",
+                        "instructions": null,
+                        "instructions_by_locale": [],
+                        "label": null,
+                        "labels": []
+                    }
+                ]
+            },
+            {
+                "handle": "local",
+                "label": "Local",
+                "labels": [],
+                "sections": [
+                    {
+                        "collapsible": false,
+                        "fields": [
+                            {
+                                "path": "ext.app.name",
+                                "width": "full"
+                            }
+                        ],
+                        "handle": "names",
+                        "instructions": null,
+                        "instructions_by_locale": [],
+                        "label": null,
+                        "labels": []
+                    }
+                ]
+            }
+        ]
+    },
     "name": "shop:product",
     "title_field": "name",
     "version": 3

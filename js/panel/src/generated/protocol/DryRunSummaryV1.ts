@@ -91,16 +91,26 @@ export interface VersionChangeV1 {
   mutations: number;
 }
 
-const versionChangeV1Rule: ObjectRule = {
+const becomesVisibleV1Rule: ObjectRule = {
   properties: [
     {
-      key: 'aggregate',
+      key: 'placement',
       presence: 'required',
-      value: { kind: 'text', minLength: 3, maxLength: 500 },
+      value: {
+        kind: 'string',
+        pattern:
+          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+      },
     },
-    { key: 'before', presence: 'present', value: { kind: 'integer', min: 1 } },
-    { key: 'after', presence: 'required', value: { kind: 'integer', min: 1 } },
-    { key: 'mutations', presence: 'required', value: { kind: 'integer', min: 1 } },
+    {
+      key: 'locale',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
+      },
+    },
+    { key: 'from', presence: 'required', value: { kind: 'datetime' } },
   ],
 };
 
@@ -122,26 +132,16 @@ const blastRadiusV1Rule: ObjectRule = {
   ],
 };
 
-const becomesVisibleV1Rule: ObjectRule = {
+const versionChangeV1Rule: ObjectRule = {
   properties: [
     {
-      key: 'placement',
+      key: 'aggregate',
       presence: 'required',
-      value: {
-        kind: 'string',
-        pattern:
-          '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
-      },
+      value: { kind: 'text', minLength: 3, maxLength: 500 },
     },
-    {
-      key: 'locale',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?$',
-      },
-    },
-    { key: 'from', presence: 'required', value: { kind: 'datetime' } },
+    { key: 'before', presence: 'present', value: { kind: 'integer', min: 1 } },
+    { key: 'after', presence: 'required', value: { kind: 'integer', min: 1 } },
+    { key: 'mutations', presence: 'required', value: { kind: 'integer', min: 1 } },
   ],
 };
 

@@ -42,6 +42,9 @@ use Cbox\Cms\Generators\Schema\Domain\Owner;
  *   translatable and fallback, is required within the group when its blueprint says so, and the
  *   nested fields are sorted by handle, so the descriptor does not depend on their order in the
  *   file.
+ * - The presentation keys (gap G2) are carried as the blueprint gives them, and the form's layout
+ *   is composed from the type's and its extensions' (LayoutCompiler); the canonical JSON leaves
+ *   them out.
  *
  * Every problem is collected before compile() fails.
  */
@@ -96,6 +99,9 @@ final readonly class DescriptorCompiler
             $type->extensions,
             array_values($fields),
             $blueprint->location,
+            $blueprint->labels,
+            $blueprint->descriptions,
+            LayoutCompiler::compile($blueprint, $type->extensionFiles),
         );
     }
 
@@ -177,6 +183,10 @@ final readonly class DescriptorCompiler
             $field->options instanceof ShapedOptions ? $field->options->base->typeName() : null,
             $translatable,
             $fallback,
+            $field->labels,
+            $field->descriptions,
+            $field->ui,
+            $field->default,
         );
     }
 

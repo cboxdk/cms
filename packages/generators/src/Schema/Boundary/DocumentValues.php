@@ -6,6 +6,8 @@ namespace Cbox\Cms\Generators\Schema\Boundary;
 
 use BackedEnum;
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\InvalidContentValue;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\FieldTypes\FieldTypeOptions;
 use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
@@ -15,6 +17,7 @@ use Cbox\Cms\Generators\Schema\Domain\BlueprintDate;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintDatetime;
 use Cbox\Cms\Generators\Schema\Domain\DecimalBound;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LocalizedText;
 use Cbox\Cms\Generators\Schema\Domain\FieldValues;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
@@ -101,6 +104,117 @@ final readonly class DocumentValues implements FieldValues
     public function optionalString(string $key): ?string
     {
         return $this->has($key) ? $this->string($key) : null;
+    }
+
+    #[Override]
+    public function text(string $key): ?LocalizedText
+    {
+        $value = $this->value($key);
+
+        if (is_string($value)) {
+            return LocalizedText::plain($value);
+        }
+
+        if (! $value instanceof stdClass) {
+            $this->unreadable($key);
+
+            return null;
+        }
+
+        $at = $this->at->below($key);
+        $byLocale = [];
+        $written = [];
+
+        foreach (get_object_vars($value) as $locale => $text) {
+            $locale = (string) $locale;
+
+            if (! is_string($text)) {
+                $this->problems->add(self::unreadableAt($at->below($locale)));
+
+                return null;
+            }
+
+            try {
+                $tag = new Locale($locale)->value;
+            } catch (InvalidContentValue) {
+                $this->problems->add(self::unreadableAt($at->below($locale)));
+
+                return null;
+            }
+
+            if (isset($byLocale[$tag])) {
+                $this->problems->add(new GenerationProblem(GenerateErrorCode::SchemaInvalid, sprintf(
+                    '%s: the locale %s is given twice, as %s and as %s. Give each locale one text.',
+                    $at->describe(),
+                    $tag,
+                    $written[$tag],
+                    $locale,
+                )));
+
+                return null;
+            }
+
+            $byLocale[$tag] = $text;
+            $written[$tag] = $locale;
+        }
+
+        if ($byLocale === []) {
+            $this->unreadable($key);
+
+            return null;
+        }
+
+        return LocalizedText::byLocale($byLocale);
+    }
+
+    #[Override]
+    public function optionalText(string $key): ?LocalizedText
+    {
+        return $this->has($key) ? $this->text($key) : null;
+    }
+
+    /**
+     * The value at the key as a field's `default` is written: a string, an integer, a boolean or
+     * a list of strings; null when the object has no such key, or when the value is of another
+     * kind, which is then recorded.
+     *
+     * @return string|int|bool|list<string>|null
+     */
+    public function rawDefault(string $key): string|int|bool|array|null
+    {
+        if (! $this->has($key)) {
+            return null;
+        }
+
+        $value = $this->value($key);
+
+        if (is_string($value) || is_bool($value)) {
+            return $value;
+        }
+
+        if (is_int($value) || is_float($value)) {
+            return $this->int($key);
+        }
+
+        if (! is_array($value) || ! array_is_list($value)) {
+            $this->unreadable($key);
+
+            return null;
+        }
+
+        $values = [];
+
+        foreach ($value as $index => $item) {
+            if (! is_string($item)) {
+                $this->problems->add(self::unreadableAt($this->at->below($key)->below($index)));
+
+                return null;
+            }
+
+            $values[] = $item;
+        }
+
+        return $values;
     }
 
     #[Override]

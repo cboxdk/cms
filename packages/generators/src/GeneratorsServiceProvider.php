@@ -48,6 +48,7 @@ use Cbox\Cms\Generators\Schema\Boundary\RegisteredFieldTypes;
 use Cbox\Cms\Generators\Schema\Boundary\YamlBlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\BlueprintSource;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypeRegistry;
+use Cbox\Cms\Generators\TypeEditors\Boundary\DefaultJson;
 use Cbox\Cms\Generators\TypeEditors\Boundary\RuleJson;
 use Cbox\Cms\Generators\TypeEditors\Domain\TypeEditorCompiler;
 use Illuminate\Contracts\Foundation\Application;
@@ -106,7 +107,7 @@ final class GeneratorsServiceProvider extends ServiceProvider implements Declare
                 new PhpTypeHandleEnum,
                 new PhpRecords,
                 new PhpTypeCatalog(ServiceProvider::class),
-                new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...))),
+                new PhpTypeEditors(new TypeEditorCompiler(RuleJson::of(...), DefaultJson::of(...))),
                 new PhpTypeQueries,
                 new PhpTypeValidators,
                 new TypeScriptTypeHandles,

@@ -76,13 +76,6 @@ export interface BlogPostV1Quotes {
   text: string;
 }
 
-const blogPostV1QuotesRule: ObjectRule = {
-  properties: [
-    { key: 'source', presence: 'optional', value: { kind: 'text', maxLength: 255 } },
-    { key: 'text', presence: 'required', value: { kind: 'text', maxLength: 255 } },
-  ],
-};
-
 const blogPostV1ExtAppRule: ObjectRule = {
   properties: [
     { key: 'subtitle', presence: 'optional', value: { kind: 'text', maxLength: 160 } },
@@ -93,6 +86,13 @@ const blogPostV1ExtAppRule: ObjectRule = {
 const blogPostV1ExtRule: ObjectRule = {
   properties: [
     { key: 'app', presence: 'required', value: { kind: 'object', object: blogPostV1ExtAppRule } },
+  ],
+};
+
+const blogPostV1QuotesRule: ObjectRule = {
+  properties: [
+    { key: 'source', presence: 'optional', value: { kind: 'text', maxLength: 255 } },
+    { key: 'text', presence: 'required', value: { kind: 'text', maxLength: 255 } },
   ],
 };
 

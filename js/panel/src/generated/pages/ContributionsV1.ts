@@ -312,14 +312,7 @@ export interface TextPropV1 {
   text: string;
 }
 
-const textPropV1Rule: ObjectRule = {
-  properties: [
-    { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
-    { key: 'text', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 1000 } },
-  ],
-};
-
-const addonTextsPropV1Rule: ObjectRule = {
+const addonPropV1Rule: ObjectRule = {
   properties: [
     {
       key: 'addon',
@@ -327,74 +320,23 @@ const addonTextsPropV1Rule: ObjectRule = {
       value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
     },
     {
-      key: 'entries',
+      key: 'registration',
       presence: 'required',
-      value: { kind: 'list', item: { kind: 'object', object: textPropV1Rule }, maxItems: 2000 },
+      value: { kind: 'text', minLength: 64, maxLength: 64 },
     },
+    {
+      key: 'issues',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'text', minLength: 3, maxLength: 200 }, maxItems: 500 },
+    },
+    { key: 'any_command', presence: 'required', value: { kind: 'boolean' } },
   ],
 };
 
-const stepPropV1Rule: ObjectRule = {
+const pageLinkPropV1Rule: ObjectRule = {
   properties: [
-    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
-    {
-      key: 'position',
-      presence: 'required',
-      value: { kind: 'enum', values: ['before_submit', 'after_receipt'] },
-    },
-    {
-      key: 'patches',
-      presence: 'required',
-      value: { kind: 'list', item: { kind: 'text', minLength: 1, maxLength: 500 }, maxItems: 100 },
-    },
-    { key: 'timeout_seconds', presence: 'required', value: { kind: 'integer', min: 1, max: 30 } },
-  ],
-};
-
-const replacementPropV1Rule: ObjectRule = {
-  properties: [
-    { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 255 } },
-  ],
-};
-
-const navPropV1Rule: ObjectRule = {
-  properties: [
-    { key: 'label', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
-    { key: 'icon', presence: 'present', value: { kind: 'text', minLength: 1, maxLength: 64 } },
-    {
-      key: 'page',
-      presence: 'required',
-      value: {
-        kind: 'string',
-        pattern: '^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$',
-        maxLength: 96,
-      },
-    },
-  ],
-};
-
-const decoratorPropV1Rule: ObjectRule = {
-  properties: [
-    {
-      key: 'tightens',
-      presence: 'required',
-      value: {
-        kind: 'list',
-        item: { kind: 'enum', values: ['disabled_reason', 'description', 'tone_towards_danger'] },
-        maxItems: 3,
-      },
-    },
-  ],
-};
-
-const checkPropV1Rule: ObjectRule = {
-  properties: [
-    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
-    {
-      key: 'severity',
-      presence: 'required',
-      value: { kind: 'enum', values: ['info', 'warning', 'acknowledge', 'error'] },
-    },
+    { key: 'page', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 100 } },
+    { key: 'url', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 500 } },
   ],
 };
 
@@ -429,6 +371,70 @@ const actionPropV1Rule: ObjectRule = {
       presence: 'required',
       value: { kind: 'enum', values: ['neutral', 'info', 'warning', 'danger'] },
     },
+  ],
+};
+
+const checkPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    {
+      key: 'severity',
+      presence: 'required',
+      value: { kind: 'enum', values: ['info', 'warning', 'acknowledge', 'error'] },
+    },
+  ],
+};
+
+const decoratorPropV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'tightens',
+      presence: 'required',
+      value: {
+        kind: 'list',
+        item: { kind: 'enum', values: ['disabled_reason', 'description', 'tone_towards_danger'] },
+        maxItems: 3,
+      },
+    },
+  ],
+};
+
+const navPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'label', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
+    { key: 'icon', presence: 'present', value: { kind: 'text', minLength: 1, maxLength: 64 } },
+    {
+      key: 'page',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-z][a-z0-9]{0,19}(\\.[a-z][a-z0-9_]*(-[a-z0-9_]+)*)+$',
+        maxLength: 96,
+      },
+    },
+  ],
+};
+
+const replacementPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 255 } },
+  ],
+};
+
+const stepPropV1Rule: ObjectRule = {
+  properties: [
+    { key: 'command', presence: 'required', value: { kind: 'text', minLength: 3, maxLength: 200 } },
+    {
+      key: 'position',
+      presence: 'required',
+      value: { kind: 'enum', values: ['before_submit', 'after_receipt'] },
+    },
+    {
+      key: 'patches',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'text', minLength: 1, maxLength: 500 }, maxItems: 100 },
+    },
+    { key: 'timeout_seconds', presence: 'required', value: { kind: 'integer', min: 1, max: 30 } },
   ],
 };
 
@@ -537,14 +543,14 @@ const pointFillsPropV1Rule: ObjectRule = {
   ],
 };
 
-const pageLinkPropV1Rule: ObjectRule = {
+const textPropV1Rule: ObjectRule = {
   properties: [
-    { key: 'page', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 100 } },
-    { key: 'url', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 500 } },
+    { key: 'key', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 200 } },
+    { key: 'text', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 1000 } },
   ],
 };
 
-const addonPropV1Rule: ObjectRule = {
+const addonTextsPropV1Rule: ObjectRule = {
   properties: [
     {
       key: 'addon',
@@ -552,16 +558,10 @@ const addonPropV1Rule: ObjectRule = {
       value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
     },
     {
-      key: 'registration',
+      key: 'entries',
       presence: 'required',
-      value: { kind: 'text', minLength: 64, maxLength: 64 },
+      value: { kind: 'list', item: { kind: 'object', object: textPropV1Rule }, maxItems: 2000 },
     },
-    {
-      key: 'issues',
-      presence: 'required',
-      value: { kind: 'list', item: { kind: 'text', minLength: 3, maxLength: 200 }, maxItems: 500 },
-    },
-    { key: 'any_command', presence: 'required', value: { kind: 'boolean' } },
   ],
 };
 

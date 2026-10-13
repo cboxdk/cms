@@ -1,0 +1,16 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-0c1d2e3f4a5f
+handle: note
+label: {}
+version: 1
+capabilities:
+  history: none
+  stages: none
+  localization: none
+fields:
+  - handle: title
+    label: Title
+    description: The title.
+    type: text
+    classification: public

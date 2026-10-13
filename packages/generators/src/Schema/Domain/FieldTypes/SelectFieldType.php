@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Schema\Domain\FieldTypes;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LocalizedText;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldType;
@@ -46,10 +47,10 @@ final readonly class SelectFieldType implements FieldType
         foreach ($items as $item) {
             $item->knownKeys(['value', 'label']);
             $value = $item->handle('value');
-            $label = $item->string('label');
+            $label = $item->text('label');
 
-            if ($value instanceof Handle && $label !== null) {
-                $options[] = new SelectOption($value, $label);
+            if ($value instanceof Handle && $label instanceof LocalizedText) {
+                $options[] = new SelectOption($value, $label->text, $label->byLocale);
             }
         }
 
