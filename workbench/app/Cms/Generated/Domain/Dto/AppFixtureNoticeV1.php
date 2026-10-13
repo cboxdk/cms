@@ -27,6 +27,8 @@ final readonly class AppFixtureNoticeV1
      * @param  list<AppFixtureNoticeV1FixtureLinks>|Omitted|null  $fixtureLinks  Links: The links of the notice in the language, each with its text.
      * @param  int|Omitted|null  $fixturePriority  Priority: How prominent the notice is, 1 to 5, the same in every language.
      * @param  DateTimeImmutable  $fixturePublishedOn  Published on: The day the notice was published, the same in every language.
+     * @param  list<EntryId>|Omitted|null  $fixtureRelated  Related: The notices and articles related to the notice, the same in every language.
+     * @param  list<EntryId>|Omitted|null  $fixtureSources  Sources: The articles the notice's text draws on in the language.
      * @param  string|Omitted|null  $fixtureTeaser  Teaser: A short teaser of the notice in the language; shown in another language of the site's chain when the language has none.
      * @param  string  $fixtureTitle  Title: The title of the notice in the language, as it is shown on the page and in lists.
      */
@@ -38,6 +40,8 @@ final readonly class AppFixtureNoticeV1
         public array|Omitted|null $fixtureLinks,
         public int|Omitted|null $fixturePriority,
         public DateTimeImmutable $fixturePublishedOn,
+        public array|Omitted|null $fixtureRelated,
+        public array|Omitted|null $fixtureSources,
         public string|Omitted|null $fixtureTeaser,
         public string $fixtureTitle,
     ) {}
@@ -56,6 +60,8 @@ final readonly class AppFixtureNoticeV1
             fixtureLinks: $this->fixtureLinks,
             fixturePriority: $this->fixturePriority,
             fixturePublishedOn: $this->fixturePublishedOn,
+            fixtureRelated: $this->fixtureRelated,
+            fixtureSources: $this->fixtureSources,
             fixtureTeaser: $this->fixtureTeaser,
             fixtureTitle: $this->fixtureTitle,
         );

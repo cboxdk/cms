@@ -27,7 +27,7 @@ use Illuminate\Support\Facades\DB;
  * emptied tables gives the same rows and ids; every entry is stored as entry.create and
  * variant.release store it, a type with localization variants with its shared variant and a
  * variant in each locale of the site, en, whose table therefore holds a row per entry (PRD 10.1);
- * and a chunk costs the same statements whatever its size.
+ * every seeded relation is an edge in `relations` (PRD 5.11); and a chunk costs the same statements whatever its size.
  */
 
 afterEach(function (): void {
@@ -78,10 +78,28 @@ it('seeds relations whose targets are entries of the run, and a to-one target of
         where e.type_id <> (select type_id from entries where id = m.cms_entry_id)
         SQL);
 
+    // Every seeded relation is an edge of its entry's variant (PRD 5.11): the measurement's, whose stages are none, in the released stage.
+    $edges = static fn (string $field): int => $database->table('relations')->where('field', $field)->where('stage', 'released')
+        ->whereIn('source_entry_id', $database->table('app__fixture_measurement')->select('cms_entry_id'))->count();
+    $calibrations = $database->table('app__fixture_measurement')->whereRaw("jsonb_exists(fixture_sensor, 'fixture_sensor_calibration')")->count();
+    $missing = $database->scalar(<<<'SQL'
+        select count(*)
+        from app__fixture_measurement m
+        cross join lateral jsonb_array_elements_text(m.fixture_cited_in) with ordinality t (id, position)
+        left join relations r on r.source_entry_id = m.cms_entry_id and r.variant = 'shared' and r.stage = 'released'
+            and r.field = 'fixture_cited_in' and r.ordinal = t.position - 1 and r.target_entry_id = t.id::uuid
+        where r.source_entry_id is null
+        SQL);
+
     expect($corrects)->toBeGreaterThan(0)
         ->and($cited)->toBeGreaterThan(0)
         ->and($strays)->toBe(0)
-        ->and($wrongType)->toBe(0);
+        ->and($wrongType)->toBe(0)
+        ->and($edges('fixture_corrects'))->toBe($corrects)
+        ->and($edges('fixture_cited_in'))->toBe($cited)
+        ->and($edges('fixture_sensor.fixture_sensor_calibration'))->toBe($calibrations)
+        ->and($missing)->toBe(0)
+        ->and($database->table('relations')->where('field', 'fixture_related')->count())->toBeGreaterThan(0);
 });
 
 it('stores each seeded entry as entry.create and variant.release store it', function (): void {

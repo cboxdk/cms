@@ -316,8 +316,8 @@ it('writes the next step of the lock and an add_columns migration for a new opti
     expect($status)->not->toBe(0)
         ->and($output)->toContain('+++ b/workbench/database/migrations/cms/app__fixture_article.lock')
         ->and($output)->toContain('+            "name": "fixture_summary",')
-        ->and($output)->toContain('+            "step": 4,')
-        ->and((string) file_get_contents($root.'/workbench/database/migrations/cms/app__fixture_article_0004_add_columns.php'))->toContain('add column if not exists "fixture_summary" text');
+        ->and($output)->toContain('+            "step": 5,')
+        ->and((string) file_get_contents($root.'/workbench/database/migrations/cms/app__fixture_article_0005_add_columns.php'))->toContain('add column if not exists "fixture_summary" text');
 });
 
 it('fails when a field of a type that has a table is removed, and writes nothing', function (): void {

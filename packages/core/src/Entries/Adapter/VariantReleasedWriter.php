@@ -18,6 +18,8 @@ use Cbox\Cms\Core\Entries\Domain\Dto\VariantFields;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased as VariantReleasedEvent;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleasedV1;
 use Cbox\Cms\Core\Entries\Domain\LocaleRow;
+use Cbox\Cms\Core\Entries\Domain\RelationEdges;
+use Cbox\Cms\Core\Entries\Domain\RelationStage;
 use Cbox\Cms\Core\Pipeline\Domain\BatchMutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingMutation;
@@ -58,6 +60,8 @@ use UnexpectedValueException;
  *    revision released or its published copy, so the content the translation was made from is
  *    what is released. A translation is made from a language's variant, never the shared one, so
  *    it is one statement for the run's languages, and none for a run without one.
+ * 6. The variant's released relation edges (PRD 5.11), through RelationRows, from the released
+ *    revision's own fields, in one statement for the run.
  *
  * It returns variant.released. Every statement is by key, so a release costs the same however many
  * revisions the variant has, and a run of releases costs one statement per step (GUARDRAILS 4.1). It runs as the app role under the call's actor
@@ -262,13 +266,21 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
         $typeRows = new TypeRows($db);
         $payloads = new VariantPayloads($db);
 
+        $edges = [];
+
         foreach ($rows as $type => $variants) {
             $released = $this->localized($types[$type], $variants, $payloads);
 
             if ($released !== []) {
                 $typeRows->releaseAll($types[$type], $released);
             }
+
+            foreach ($variants as $variant) {
+                $edges[] = RelationEdges::variant($types[$type], $variant->entry, $variant->variant, RelationStage::Released, $variant->fields);
+            }
         }
+
+        new RelationRows($db)->replace($edges);
 
         return $events;
     }

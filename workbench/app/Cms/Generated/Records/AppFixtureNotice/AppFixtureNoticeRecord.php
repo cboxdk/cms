@@ -6,6 +6,7 @@ namespace Workbench\App\Cms\Generated\Records\AppFixtureNotice;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 
 /**
@@ -48,6 +49,20 @@ interface AppFixtureNoticeRecord
      * Published on: The day the notice was published, the same in every language.
      */
     public DateTimeImmutable $fixturePublishedOn { get; }
+
+    /**
+     * Related: The notices and articles related to the notice, the same in every language.
+     *
+     * @var list<EntryId>|null
+     */
+    public ?array $fixtureRelated { get; }
+
+    /**
+     * Sources: The articles the notice's text draws on in the language.
+     *
+     * @var list<EntryId>|null
+     */
+    public ?array $fixtureSources { get; }
 
     /**
      * Teaser: A short teaser of the notice in the language; shown in another language of the site's chain when the language has none.

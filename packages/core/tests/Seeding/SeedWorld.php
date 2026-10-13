@@ -49,7 +49,7 @@ final readonly class SeedWorld
     /** @var list<string> the kernel's tables a seed run writes to; the type tables come from the TypeCatalog */
     public const array TABLES = [
         'audit', 'changesets', 'entries', 'events', 'head_snapshots', 'idempotency_keys', 'receipts',
-        'release_log', 'revision_payloads', 'revisions', 'variant_heads',
+        'relations', 'release_log', 'revision_payloads', 'revisions', 'variant_heads',
     ];
 
     public ActorId $actor;

@@ -3,7 +3,9 @@
 # with localization variants, added as this schema file alone. Every language is a variant of the
 # entry with its own revisions and release; the fields declared translatable live in the language's
 # variant and the others in the shared variant, and the type table holds one row per language with
-# the shared fields in each. fixture_teaser falls back on its own, fixture_title with its whole
+# the shared fields in each. The relations (PRD 5.11, B2-T112) give the type's variants edges of
+# their own: fixture_sources, up to 200 articles a language's text draws on, is translatable, and
+# fixture_related, up to 200 notices or articles, is shared. fixture_teaser falls back on its own, fixture_title with its whole
 # variant, and the translatable group fixture_links gives its nested fields the same. The entry
 # commands of version 1 refuse the type (SingleVariantContract); its rows are written by TypeRows,
 # the rebuild and the seeder, and read by the typed query builder with locale() and by path.resolve
@@ -101,3 +103,20 @@ fields:
     type: text
     classification: internal
     agents: false
+  - handle: fixture_sources
+    label: Sources
+    description: The articles the notice's text draws on in the language.
+    type: relation
+    classification: public
+    translatable: true
+    multiple: true
+    max_items: 200
+    types: [app:fixture_article]
+  - handle: fixture_related
+    label: Related
+    description: The notices and articles related to the notice, the same in every language.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 200
+    types: [app:fixture_notice, app:fixture_article]

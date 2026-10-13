@@ -6,6 +6,7 @@ namespace Workbench\App\Cms\Generated\Records\AppFixtureArticle;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 
 /**
@@ -41,6 +42,13 @@ interface AppFixtureArticleRecord
      * Reading minutes: How many minutes the article takes to read.
      */
     public ?int $fixtureReadingMinutes { get; }
+
+    /**
+     * Related articles: The other articles the article points its readers to.
+     *
+     * @var list<EntryId>|null
+     */
+    public ?array $fixtureRelated { get; }
 
     /**
      * Slug: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.

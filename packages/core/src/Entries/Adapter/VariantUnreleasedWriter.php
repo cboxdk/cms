@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased as VariantUnreleasedEvent;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleasedV1;
+use Cbox\Cms\Core\Entries\Domain\RelationStage;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
 use Cbox\Cms\Core\Pipeline\Domain\MutationWriter;
 use Illuminate\Database\ConnectionResolverInterface;
@@ -31,6 +32,8 @@ use Override;
  *    effect, which is the changeset's, and the changeset.
  * 3. The type table's released row is removed, and its values are kept as the draft row where the
  *    variant had none, through TypeRows.
+ * 4. The variant's released relation edges are removed (PRD 5.11), through RelationRows; its draft
+ *    edges stay with the draft.
  *
  * It returns variant.unreleased. Every statement is by key, so an unpublish costs the same however
  * many revisions the variant has (GUARDRAILS 4.1). It runs as the app role under the call's actor
@@ -100,6 +103,7 @@ final readonly class VariantUnreleasedWriter implements MutationWriter
         ]);
 
         new TypeRows($db)->unrelease($type, $mutation->entry, $mutation->variant);
+        new RelationRows($db)->removeStage($mutation->entry, $mutation->variant, RelationStage::Released);
 
         return [new VariantUnreleasedEvent($context->version->value, new VariantUnreleasedV1(
             $mutation->entry,

@@ -35,6 +35,8 @@ use UnexpectedValueException;
  * 3. Every row of the variant in the type's table, released and draft, is removed through
  *    TypeRows, so no read of the type finds the language any more; a rebuild leaves a withdrawn
  *    language without a row too.
+ * 4. Every relation edge of the variant, released and draft, is removed (PRD 5.11), through
+ *    RelationRows; a rebuild writes none for a withdrawn language.
  *
  * It returns variant.withdrawn. Every statement is by key, so a deletion costs the same however
  * many revisions the variant has (GUARDRAILS 4.1). It runs as the app role under the call's actor
@@ -120,6 +122,7 @@ final readonly class VariantWithdrawnWriter implements MutationWriter
         ]);
 
         new TypeRows($db)->remove($type, $mutation->entry, $mutation->variant);
+        new RelationRows($db)->remove($mutation->entry, $mutation->variant);
 
         return [new VariantWithdrawnEvent($context->version->value, new VariantWithdrawnV1(
             $mutation->entry,

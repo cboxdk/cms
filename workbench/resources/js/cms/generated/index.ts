@@ -19,6 +19,7 @@ export interface TypeFields {
     fixture_featured: 'boolean';
     fixture_published_on: 'date';
     fixture_reading_minutes: 'integer';
+    fixture_related: 'relation';
     fixture_slug: 'text';
     fixture_sources: 'group';
     fixture_title: 'text';
@@ -65,6 +66,8 @@ export interface TypeFields {
     fixture_links: 'group';
     fixture_priority: 'integer';
     fixture_published_on: 'date';
+    fixture_related: 'relation';
+    fixture_sources: 'relation';
     fixture_teaser: 'long_text';
     fixture_title: 'text';
   };

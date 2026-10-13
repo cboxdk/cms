@@ -32,6 +32,10 @@ export interface AppFixtureNoticeV1 {
   fixture_priority?: number | null;
   /** Published on: The day the notice was published, the same in every language. */
   fixture_published_on: string;
+  /** Related: The notices and articles related to the notice, the same in every language. */
+  fixture_related?: readonly string[] | null;
+  /** Sources: The articles the notice's text draws on in the language. */
+  fixture_sources?: readonly string[] | null;
   /**
    * Teaser: A short teaser of the notice in the language; shown in another language of the site's
    * chain when the language has none.
@@ -105,6 +109,36 @@ const appFixtureNoticeV1Rule: ObjectRule = {
     },
     { key: 'fixture_priority', presence: 'optional', value: { kind: 'integer', min: 1, max: 5 } },
     { key: 'fixture_published_on', presence: 'required', value: { kind: 'date' } },
+    {
+      key: 'fixture_related',
+      presence: 'optional',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+          caseless: true,
+        },
+        maxItems: 200,
+        distinct: true,
+      },
+    },
+    {
+      key: 'fixture_sources',
+      presence: 'optional',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+          caseless: true,
+        },
+        maxItems: 200,
+        distinct: true,
+      },
+    },
     { key: 'fixture_teaser', presence: 'optional', value: { kind: 'text', maxLength: 500 } },
     { key: 'fixture_title', presence: 'required', value: { kind: 'text', maxLength: 120 } },
   ],

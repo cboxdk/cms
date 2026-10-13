@@ -1,5 +1,5 @@
 {
-    "about": "The schema lock of the type table app__fixture_article: the columns its migrations app__fixture_article_<step> build, in 3 steps. cms:generate writes the lock and the migrations from it; do not edit either.",
+    "about": "The schema lock of the type table app__fixture_article: the columns its migrations app__fixture_article_<step> build, in 4 steps. cms:generate writes the lock and the migrations from it; do not edit either.",
     "columns": [
         {
             "checks": [
@@ -98,12 +98,22 @@
             "not_null": false,
             "step": 3,
             "type": "text"
+        },
+        {
+            "checks": [
+                "CASE WHEN jsonb_typeof(\"fixture_related\") = 'array' THEN jsonb_array_length(\"fixture_related\") <= 200 ELSE \"fixture_related\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "fixture_related",
+            "not_null": false,
+            "step": 4,
+            "type": "jsonb"
         }
     ],
     "localization": "none",
     "lock": 1,
     "stages": "draft-release",
-    "steps": 3,
+    "steps": 4,
     "table": "app__fixture_article",
     "type": "app:fixture_article",
     "type_id": "01a0df3e-8cef-7e9f-8daf-9faa60f1faa6"

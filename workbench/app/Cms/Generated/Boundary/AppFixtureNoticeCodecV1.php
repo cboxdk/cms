@@ -87,6 +87,14 @@ final readonly class AppFixtureNoticeCodecV1 implements JsonCodec
 
         $json->fixture_published_on = JsonValues::encodeDate($object->fixturePublishedOn);
 
+        if (! $object->fixtureRelated instanceof Omitted) {
+            $json->fixture_related = $object->fixtureRelated === null ? null : array_map(static fn (EntryId $item): mixed => $item->toString(), $object->fixtureRelated);
+        }
+
+        if (! $object->fixtureSources instanceof Omitted) {
+            $json->fixture_sources = $object->fixtureSources === null ? null : array_map(static fn (EntryId $item): mixed => $item->toString(), $object->fixtureSources);
+        }
+
         if (! $object->fixtureTeaser instanceof Omitted) {
             $json->fixture_teaser = $object->fixtureTeaser;
         }
@@ -98,7 +106,7 @@ final readonly class AppFixtureNoticeCodecV1 implements JsonCodec
 
     private function decodeAppFixtureNoticeV1(stdClass $value, ClassificationAccess $access): AppFixtureNoticeV1
     {
-        $object = JsonValues::object($value, null, ['cms_id', 'fixture_body', 'fixture_channel', 'fixture_editor_note', 'fixture_links', 'fixture_priority', 'fixture_published_on', 'fixture_teaser', 'fixture_title']);
+        $object = JsonValues::object($value, null, ['cms_id', 'fixture_body', 'fixture_channel', 'fixture_editor_note', 'fixture_links', 'fixture_priority', 'fixture_published_on', 'fixture_related', 'fixture_sources', 'fixture_teaser', 'fixture_title']);
 
         return new AppFixtureNoticeV1(
             cmsId: JsonValues::required($object, 'cms_id', null, static fn (mixed $value, FieldPath $at): EntryId => JsonValues::id($value, $at, EntryId::fromString(...))),
@@ -108,6 +116,8 @@ final readonly class AppFixtureNoticeCodecV1 implements JsonCodec
             fixtureLinks: JsonValues::nullable($object, 'fixture_links', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeAppFixtureNoticeV1FixtureLinks(...), maxItems: 10)),
             fixturePriority: JsonValues::nullable($object, 'fixture_priority', null, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1, max: 5)),
             fixturePublishedOn: JsonValues::required($object, 'fixture_published_on', null, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::date($value, $at)),
+            fixtureRelated: JsonValues::nullable($object, 'fixture_related', null, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): EntryId => JsonValues::id($item, $itemAt, EntryId::fromString(...)), maxItems: 200, distinct: true)),
+            fixtureSources: JsonValues::nullable($object, 'fixture_sources', null, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): EntryId => JsonValues::id($item, $itemAt, EntryId::fromString(...)), maxItems: 200, distinct: true)),
             fixtureTeaser: JsonValues::nullable($object, 'fixture_teaser', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 500)),
             fixtureTitle: JsonValues::required($object, 'fixture_title', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 120)),
         );

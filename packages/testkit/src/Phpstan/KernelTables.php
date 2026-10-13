@@ -53,6 +53,7 @@ final class KernelTables
         'receipts',
         'receipts_evidence',
         'receipts_standard',
+        'relations',
         'release_log',
         'revision_payloads',
         'revision_payloads_draft',

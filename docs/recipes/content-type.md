@@ -226,6 +226,8 @@ The workbench's first type, `app:fixture_article`, carries the presentation keys
 # The presentation keys (gap G2, B2-T72) reach only the editor descriptor: the labels in Danish
 # and English, the layout of two tabs and a sidebar, the ui hints and the form-only defaults.
 # The fixture addon's extension has no layout fragment, so its field lands in the tab extensions.
+# fixture_related, up to 200 other articles, is a relation (PRD 5.11, B2-T112), whose edges the
+# entry commands write in the draft stage and, once released, the released stage.
 blueprint: 1
 kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
@@ -336,6 +338,16 @@ fields:
         description: Where the source can be read.
         type: text
         format: url
+  - handle: fixture_related
+    label:
+      en: Related articles
+      da: Relaterede artikler
+    description: The other articles the article points its readers to.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 200
+    types: [app:fixture_article]
   - handle: fixture_embargo
     label: Embargo
     type: group
@@ -374,6 +386,7 @@ layout:
           collapsible: true
           fields:
             - field: fixture_sources
+            - field: fixture_related
     - handle: fixture_restrictions
       label:
         en: Restrictions
@@ -807,6 +820,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/database/migrations/cms/app__fixture_article_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_article_0003_add_columns.php',
+        'workbench/database/migrations/cms/app__fixture_article_0004_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_event.lock',
         'workbench/database/migrations/cms/app__fixture_event_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_measurement.lock',
@@ -814,6 +828,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/database/migrations/cms/app__fixture_measurement_0002_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_notice.lock',
         'workbench/database/migrations/cms/app__fixture_notice_0001_create.php',
+        'workbench/database/migrations/cms/app__fixture_notice_0002_add_columns.php',
         'workbench/resources/js/cms/generated/index.ts',
         'workbench/resources/js/cms/generated/protocol/ActionListV1.ts',
         'workbench/resources/js/cms/generated/protocol/ActivateActorV1.ts',

@@ -82,6 +82,7 @@ function article(): AppFixtureArticleV1
         fixtureFeatured: true,
         fixturePublishedOn: new DateTimeImmutable('2026-03-09T00:00:00Z'),
         fixtureReadingMinutes: 7,
+        fixtureRelated: Omitted::Field,
         fixtureSlug: 'the-report',
         fixtureSources: [
             new AppFixtureArticleV1FixtureSources(fixtureSourceTitle: 'The report', fixtureSourceUrl: 'https://example.org/report'),
@@ -190,12 +191,13 @@ it('keeps null as null and a missing optional field as Omitted', function (): vo
         fixtureFeatured: false,
         fixturePublishedOn: null,
         fixtureReadingMinutes: null,
+        fixtureRelated: null,
         fixtureSlug: null,
         fixtureSources: null,
         fixtureTitle: null,
         fixtureTopics: null,
     );
-    $nullJson = '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":null}},"fixture_body":null,"fixture_embargo":null,"fixture_featured":false,"fixture_published_on":null,"fixture_reading_minutes":null,"fixture_slug":null,"fixture_sources":null,"fixture_title":null,"fixture_topics":null}';
+    $nullJson = '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":null}},"fixture_body":null,"fixture_embargo":null,"fixture_featured":false,"fixture_published_on":null,"fixture_reading_minutes":null,"fixture_related":null,"fixture_slug":null,"fixture_sources":null,"fixture_title":null,"fixture_topics":null}';
     $missing = new AppFixtureArticleV1(
         cmsId: EntryId::fromString(ARTICLE_ID),
         ext: new AppFixtureArticleV1Ext(new AppFixtureArticleV1ExtFixtureaddon(fixtureSlug: Omitted::Field)),
@@ -204,6 +206,7 @@ it('keeps null as null and a missing optional field as Omitted', function (): vo
         fixtureFeatured: false,
         fixturePublishedOn: Omitted::Field,
         fixtureReadingMinutes: Omitted::Field,
+        fixtureRelated: Omitted::Field,
         fixtureSlug: Omitted::Field,
         fixtureSources: Omitted::Field,
         fixtureTitle: Omitted::Field,
@@ -254,6 +257,7 @@ it('gives the record as the caller may see it, with the fields above its access 
             fixtureFeatured: true,
             fixturePublishedOn: Omitted::Field,
             fixtureReadingMinutes: Omitted::Field,
+            fixtureRelated: Omitted::Field,
             fixtureSlug: Omitted::Field,
             fixtureSources: Omitted::Field,
             fixtureTitle: Omitted::Field,

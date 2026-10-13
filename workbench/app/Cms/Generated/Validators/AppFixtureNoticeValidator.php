@@ -32,6 +32,8 @@ use Override;
  *   fixture_links[].fixture_link_url: text, required
  *   fixture_priority: integer, optional
  *   fixture_published_on: date, required
+ *   fixture_related: relation, optional
+ *   fixture_sources: relation, optional
  *   fixture_teaser: long_text, optional
  *   fixture_title: text, required
  */
@@ -124,6 +126,26 @@ final readonly class AppFixtureNoticeValidator implements TypeValidator
                     [
                         new Rule(RuleName::Date),
                     ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_related'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relations),
+                        new Rule(RuleName::Targets, ['app:fixture_notice', 'app:fixture_article']),
+                        new Rule(RuleName::MaxItems, ['200']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_sources'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relations),
+                        new Rule(RuleName::Targets, ['app:fixture_article']),
+                        new Rule(RuleName::MaxItems, ['200']),
+                    ],
+                    [],
+                    true,
                 ),
                 new FieldRules(
                     new FieldHandle('fixture_teaser'),

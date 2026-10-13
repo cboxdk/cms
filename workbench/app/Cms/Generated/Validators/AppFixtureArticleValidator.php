@@ -33,6 +33,7 @@ use Override;
  *   fixture_featured: boolean, required
  *   fixture_published_on: date, optional
  *   fixture_reading_minutes: integer, optional
+ *   fixture_related: relation, optional
  *   fixture_slug: text, optional
  *   fixture_sources: group, optional
  *   fixture_sources[].fixture_source_title: text, required
@@ -111,6 +112,15 @@ final readonly class AppFixtureArticleValidator implements TypeValidator
                         new Rule(RuleName::Integer),
                         new Rule(RuleName::Min, ['1']),
                         new Rule(RuleName::Max, ['600']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_related'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Relations),
+                        new Rule(RuleName::Targets, ['app:fixture_article']),
+                        new Rule(RuleName::MaxItems, ['200']),
                     ],
                 ),
                 new FieldRules(

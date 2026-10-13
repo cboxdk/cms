@@ -14,6 +14,8 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantFields;
 use Cbox\Cms\Core\Entries\Domain\LocaleRow;
+use Cbox\Cms\Core\Entries\Domain\RelationEdges;
+use Cbox\Cms\Core\Entries\Domain\RelationStage;
 use Cbox\Cms\Core\Pipeline\Domain\BatchMutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingMutation;
@@ -42,6 +44,9 @@ use UnexpectedValueException;
  *    entry.create writes both, or else the shared head's current content, read once per run and
  *    type (VariantPayloads). A revision of the shared variant goes to TypeRows as it is, which
  *    sets the shared columns of every language's row.
+ * 4. The variant's relation edges (PRD 5.11), through RelationRows: the edges of the revision's own
+ *    fields in the stage its type row takes, draft for stages draft-release and released for
+ *    stages none, in one statement for the run.
  *
  * A run of revisions is written in one statement per table and type (writeAll()). It returns no
  * event; the head's move tells about the revision. It runs as the app role under the
@@ -174,9 +179,17 @@ final readonly class RevisionCreatedWriter implements BatchMutationWriter
         $typeRows = new TypeRows($db);
         $payloads = new VariantPayloads($db);
 
+        $edges = [];
+
         foreach ($rows as $type => $variants) {
             $typeRows->writeAll($types[$type], $this->merged($types[$type], $variants, $payloads));
+
+            foreach ($variants as $variant) {
+                $edges[] = RelationEdges::variant($types[$type], $variant->entry, $variant->variant, RelationStage::ofSave($types[$type]->capabilities->stages), $variant->fields);
+            }
         }
+
+        new RelationRows($db)->replace($edges);
 
         return [];
     }

@@ -14,10 +14,13 @@ use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
+use Cbox\Cms\Core\Entries\Adapter\RelationRows;
 use Cbox\Cms\Core\Entries\Adapter\TypeRows;
 use Cbox\Cms\Core\Entries\Adapter\VariantWithdrawnWriter;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\LocaleRow;
+use Cbox\Cms\Core\Entries\Domain\RelationEdges;
+use Cbox\Cms\Core\Entries\Domain\RelationStage;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\ChunkResult;
 use Cbox\Cms\Core\ReadModels\Domain\EntryRange;
 use Cbox\Cms\Core\ReadModels\Domain\ReadModelStore;
@@ -59,7 +62,11 @@ use UnexpectedValueException;
  * localization variants gets a row per language of each entry, with the shared variant's fields in
  * it (LocaleRow), the released row only while the language and the shared variant are both
  * released, as TypeRows writes them, and none for a language's variant that variant.delete
- * withdrew (PRD 10.3), whose rows its writer removed.
+ * withdrew (PRD 10.3), whose rows its writer removed. The relation edges (PRD 5.11) are rebuilt
+ * the same way: every edge of the range's entries is removed, and each head's edges are written
+ * through RelationRows from its own fields, the draft's in the stage a save writes and the released
+ * content's in the released stage, in one statement for the chunk, so they are the ones the
+ * commands left.
  */
 #[Internal]
 final readonly class PostgresReadModelStore implements ReadModelStore
@@ -190,10 +197,24 @@ final readonly class PostgresReadModelStore implements ReadModelStore
             $heads[] = [$entry, $variant, $draft, $released];
         }
 
+        $relations = new RelationRows($db);
+
         if ($entries !== []) {
             $db->table($type->name->table())->whereIn(TypeRows::ENTRY, array_keys($entries))->delete();
+            $relations->removeEntries(array_keys($entries));
         }
 
+        $edges = [];
+
+        foreach ($heads as [$entry, $variant, $draft, $released]) {
+            $edges[] = RelationEdges::variant($type, $entry, $variant, RelationStage::ofSave($type->capabilities->stages), $draft);
+
+            if ($released instanceof FieldValues) {
+                $edges[] = RelationEdges::variant($type, $entry, $variant, RelationStage::Released, $released);
+            }
+        }
+
+        $relations->replace($edges);
         $rows = new TypeRows($db);
 
         if ($type->capabilities->localization === Localization::Variants) {

@@ -40,6 +40,7 @@ use Cbox\Cms\Core\Entries\Actions\DeleteVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
@@ -60,7 +61,9 @@ use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
 use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
+use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
@@ -130,7 +133,7 @@ use LogicException;
 
 /**
  * The real command pipeline on Postgres for entry.publish, in version 1 and version 2, and
- * entry.unpublish (PRD 6.2, 6.4, 10.3), with entry.create in both versions, variant.release
+ * entry.unpublish (PRD 6.2, 6.4, 10.3), with entry.create in both versions, entry.revise version 2, variant.release
  * version 2, variant.create_from, variant.delete, placement.create and placement.set_window to make what they
  * publish: the command
  * transaction, the Postgres stores, the actor directory, the entry and placement readers, the
@@ -301,6 +304,22 @@ final readonly class PublishingWorld
         return $this->run(new ReviseEntry($entry, new AggregateVersion($version), $fields), $key, waitLevel: $waitLevel, agent: $agent);
     }
 
+    /**
+     * entry.revise version 2: each variant of the entry at the version the caller saw with its fields.
+     *
+     * @param  array<string, array{int, FieldValues}>  $variants  by variant key: the version and the fields
+     */
+    public function reviseVariants(EntryId $entry, array $variants, string $key): WriteResult
+    {
+        $revisions = [];
+
+        foreach ($variants as $variant => [$version, $fields]) {
+            $revisions[] = new VariantRevision(VariantKey::fromString($variant), new AggregateVersion($version), $fields);
+        }
+
+        return $this->run(new ReviseVariants($entry, $revisions), $key);
+    }
+
     public function unpublish(EntryId $entry, int $version, string $key): WriteResult
     {
         return $this->run(new UnpublishEntry($entry, new AggregateVersion($version)), $key);
@@ -349,6 +368,7 @@ final readonly class PublishingWorld
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($entries, $placements, $types, $this->clock)),
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($entries, $placements, $types, $this->clock)),
                 CreateLocalizedEntry::class => $this->binding('entry.create', new CreateLocalizedEntryAction($entries, $types), 2),
+                ReviseVariants::class => $this->binding('entry.revise', new ReviseVariantsAction($entries, $types), 2),
                 ReleaseEntryVariant::class => $this->binding('variant.release', new ReleaseEntryVariantAction($entries, $types, new VariantReleasePlanner), 2),
                 CreateVariantFrom::class => $this->binding('variant.create_from', new CreateVariantFromAction($entries, $types, $revisions)),
                 PublishLocalizedEntry::class => $this->binding('entry.publish', new PublishLocalizedEntryAction($entries, $placements, $types, $this->clock), 2),

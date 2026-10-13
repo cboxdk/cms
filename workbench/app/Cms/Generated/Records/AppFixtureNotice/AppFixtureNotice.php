@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
 use Override;
 
@@ -26,6 +27,8 @@ final readonly class AppFixtureNotice implements AppFixtureNoticeRecord
 {
     /**
      * @param  list<FixtureLinksItem>|null  $fixtureLinks
+     * @param  list<EntryId>|null  $fixtureRelated
+     * @param  list<EntryId>|null  $fixtureSources
      */
     public function __construct(
         public ?ListValue $fixtureBody,
@@ -34,6 +37,8 @@ final readonly class AppFixtureNotice implements AppFixtureNoticeRecord
         public ?array $fixtureLinks,
         public ?int $fixturePriority,
         public DateTimeImmutable $fixturePublishedOn,
+        public ?array $fixtureRelated,
+        public ?array $fixtureSources,
         public ?string $fixtureTeaser,
         public string $fixtureTitle,
     ) {}
@@ -49,6 +54,8 @@ final readonly class AppFixtureNotice implements AppFixtureNoticeRecord
             fixtureLinks: FixtureLinksItem::fromListOrNull($fields->groupsOrNull('fixture_links')),
             fixturePriority: $fields->integerOrNull('fixture_priority'),
             fixturePublishedOn: $fields->date('fixture_published_on'),
+            fixtureRelated: $fields->entriesOrNull('fixture_related'),
+            fixtureSources: $fields->entriesOrNull('fixture_sources'),
             fixtureTeaser: $fields->textOrNull('fixture_teaser'),
             fixtureTitle: $fields->text('fixture_title'),
         );
@@ -65,6 +72,8 @@ final readonly class AppFixtureNotice implements AppFixtureNoticeRecord
                 new NamedValue(new FieldHandle('fixture_links'), FieldWriter::groups($this->fixtureLinks === null ? null : FixtureLinksItem::toFieldMaps($this->fixtureLinks))),
                 new NamedValue(new FieldHandle('fixture_priority'), FieldWriter::integer($this->fixturePriority)),
                 new NamedValue(new FieldHandle('fixture_published_on'), FieldWriter::date($this->fixturePublishedOn)),
+                new NamedValue(new FieldHandle('fixture_related'), FieldWriter::entries($this->fixtureRelated)),
+                new NamedValue(new FieldHandle('fixture_sources'), FieldWriter::entries($this->fixtureSources)),
                 new NamedValue(new FieldHandle('fixture_teaser'), FieldWriter::text($this->fixtureTeaser)),
                 new NamedValue(new FieldHandle('fixture_title'), FieldWriter::text($this->fixtureTitle)),
             ),

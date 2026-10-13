@@ -246,6 +246,7 @@ it('pages the articles newest first with the ones without a day first, through t
             fixtureFeatured: $number % 4 === 0,
             fixturePublishedOn: $number % 7 === 0 ? null : new DateTimeImmutable(sprintf('2026-01-%02dT00:00:00Z', 1 + intdiv($number, 2))),
             fixtureReadingMinutes: $number,
+            fixtureRelated: null,
             fixtureSlug: null,
             fixtureSources: null,
             fixtureTitle: 'Article '.$number,

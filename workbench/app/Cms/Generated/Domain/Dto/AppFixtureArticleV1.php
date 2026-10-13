@@ -27,6 +27,7 @@ final readonly class AppFixtureArticleV1
      * @param  bool  $fixtureFeatured  Featured: Whether the article is featured on the front page.
      * @param  DateTimeImmutable|Omitted|null  $fixturePublishedOn  Published on: The day the article was first published.
      * @param  int|Omitted|null  $fixtureReadingMinutes  Reading minutes: How many minutes the article takes to read.
+     * @param  list<EntryId>|Omitted|null  $fixtureRelated  Related articles: The other articles the article points its readers to.
      * @param  string|Omitted|null  $fixtureSlug  Slug: The owner's own slug of the article, added in version 2 beside the fixture addon's ext.fixtureaddon.fixture_slug, with the same handle and no collision.
      * @param  list<AppFixtureArticleV1FixtureSources>|Omitted|null  $fixtureSources  Sources: The sources the article cites.
      * @param  string|Omitted|null  $fixtureTitle  Title: The title of the article, as it is shown on the page and in lists.
@@ -40,6 +41,7 @@ final readonly class AppFixtureArticleV1
         public bool $fixtureFeatured,
         public DateTimeImmutable|Omitted|null $fixturePublishedOn,
         public int|Omitted|null $fixtureReadingMinutes,
+        public array|Omitted|null $fixtureRelated,
         public string|Omitted|null $fixtureSlug,
         public array|Omitted|null $fixtureSources,
         public string|Omitted|null $fixtureTitle,
@@ -60,6 +62,7 @@ final readonly class AppFixtureArticleV1
             fixtureFeatured: $this->fixtureFeatured,
             fixturePublishedOn: $this->fixturePublishedOn,
             fixtureReadingMinutes: $this->fixtureReadingMinutes,
+            fixtureRelated: $this->fixtureRelated,
             fixtureSlug: $this->fixtureSlug,
             fixtureSources: $access->allows(ClassificationAccess::Internal) ? $this->fixtureSources : Omitted::Field,
             fixtureTitle: $this->fixtureTitle,

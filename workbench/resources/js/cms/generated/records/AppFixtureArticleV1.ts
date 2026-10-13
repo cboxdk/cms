@@ -32,6 +32,8 @@ export interface AppFixtureArticleV1 {
   fixture_published_on?: string | null;
   /** Reading minutes: How many minutes the article takes to read. */
   fixture_reading_minutes?: number | null;
+  /** Related articles: The other articles the article points its readers to. */
+  fixture_related?: readonly string[] | null;
   /**
    * Slug: The owner's own slug of the article, added in version 2 beside the fixture addon's
    * ext.fixtureaddon.fixture_slug, with the same handle and no collision.
@@ -175,6 +177,21 @@ const appFixtureArticleV1Rule: ObjectRule = {
       key: 'fixture_reading_minutes',
       presence: 'optional',
       value: { kind: 'integer', min: 1, max: 600 },
+    },
+    {
+      key: 'fixture_related',
+      presence: 'optional',
+      value: {
+        kind: 'list',
+        item: {
+          kind: 'string',
+          pattern:
+            '^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$',
+          caseless: true,
+        },
+        maxItems: 200,
+        distinct: true,
+      },
     },
     { key: 'fixture_slug', presence: 'optional', value: { kind: 'text', maxLength: 160 } },
     {
