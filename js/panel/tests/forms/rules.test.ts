@@ -37,11 +37,13 @@ import { validateArchiveNodeV1 } from '../../../../workbench/resources/js/cms/ge
 import { validateCreateMountV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateMountV1';
 import { validateCreateNodeV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateNodeV1';
 import { validateSetNodeRouteV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetNodeRouteV1';
+import { validateChangeNodeRouteV2 } from '../../../../workbench/resources/js/cms/generated/protocol/ChangeNodeRouteV2';
 import { validateMoveNodeV1 } from '../../../../workbench/resources/js/cms/generated/protocol/MoveNodeV1';
 import { validateSetMountOverrideV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetMountOverrideV1';
 import { validateSetNodeLabelV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetNodeLabelV1';
 import { validateCreatePlacementV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreatePlacementV1';
 import { validateSetPlacementWindowV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetPlacementWindowV1';
+import { validateSetPlacementSlugV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetPlacementSlugV1';
 import { validateCreateRoleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateRoleV1';
 import { validateSetRolePermissionsV1 } from '../../../../workbench/resources/js/cms/generated/protocol/SetRolePermissionsV1';
 import { validateAddSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/AddSiteLocaleV1';
@@ -77,9 +79,11 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'node.archive.v1.json': validateArchiveNodeV1,
   'node.create.v1.json': validateCreateNodeV1,
   'node.set_route.v1.json': validateSetNodeRouteV1,
+  'node.set_route.v2.json': validateChangeNodeRouteV2,
   'node.move.v1.json': validateMoveNodeV1,
   'node.set_label.v1.json': validateSetNodeLabelV1,
   'placement.create.v1.json': validateCreatePlacementV1,
+  'placement.set_slug.v1.json': validateSetPlacementSlugV1,
   'placement.set_window.v1.json': validateSetPlacementWindowV1,
   'role.create.v1.json': validateCreateRoleV1,
   'role.set_permissions.v1.json': validateSetRolePermissionsV1,
