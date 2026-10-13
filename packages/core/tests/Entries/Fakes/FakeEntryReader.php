@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
+use Cbox\Cms\Core\Entries\Domain\Dto\StoredVariants;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Override;
 
@@ -62,6 +63,29 @@ final class FakeEntryReader implements EntryReader
         [$type, $home, $version] = $stored;
 
         return new StoredEntry($entry, $type, $home, $version, $this->heads[$entry->toString()][$variant->value] ?? null);
+    }
+
+    #[Override]
+    public function variants(EntryId $entry, array $variants): ?StoredVariants
+    {
+        $stored = $this->entries[$entry->toString()] ?? null;
+
+        if ($stored === null) {
+            return null;
+        }
+
+        [$type, $home, $version] = $stored;
+        $heads = [];
+
+        foreach ($variants as $variant) {
+            $head = $this->heads[$entry->toString()][$variant->value] ?? null;
+
+            if ($head instanceof StoredHead) {
+                $heads[$variant->value] = $head;
+            }
+        }
+
+        return new StoredVariants($entry, $type, $home, $version, $heads);
     }
 
     #[Override]

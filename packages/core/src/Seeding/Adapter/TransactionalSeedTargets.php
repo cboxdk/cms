@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Seeding\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
@@ -20,7 +21,8 @@ use UnexpectedValueException;
  * SeedTargets on a database connection, the default or a named one: each read begins a
  * transaction, sets the actor's context and rolls the transaction back, because it wrote nothing and
  * the context must end with it. nodes() reads the ids of the nodes the context's regions reach
- * (cms_access_reaches) that are not mounts, sorted; existing() reads the entries through the
+ * (cms_access_reaches) that are not mounts, sorted; locales() the locales, not retired, of the
+ * sites whose root the context's regions reach, sorted; existing() reads the entries through the
  * PostgresSeedReader, the reader seed.entries uses, so both see the same entries. A connection
  * already in a transaction is refused, because the transaction would become a savepoint of the
  * caller's.
@@ -56,6 +58,28 @@ final readonly class TransactionalSeedTargets implements SeedTargets
         }
 
         return $nodes;
+    }
+
+    #[Override]
+    public function locales(AccessContext $access): array
+    {
+        $tags = $this->read($access, static fn (ConnectionInterface $db): array => $db->table('site_locales', 'l')
+            ->join('sites as s', 's.id', '=', 'l.site_id')
+            ->join('nodes as n', 'n.id', '=', 's.root_node_id')
+            ->whereNull('l.retired_at')
+            ->whereRaw('cms_access_reaches(n.path)')
+            ->distinct()
+            ->orderBy('l.locale')
+            ->pluck('l.locale')
+            ->all());
+
+        $locales = [];
+
+        foreach ($tags as $tag) {
+            $locales[] = is_string($tag) ? new Locale($tag) : throw new UnexpectedValueException(sprintf('The locale of a site is text, got %s.', get_debug_type($tag)));
+        }
+
+        return $locales;
     }
 
     #[Override]

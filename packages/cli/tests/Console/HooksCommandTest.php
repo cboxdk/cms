@@ -51,11 +51,13 @@ it('prints the hook map of a command of the workbench in run order with its budg
         ->and($createOutput)->toBe(
             "entry.create v1: 2 hooks, in the order they run, budget 4 ms in all\n"
             ."  1. transform  priority 10  budget 2 ms  Workbench\\FixtureAddon\\DeriveSlug (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n"
-            ."  2. validate   priority 20  budget 2 ms  Workbench\\FixtureAddon\\RequireWellFormedSlug (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n",
+            ."  2. validate   priority 20  budget 2 ms  Workbench\\FixtureAddon\\RequireWellFormedSlug (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n"
+            ."entry.create v2: no hooks run.\n",
         )
         ->and($releaseOutput)->toBe(
             "variant.release v1: 1 hook, in the order they run, budget 2 ms in all\n"
-            ."  1. validate   priority 10  budget 2 ms  Workbench\\FixtureAddon\\RequireSlugOnRelease (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n",
+            ."  1. validate   priority 10  budget 2 ms  Workbench\\FixtureAddon\\RequireSlugOnRelease (cboxdk/cms-fixture-addon, addon fixtureaddon reading up to public)\n"
+            ."variant.release v2: no hooks run.\n",
         )
         ->and($publishOutput)->toBe("entry.publish v1: no hooks run.\n");
 });
@@ -93,6 +95,10 @@ it('prints the hook map as one JSON document with the hooks the command pipeline
                     'reads' => 'public',
                 ]],
                 'version' => 1,
+            ], [
+                'budget_ms' => 0,
+                'hooks' => [],
+                'version' => 2,
             ]],
         ])
         ->and($bound)->toBe([[DeriveSlug::class, 'cboxdk/cms-fixture-addon', 'transform', 10, 2], [RequireWellFormedSlug::class, 'cboxdk/cms-fixture-addon', 'validate', 20, 2]]);

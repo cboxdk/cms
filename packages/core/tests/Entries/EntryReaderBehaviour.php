@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
+use Cbox\Cms\Core\Entries\Domain\Dto\StoredVariants;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use PHPUnit\Framework\Assert;
 use PHPUnit\Framework\Attributes\Test;
@@ -92,5 +93,23 @@ trait EntryReaderBehaviour
     public function it_reads_nothing_for_an_entry_it_does_not_know(): void
     {
         Assert::assertNull($this->entryReader()->entry(EntryId::fromString('0192a0c0-0000-7000-8000-0000000002e9'), VariantKey::shared()));
+        Assert::assertNull($this->entryReader()->variants(EntryId::fromString('0192a0c0-0000-7000-8000-0000000002e9'), [VariantKey::shared()]));
+    }
+
+    #[Test]
+    public function it_reads_an_entry_with_the_heads_of_the_variants_it_has_among_those_asked_for(): void
+    {
+        $reader = $this->entryReader(released: 'released');
+        $da = VariantKey::of(new Locale('da'));
+        $head = new StoredHead(new AggregateVersion(5), new RevisionNumber(4), new RevisionNumber(5), new RevisionNumber(5));
+
+        $both = $reader->variants(EntryId::fromString(self::ENTRY), [VariantKey::shared(), $da]);
+        $bare = $reader->variants(EntryId::fromString(self::BARE_ENTRY), [VariantKey::shared(), $da]);
+
+        Assert::assertEquals(new StoredVariants(EntryId::fromString(self::ENTRY), TypeId::fromString(self::TYPE), NodeId::fromString(self::NODE), new AggregateVersion(2), ['shared' => $head]), $both);
+        Assert::assertEquals($head, $both?->head(VariantKey::shared()));
+        Assert::assertNull($both?->head($da));
+        Assert::assertEquals($reader->entry(EntryId::fromString(self::ENTRY), VariantKey::shared()), $both?->of(VariantKey::shared()));
+        Assert::assertEquals(new StoredVariants(EntryId::fromString(self::BARE_ENTRY), TypeId::fromString(self::TYPE), NodeId::fromString(self::NODE), new AggregateVersion(1), []), $bare);
     }
 }

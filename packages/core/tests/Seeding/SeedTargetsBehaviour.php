@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\AccessRegion;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
@@ -19,8 +20,9 @@ use PHPUnit\Framework\Attributes\Test;
 
 /**
  * What every SeedTargets does, the fake and the Postgres one alike: the nodes the context's regions
- * reach that are not mounts, sorted by id, and the entries of a list that exist and whose home the
- * context's regions reach, in the list's order.
+ * reach that are not mounts, sorted by id, the locales of the sites whose root the regions reach,
+ * sorted and each once, and the entries of a list that exist and whose home the context's regions
+ * reach, in the list's order.
  */
 trait SeedTargetsBehaviour
 {
@@ -47,7 +49,8 @@ trait SeedTargetsBehaviour
     /**
      * The targets under test, knowing the site root ROOT with FIRST, SECOND and the mount MOUNT
      * (of FIRST) below it, DEEP below SECOND, and the root OUTSIDE of another tree, and the entries
-     * IN_FIRST homed on FIRST, IN_DEEP on DEEP and IN_OUTSIDE on OUTSIDE, owned by no actor.
+     * IN_FIRST homed on FIRST, IN_DEEP on DEEP and IN_OUTSIDE on OUTSIDE, owned by no actor. The
+     * site of ROOT publishes in en and da, the site of OUTSIDE in fr and en.
      */
     abstract protected function seedTargets(): SeedTargets;
 
@@ -78,6 +81,19 @@ trait SeedTargetsBehaviour
     }
 
     #[Test]
+    public function it_gives_the_locales_of_the_sites_whose_root_the_regions_reach_sorted_and_each_once(): void
+    {
+        $root = new NodePath($this->label(self::ROOT));
+        $outside = new NodePath($this->label(self::OUTSIDE));
+        $second = new NodePath($this->label(self::ROOT).'.'.$this->label(self::SECOND));
+
+        Assert::assertSame(['da', 'en'], $this->tags($this->seedTargets()->locales($this->access(new AccessRegion($root)))));
+        Assert::assertSame(['da', 'en', 'fr'], $this->tags($this->seedTargets()->locales($this->access(new AccessRegion($root), new AccessRegion($outside)))));
+        Assert::assertSame([], $this->seedTargets()->locales($this->access(new AccessRegion($second))));
+        Assert::assertSame([], $this->seedTargets()->locales($this->access()));
+    }
+
+    #[Test]
     public function it_gives_the_entries_of_the_list_that_exist_where_the_regions_reach_in_the_list_s_order(): void
     {
         $root = new NodePath($this->label(self::ROOT));
@@ -97,6 +113,15 @@ trait SeedTargetsBehaviour
     private function entryIds(array $entries): array
     {
         return array_map(static fn (EntryId $entry): string => $entry->toString(), $entries);
+    }
+
+    /**
+     * @param  list<Locale>  $locales
+     * @return list<string>
+     */
+    private function tags(array $locales): array
+    {
+        return array_map(static fn (Locale $locale): string => $locale->value, $locales);
     }
 
     protected function label(string $id): string

@@ -19,8 +19,8 @@ use Override;
 
 /**
  * What seed.entries read: the entries of the chunk that do not exist yet, each with its shared
- * variant, both absent, and the home nodes of those entries at their versions, null for a node
- * absent or out of the actor's reach.
+ * variant and each of its languages' variants, all absent, and the home nodes of those entries at
+ * their versions, null for a node absent or out of the actor's reach.
  */
 #[Internal]
 final readonly class SeedEntriesAggregates implements Aggregates
@@ -28,10 +28,12 @@ final readonly class SeedEntriesAggregates implements Aggregates
     /**
      * @param  list<EntryId>  $absent  the entries to create, in the chunk's order
      * @param  array<string, ?AggregateVersion>  $nodes  the home nodes' versions by node id
+     * @param  list<VariantRef>  $languages  the languages' variants of the entries to create, absent
      */
     public function __construct(
         public array $absent,
         public array $nodes,
+        public array $languages = [],
     ) {}
 
     public function isAbsent(EntryId $entry): bool
@@ -47,6 +49,10 @@ final readonly class SeedEntriesAggregates implements Aggregates
         foreach ($this->absent as $entry) {
             $reads[] = ReadVersion::absent($entry);
             $reads[] = ReadVersion::absent(new VariantRef($entry, VariantKey::shared()));
+        }
+
+        foreach ($this->languages as $language) {
+            $reads[] = ReadVersion::absent($language);
         }
 
         foreach ($this->nodes as $node => $version) {

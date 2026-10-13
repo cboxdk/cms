@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -227,8 +228,8 @@ final class SeedActionWorld
     /**
      * SeedDataset with the world's pipeline, as the world's actor unless another is given, granted
      * internal access on ROOT, where HOME and SECOND lie, both known to the reader unless $nodes
-     * is false, when the actor reaches no node. Its targets, kept in $targets, know the entries
-     * that exist().
+     * is false, when the actor reaches no node; ROOT is the root of a site that publishes in da
+     * and en. Its targets, kept in $targets, know the entries that exist().
      */
     public function dataset(?ActorId $actor = null, ?FakeTypeCatalog $types = null, ?FakeOperationRunner $runner = null, bool $nodes = true): SeedDataset
     {
@@ -238,7 +239,8 @@ final class SeedActionWorld
 
         if ($nodes) {
             $targets->withNode(self::home(), new NodePath($root.'.'.str_replace('-', '', self::HOME)))
-                ->withNode($second, new NodePath($root.'.'.str_replace('-', '', self::SECOND)));
+                ->withNode($second, new NodePath($root.'.'.str_replace('-', '', self::SECOND)))
+                ->withSite(new NodePath($root), new Locale('da'), new Locale('en'));
             $this->reader->withNode($second, new AggregateVersion(4));
         }
 

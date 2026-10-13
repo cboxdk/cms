@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Entries;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -17,6 +19,7 @@ use Cbox\Cms\Contracts\Identity\AccessRegion;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Contracts\Identity\GrantEffect;
 use Cbox\Cms\Contracts\Identity\IssuerKind;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -31,9 +34,17 @@ use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Core\Access\Adapter\PostgresCommandAuthorizer;
+use Cbox\Cms\Core\Access\Domain\AdministrativePermissions;
+use Cbox\Cms\Core\Access\Domain\EscalationGuard;
+use Cbox\Cms\Core\Access\Domain\PermissionCatalog;
+use Cbox\Cms\Core\Access\Domain\PermissionRule;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
@@ -44,8 +55,13 @@ use Cbox\Cms\Core\Entries\Adapter\PostgresVariantVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
+use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
 use Cbox\Cms\Core\IdempotencyStore\Adapter\PostgresIdempotencyStore;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Identity\Adapter\PostgresActorDirectory;
@@ -57,6 +73,7 @@ use Cbox\Cms\Core\Pipeline\Adapter\ConnectionCommandTransaction;
 use Cbox\Cms\Core\Pipeline\Adapter\PostgresChangesetCommitter;
 use Cbox\Cms\Core\Pipeline\Adapter\SavepointRefusal;
 use Cbox\Cms\Core\Pipeline\Domain\AffectedProjections;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommandHooks;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
@@ -79,6 +96,7 @@ use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeWriteActions;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Testkit\Clock\FakeClock;
+use Cbox\Cms\Testkit\FixtureWriters\Access\Adapter\PostgresAccessFixtures;
 use Cbox\Cms\Testkit\FixtureWriters\Identity\Adapter\PostgresIdentitySeeder;
 use Cbox\Cms\Testkit\Ids\FakeIdGenerator;
 use Cbox\Cms\Testkit\Postgres\PartitionFixtures;
@@ -87,17 +105,19 @@ use Closure;
 use DateInterval;
 use DateTimeImmutable;
 use Illuminate\Database\ConnectionResolverInterface;
+use Illuminate\Database\DatabaseManager;
 use Illuminate\Support\Facades\DB;
 use LogicException;
 
 /**
- * The real command pipeline on Postgres for entry.create, entry.revise and variant.release (PRD
- * 5.4, 5.6, 6.2), on the default connection or the one named: the command transaction, the
+ * The real command pipeline on Postgres for entry.create, entry.revise and variant.release, each in
+ * version 1 and version 2 (PRD 5.4, 5.6, 6.2, 10.3), on the default connection or the one named: the command transaction, the
  * Postgres idempotency and receipt stores, the actor directory, the entry reader, the revision
  * contents a release is validated against, and the PostgresChangesetCommitter with the locks of
  * actors, entries, variants and nodes and the writers of the entry mutations, all on
  * that connection. The types and their validators are the workbench's generated ones. Fakes, so a test decides
- * what they answer: the authorizer, which allows, and the content
+ * what they answer: the authorizer, which allows, unless a test grants the actor roles with
+ * granted(), which switches to the PostgresCommandAuthorizer over them, and the content
  * hasher. The hooks are none, unless a test gives the world the compiled registry's.
  *
  * The world's structure, written by seed() as the superuser, is the site root ROOT with the section
@@ -142,6 +162,9 @@ final class EntryWorld
 
     /** The call's classification access: internal unless a test gives another. */
     public ClassificationAccess $classification = ClassificationAccess::Internal;
+
+    /** The authorizer: the fake, which allows, until granted() gives the actor roles. */
+    private ?CommandAuthorizer $authorizer = null;
 
     private readonly FakeIdGenerator $ids;
 
@@ -207,6 +230,74 @@ final class EntryWorld
         return $this->run(new ReleaseVariant($entry ?? self::entry(), new RevisionNumber($revision), new AggregateVersion($version)), $key);
     }
 
+    /**
+     * entry.create version 2: the shared variant and a language's variant per locale.
+     *
+     * @param  array<string, FieldValues>  $locales  each language's fields by locale
+     */
+    public function createLocalized(TypeId $type, FieldValues $shared, array $locales, string $key = 'create-1', ?EntryId $entry = null, ?NodeId $home = null): WriteResult
+    {
+        $languages = [];
+
+        foreach ($locales as $locale => $fields) {
+            $languages[] = new LocaleFields(new Locale($locale), $fields);
+        }
+
+        return $this->run(new CreateLocalizedEntry($entry ?? self::entry(), $type, $home ?? self::home(), $shared, $languages), $key);
+    }
+
+    /**
+     * entry.revise version 2: each variant at the version the caller saw with its fields.
+     *
+     * @param  array<string, array{int, FieldValues}>  $variants  by variant key: the version and the fields
+     */
+    public function reviseVariants(array $variants, string $key = 'revise-1', ?EntryId $entry = null): WriteResult
+    {
+        $revisions = [];
+
+        foreach ($variants as $variant => [$version, $fields]) {
+            $revisions[] = new VariantRevision(VariantKey::fromString($variant), new AggregateVersion($version), $fields);
+        }
+
+        return $this->run(new ReviseVariants($entry ?? self::entry(), $revisions), $key);
+    }
+
+    /**
+     * variant.release version 2 of the variant.
+     */
+    public function releaseVariant(string $variant, int $version, int $revision, string $key = 'release-1', ?EntryId $entry = null): WriteResult
+    {
+        return $this->run(new ReleaseEntryVariant($entry ?? self::entry(), VariantKey::fromString($variant), new RevisionNumber($revision), new AggregateVersion($version)), $key);
+    }
+
+    /**
+     * Gives the actor a role with the permissions, granted on ROOT in the locales, or in every
+     * locale for null, written as the owner role, and has the world's calls authorized by the
+     * PostgresCommandAuthorizer over the actor's grants from then on (PRD 5.10).
+     *
+     * @param  list<string>  $permissions
+     * @param  list<string>|null  $locales
+     */
+    public function granted(string $role, array $permissions, ?array $locales = null): self
+    {
+        $fixtures = new PostgresAccessFixtures(app(DatabaseManager::class), $this->clock, new FakeIdGenerator(seed: 900 + crc32($role) % 1000, clock: $this->clock));
+        $fixtures->grant(
+            $this->actor,
+            $fixtures->role($role, ClassificationAccess::Sensitive, array_map(static fn (string $name): CommandName => new CommandName($name), $permissions)),
+            NodeId::fromString(self::ROOT),
+            GrantEffect::Allow,
+            $locales === null ? null : array_map(static fn (string $locale): Locale => new Locale($locale), $locales),
+        );
+        $this->authorizer = new PostgresCommandAuthorizer(
+            app(ConnectionResolverInterface::class),
+            new PermissionRule,
+            new EscalationGuard(new AdministrativePermissions(app(PermissionCatalog::class))),
+            $this->connection,
+        );
+
+        return $this;
+    }
+
     public function run(Command $command, string $key): WriteResult
     {
         $envelope = Envelope::external(
@@ -231,9 +322,12 @@ final class EntryWorld
                 CreateEntry::class => $this->binding('entry.create', $this->interleaved(new CreateEntryAction($reader, $types))),
                 ReviseEntry::class => $this->binding('entry.revise', $this->interleaved(new ReviseEntryAction($reader, $types))),
                 ReleaseVariant::class => $this->binding('variant.release', $this->interleaved(new ReleaseVariantAction($reader, $types, new VariantReleasePlanner))),
+                CreateLocalizedEntry::class => $this->binding('entry.create', $this->interleaved(new CreateLocalizedEntryAction($reader, $types)), 2),
+                ReviseVariants::class => $this->binding('entry.revise', $this->interleaved(new ReviseVariantsAction($reader, $types)), 2),
+                ReleaseEntryVariant::class => $this->binding('variant.release', $this->interleaved(new ReleaseEntryVariantAction($reader, $types, new VariantReleasePlanner)), 2),
             ]),
             new PostgresActorDirectory($connections, $this->connection),
-            new FakeCommandAuthorizer,
+            $this->authorizer ?? new FakeCommandAuthorizer,
             $types,
             app(FieldValidation::class),
             new PostgresRevisionContents($connections, $this->connection),
@@ -309,12 +403,12 @@ final class EntryWorld
         return $this->meanwhile instanceof Closure ? new InterleavedAction($action, $this->meanwhile) : $action;
     }
 
-    private function binding(string $command, object $action): ActionBinding
+    private function binding(string $command, object $action, int $version = 1): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName($command), 1, $action);
+        return new ActionBinding(new CommandName($command), $version, $action);
     }
 }

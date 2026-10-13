@@ -11,8 +11,10 @@ description: "The JSON form of the kernel's commands, one JSON Schema per comman
 <!-- extension-point: packages/core/resources/schemas/commands/actor.deactivate.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/actor.register.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.create.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/entry.create.v2.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.publish.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.revise.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/entry.revise.v2.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/entry.unpublish.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/grant.assign.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/grant.revoke.v1.json -->
@@ -31,6 +33,7 @@ description: "The JSON form of the kernel's commands, one JSON Schema per comman
 <!-- extension-point: packages/core/resources/schemas/commands/site.register.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/site.remove_locale.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/variant.release.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/variant.release.v2.json -->
 <!-- extension-point: Cbox\Cms\Core\Pipeline\Domain\CommandEncoder -->
 
 A caller sends a command to a surface as a JSON document: the body of a REST call, the `command` argument of an MCP tool, the document of `cms:run` and the form of an Inertia page. The JSON form of each of the kernel's commands is fixed by a JSON Schema of draft 2020-12, one file per command and version in [`packages/core/resources/schemas/commands`](../../packages/core/resources/schemas/commands), named `<command>.v<version>.json`, and read and written only by the codec generated from it (GUARDRAILS 2.2). All of it is `#[Experimental]`.
@@ -38,8 +41,11 @@ A caller sends a command to a surface as a JSON document: the body of a REST cal
 | Command | Schema | Codec | PHP form |
 |---|---|---|---|
 | `entry.create` | `entry.create.v1.json` | `CreateEntryCodecV1` | [`CreateEntry`](entry-commands.md) |
+| `entry.create` version 2 | `entry.create.v2.json` | `CreateEntryCodecV2` | [`CreateLocalizedEntry`](entry-commands.md#version-2-the-shared-variant-and-the-languages) |
 | `entry.revise` | `entry.revise.v1.json` | `ReviseEntryCodecV1` | [`ReviseEntry`](entry-commands.md) |
+| `entry.revise` version 2 | `entry.revise.v2.json` | `ReviseEntryCodecV2` | [`ReviseVariants`](entry-commands.md#version-2-the-shared-variant-and-the-languages) |
 | `variant.release` | `variant.release.v1.json` | `ReleaseVariantCodecV1` | [`ReleaseVariant`](release-command.md) |
+| `variant.release` version 2 | `variant.release.v2.json` | `ReleaseVariantCodecV2` | [`ReleaseEntryVariant`](release-command.md) |
 | `entry.publish` | `entry.publish.v1.json` | `PublishEntryCodecV1` | [`PublishEntry`](publish-commands.md) |
 | `entry.unpublish` | `entry.unpublish.v1.json` | `UnpublishEntryCodecV1` | [`UnpublishEntry`](publish-commands.md) |
 | `placement.create` | `placement.create.v1.json` | `CreatePlacementCodecV1` | [`CreatePlacement`](placement-commands.md) |
@@ -77,6 +83,7 @@ A document is an object of the command's keys in snake_case and no other key. Ev
 - `handle` of `site.register` is a lowercase letter followed by at most 62 lowercase letters, digits or underscores, and `locales` a list of at least one locale; a locale named twice is refused by the action with `validation_failed`.
 - `site.add_locale` and `site.remove_locale` have the `site`, the `version` of it the caller read and one `locale`; a locale the site publishes in already, one it does not publish in, and its last locale are refused by the action with `validation_failed`.
 - A slug of `placement.create` is an object of `locale` and `slug`: 1 to 255 characters without a slash or white space, and not `.` or `..`.
+- Version 2 of `entry.create` has `shared`, the fields of the shared variant, and `locales`, a list of objects of `locale` and `fields`, each locale once, possibly empty for a type without localization. Version 2 of `entry.revise` has `variants`, a list of at least one object of `variant`, `version` and `fields`, each variant once. A variant is `shared` or a locale, as in `variant` of version 2 of `variant.release`. A locale or a variant twice is `json_invalid` at its path.
 - `kind` of `node.create` is one of `site`, `section`, `page`, `list`, `storage` and `mount`; the action refuses `site`, which a site's registration makes, and `mount`, which `mount.create` will make, with `validation_failed`.
 - `route` of `node.set_route` is `/` or `/`-separated segments of anything but slashes and white space, at most 32 segments and 2048 bytes, with no trailing slash and no `.` or `..` segment, the same form as the `path` of `path.resolve`.
 - `label` of `node.set_label` is 1 to 200 characters without control characters that start and end with a character that is not white space, the form of `NodeLabelSet::LABEL_PATTERN`.
@@ -84,7 +91,7 @@ A document is an object of the command's keys in snake_case and no other key. Ev
 
 ## The fields of a revision
 
-`entry.create` and `entry.revise` work for any type (GUARDRAILS 2.4), so their `fields` are not a type's record but the fields of a revision in the input form the type's validator reads: an object of the owner's fields by handle, with an extender's fields under `ext` and its namespace, as in `{"headline": "Harbour opens", "ext": {"seo": {"keywords": ["harbour"]}}}`. A handle is lowercase snake_case of at most 63 characters, never `ext` or starting with `cms_`; a namespace is 1 to 20 lowercase letters and digits. A value is what JSON gives: a text, a decimal, a date and a date-time are strings, an integer is an integer, a boolean a boolean, `null` is null, a list is a list and a group or a map is an object of values by a key of 1 to 255 bytes. A number with a fraction is refused. The kernel checks the fields against the type's schema when it writes them, at the write stage, with `validation_failed` for a value the type refuses. The definitions under `$defs` that describe the fields are the same in both schemas.
+`entry.create` and `entry.revise` work for any type (GUARDRAILS 2.4), so their `fields`, and in version 2 the `shared` fields and each variant's `fields`, are not a type's record but the fields of a revision in the input form the type's validator reads: an object of the owner's fields by handle, with an extender's fields under `ext` and its namespace, as in `{"headline": "Harbour opens", "ext": {"seo": {"keywords": ["harbour"]}}}`. A handle is lowercase snake_case of at most 63 characters, never `ext` or starting with `cms_`; a namespace is 1 to 20 lowercase letters and digits. A value is what JSON gives: a text, a decimal, a date and a date-time are strings, an integer is an integer, a boolean a boolean, `null` is null, a list is a list and a group or a map is an object of values by a key of 1 to 255 bytes. A number with a fraction is refused. The kernel checks the fields against the type's schema when it writes them, at the write stage, with `validation_failed` for a value the type refuses; in version 2 each variant's fields are checked against the fields that variant holds (PRD 10.1). The definitions under `$defs` that describe the fields are the same in every schema that has them.
 
 ## The codecs are generated
 

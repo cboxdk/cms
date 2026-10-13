@@ -15,8 +15,11 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelCommandCodecs;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
@@ -48,59 +51,70 @@ use stdClass;
  */
 
 /**
- * The command class of each kernel command, by name.
+ * The command class of each kernel command's contract version, by name and version.
  *
  * @return array<string, class-string<Command>>
  */
 function kernelCommandClasses(): array
 {
     return [
-        'access.bootstrap' => GrantBootstrapRole::class,
-        'actor.activate' => ActivateActor::class,
-        'actor.deactivate' => DeactivateActor::class,
-        'actor.register' => RegisterActor::class,
-        'entry.create' => CreateEntry::class,
-        'entry.publish' => PublishEntry::class,
-        'entry.revise' => ReviseEntry::class,
-        'entry.unpublish' => UnpublishEntry::class,
-        'grant.assign' => AssignGrant::class,
-        'grant.revoke' => RevokeGrant::class,
-        'mount.create' => CreateMount::class,
-        'mount.set_override' => SetMountOverride::class,
-        'node.archive' => ArchiveNode::class,
-        'node.create' => CreateNode::class,
-        'node.move' => MoveNode::class,
-        'node.set_label' => SetNodeLabel::class,
-        'node.set_route' => SetNodeRoute::class,
-        'placement.create' => CreatePlacement::class,
-        'placement.set_window' => SetPlacementWindow::class,
-        'role.create' => CreateRole::class,
-        'role.set_permissions' => SetRolePermissions::class,
-        'site.add_locale' => AddSiteLocale::class,
-        'site.register' => RegisterSite::class,
-        'site.remove_locale' => RemoveSiteLocale::class,
-        'variant.release' => ReleaseVariant::class,
+        'access.bootstrap@1' => GrantBootstrapRole::class,
+        'actor.activate@1' => ActivateActor::class,
+        'actor.deactivate@1' => DeactivateActor::class,
+        'actor.register@1' => RegisterActor::class,
+        'entry.create@1' => CreateEntry::class,
+        'entry.create@2' => CreateLocalizedEntry::class,
+        'entry.publish@1' => PublishEntry::class,
+        'entry.revise@1' => ReviseEntry::class,
+        'entry.revise@2' => ReviseVariants::class,
+        'entry.unpublish@1' => UnpublishEntry::class,
+        'grant.assign@1' => AssignGrant::class,
+        'grant.revoke@1' => RevokeGrant::class,
+        'mount.create@1' => CreateMount::class,
+        'mount.set_override@1' => SetMountOverride::class,
+        'node.archive@1' => ArchiveNode::class,
+        'node.create@1' => CreateNode::class,
+        'node.move@1' => MoveNode::class,
+        'node.set_label@1' => SetNodeLabel::class,
+        'node.set_route@1' => SetNodeRoute::class,
+        'placement.create@1' => CreatePlacement::class,
+        'placement.set_window@1' => SetPlacementWindow::class,
+        'role.create@1' => CreateRole::class,
+        'role.set_permissions@1' => SetRolePermissions::class,
+        'site.add_locale@1' => AddSiteLocale::class,
+        'site.register@1' => RegisterSite::class,
+        'site.remove_locale@1' => RemoveSiteLocale::class,
+        'variant.release@1' => ReleaseVariant::class,
+        'variant.release@2' => ReleaseEntryVariant::class,
     ];
+}
+
+/**
+ * A codec's command name and version, the key of kernelCommandClasses().
+ */
+function kernelCommandKey(CommandCodec $codec): string
+{
+    return $codec->command->value.'@'.$codec->version;
 }
 
 it('gives each kernel command its codec at the version its class declares, and the class that version', function (): void {
     $declared = [];
 
-    foreach (kernelCommandClasses() as $name => $class) {
+    foreach (kernelCommandClasses() as $key => $class) {
         $attribute = new ReflectionClass($class)->getAttributes(CommandAttribute::class)[0]->newInstance();
-        $declared[$name] = [$attribute->name, $attribute->version];
+        $declared[$key] = [$attribute->name, $attribute->version];
     }
 
     $codecs = [];
 
     foreach (KernelCommandCodecs::all() as $codec) {
-        $codecs[$codec->command->value] = [$codec->command->value, $codec->version];
+        $codecs[kernelCommandKey($codec)] = [$codec->command->value, $codec->version];
     }
 
     ksort($codecs);
 
     expect($codecs)->toBe($declared)
-        ->and(array_values(array_unique(array_map(static fn (array $pair): int => $pair[1], $declared))))->toBe([1]);
+        ->and(array_values(array_unique(array_map(static fn (array $pair): int => $pair[1], $declared))))->toBe([1, 2]);
 });
 
 it('refuses to encode a command of another class', function (CommandCodec $codec): void {
@@ -109,9 +123,9 @@ it('refuses to encode a command of another class', function (CommandCodec $codec
 
     expect($encoder)->toBeInstanceOf(CommandEncoder::class)
         ->and(static fn (): string => $encoder instanceof CommandEncoder ? $encoder->encodeCommand($other) : '')
-        ->toThrow(EncodingFailed::class, ' is not a '.new ReflectionClass(kernelCommandClasses()[$codec->command->value])->getShortName());
+        ->toThrow(EncodingFailed::class, ' is not a '.new ReflectionClass(kernelCommandClasses()[kernelCommandKey($codec)])->getShortName());
 })->with(static fn (): array => array_combine(
-    array_map(static fn (CommandCodec $codec): string => $codec->command->value, KernelCommandCodecs::all()),
+    array_map(kernelCommandKey(...), KernelCommandCodecs::all()),
     array_map(static fn (CommandCodec $codec): array => [$codec], KernelCommandCodecs::all()),
 ));
 
@@ -146,6 +160,6 @@ it('encodes the command it decoded, and refuses each whole number below its mini
             ->toThrow(DecodingFailed::class, sprintf('%s: is %d, less than the minimum %d.', $property, $resolved->minimum - 1, $resolved->minimum));
     }
 })->with(static fn (): array => array_combine(
-    array_map(static fn (CommandCodec $codec): string => $codec->command->value, KernelCommandCodecs::all()),
+    array_map(kernelCommandKey(...), KernelCommandCodecs::all()),
     array_map(static fn (CommandCodec $codec): array => [$codec], KernelCommandCodecs::all()),
 ));

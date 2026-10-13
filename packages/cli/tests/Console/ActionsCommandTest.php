@@ -5,7 +5,9 @@ declare(strict_types=1);
 namespace Cbox\Cms\Cli\Tests\Console;
 
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Illuminate\Support\Facades\Artisan;
 use RuntimeException;
@@ -98,6 +100,16 @@ it('prints the actions of the workbench as one JSON document in the registry ord
                 'priority' => 20,
                 'reads' => 'public',
             ]],
+            'kind' => 'write',
+            'package' => 'cboxdk/cms',
+            'permission' => 'entry.create',
+            'surfaces' => ['rest', 'inertia', 'mcp', 'cli'],
+        ], [
+            'class' => CreateLocalizedEntryAction::class,
+            'command' => 'entry.create',
+            'command_class' => CreateLocalizedEntry::class,
+            'command_version' => 2,
+            'hooks' => [],
             'kind' => 'write',
             'package' => 'cboxdk/cms',
             'permission' => 'entry.create',

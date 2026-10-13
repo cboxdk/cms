@@ -15,9 +15,10 @@ use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use LogicException;
 
 /**
- * The kernel's planner of a release (GUARDRAILS 2.1, PRD 5.6, 6.4): the plan that makes a revision
- * of an entry's shared variant its released revision, for the entry's own type, and the plan that
- * takes it back to unreleased. variant.release plans with it, and the composite commands
+ * The kernel's planner of a release (GUARDRAILS 2.1, PRD 5.6, 6.4, 10.3): the plan that makes a
+ * revision of a variant of an entry, the shared one unless another is given, its released
+ * revision, for the entry's own type, and the plan that takes the shared variant back to
+ * unreleased. variant.release plans with it, and the composite commands
  * entry.publish and entry.unpublish compose its plans with the plans of other planners, so one
  * changeset releases or unreleases and does the rest.
  *
@@ -31,16 +32,21 @@ use LogicException;
 final readonly class VariantReleasePlanner
 {
     /**
-     * @throws LogicException when the entry's shared variant has no head, which the kernel's check of the expected version rules out
+     * @param  StoredEntry  $entry  the entry with the head of the variant
+     * @param  VariantKey|null  $variant  the variant the head belongs to; the shared one when null
+     *
+     * @throws LogicException when the entry's variant has no head, which the kernel's check of the expected version rules out
      */
-    public function plan(StoredEntry $entry, RevisionNumber $revision): Plan
+    public function plan(StoredEntry $entry, RevisionNumber $revision, ?VariantKey $variant = null): Plan
     {
+        $variant ??= VariantKey::shared();
         $head = $entry->head;
 
         if (! $head instanceof StoredHead) {
             throw new LogicException(sprintf(
-                'A release of the entry %s was planned, whose shared variant was read as absent; the kernel rejects such a call with version_conflict before it plans.',
+                'A release of the entry %s was planned, whose %s variant was read as absent; the kernel rejects such a call with version_conflict before it plans.',
                 $entry->id->toString(),
+                $variant->value,
             ));
         }
 
@@ -48,7 +54,7 @@ final readonly class VariantReleasePlanner
             return new Plan;
         }
 
-        return new Plan(new VariantReleased($entry->id, $entry->type, VariantKey::shared(), $revision));
+        return new Plan(new VariantReleased($entry->id, $entry->type, $variant, $revision));
     }
 
     /**

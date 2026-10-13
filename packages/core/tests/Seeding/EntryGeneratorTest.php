@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
@@ -34,7 +35,7 @@ function entryGenerator(int $seed = 3, int $nodes = 10): EntryGenerator
 {
     $catalog = SeedTypes::of(app(TypeCatalog::class)->all(), app(TypeValidators::class), ClassificationAccess::Internal);
 
-    return new EntryGenerator(SeedProfiles::small(), $seed, $catalog->types, seedNodes($nodes), ClassificationAccess::Internal);
+    return new EntryGenerator(SeedProfiles::small(), $seed, $catalog->types, seedNodes($nodes), ClassificationAccess::Internal, [new Locale('en')]);
 }
 
 it('gives entry n the same id, type, home, fields and release in every run, whatever else it gave', function (): void {

@@ -57,6 +57,17 @@ final class TransactionalSeedTargetsBehaviourTest extends TestCase
             StorageTables::node(self::MOUNT, self::ROOT, $root, 'mount', self::FIRST),
             StorageTables::node(self::DEEP, self::SECOND, $root.'.'.StorageTables::label(self::SECOND)),
         ]);
+        $superuser->table('sites')->insert([
+            ['id' => '0192a0c0-0000-7000-8000-0000000048d1', 'handle' => 'seed_root', 'root_node_id' => self::ROOT, 'version' => 1, 'created_at' => StorageTables::CREATED_AT],
+            ['id' => '0192a0c0-0000-7000-8000-0000000048d2', 'handle' => 'seed_outside', 'root_node_id' => self::OUTSIDE, 'version' => 1, 'created_at' => StorageTables::CREATED_AT],
+        ]);
+        $superuser->table('site_locales')->insert([
+            ['site_id' => '0192a0c0-0000-7000-8000-0000000048d1', 'locale' => 'en', 'created_at' => StorageTables::CREATED_AT, 'retired_at' => null],
+            ['site_id' => '0192a0c0-0000-7000-8000-0000000048d1', 'locale' => 'da', 'created_at' => StorageTables::CREATED_AT, 'retired_at' => null],
+            ['site_id' => '0192a0c0-0000-7000-8000-0000000048d1', 'locale' => 'de', 'created_at' => StorageTables::CREATED_AT, 'retired_at' => StorageTables::CREATED_AT],
+            ['site_id' => '0192a0c0-0000-7000-8000-0000000048d2', 'locale' => 'fr', 'created_at' => StorageTables::CREATED_AT, 'retired_at' => null],
+            ['site_id' => '0192a0c0-0000-7000-8000-0000000048d2', 'locale' => 'en', 'created_at' => StorageTables::CREATED_AT, 'retired_at' => null],
+        ]);
         $superuser->table('entries')->insert([
             array_merge(StorageTables::entry(self::IN_FIRST), ['home_node_id' => self::FIRST]),
             array_merge(StorageTables::entry(self::IN_DEEP), ['home_node_id' => self::DEEP]),

@@ -9,9 +9,11 @@ use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Validation\TypeRules;
 
 /**
- * A type of the catalog the seeder can write: its definition, the rules of its generated validator,
- * which the seeder's values follow, and whether its entries have a revision to release (stages
- * draft-release with full history).
+ * A type of the catalog the seeder can write: its definition, the rules of its generated validator
+ * for the shared variant, which the seeder's values follow, the rules for a language's variant for
+ * a type with localization variants (PRD 10.1), null for a type whose shared variant holds every
+ * field, and whether its entries have a revision to release (stages draft-release with full
+ * history).
  */
 #[Internal]
 final readonly class SeedableType
@@ -20,5 +22,6 @@ final readonly class SeedableType
         public TypeDefinition $definition,
         public TypeRules $rules,
         public bool $releasable,
+        public ?TypeRules $languageRules = null,
     ) {}
 }

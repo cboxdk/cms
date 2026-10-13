@@ -8,9 +8,12 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
 use Cbox\Cms\Contracts\Schema\History;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantFields;
+use Cbox\Cms\Core\Entries\Domain\LocaleRow;
 use Cbox\Cms\Core\Pipeline\Domain\BatchMutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingMutation;
@@ -33,7 +36,12 @@ use UnexpectedValueException;
  *    type whose history is audit-only or none keeps no revisions (PRD 4.1): the variant's head
  *    snapshot in `head_snapshots` takes the content, the number and the schema version in place.
  * 3. The type table's row, through TypeRows: the draft row for stages draft-release, the released
- *    row for stages none.
+ *    row for stages none. In a type with localization variants a language's row holds the shared
+ *    fields too (PRD 10.1, 11.6), so the row of a language's revision is the language's fields
+ *    merged with the shared variant's (LocaleRow): the shared revision of the same run, as
+ *    entry.create writes both, or else the shared head's current content, read once per run and
+ *    type (VariantPayloads). A revision of the shared variant goes to TypeRows as it is, which
+ *    sets the shared columns of every language's row.
  *
  * A run of revisions is written in one statement per table and type (writeAll()). It returns no
  * event; the head's move tells about the revision. It runs as the app role under the
@@ -164,12 +172,68 @@ final readonly class RevisionCreatedWriter implements BatchMutationWriter
         }
 
         $typeRows = new TypeRows($db);
+        $payloads = new VariantPayloads($db);
 
         foreach ($rows as $type => $variants) {
-            $typeRows->writeAll($types[$type], $variants);
+            $typeRows->writeAll($types[$type], $this->merged($types[$type], $variants, $payloads));
         }
 
         return [];
+    }
+
+    /**
+     * The variants with each language's fields of a type with localization variants merged with
+     * the shared variant's: the shared revision of the run for the same entry, or the shared head's
+     * current content.
+     *
+     * @param  non-empty-list<VariantFields>  $variants
+     * @return non-empty-list<VariantFields>
+     *
+     * @throws LogicException when a language is written for an entry whose shared variant has no content
+     */
+    private function merged(TypeDefinition $type, array $variants, VariantPayloads $payloads): array
+    {
+        if ($type->capabilities->localization !== Localization::Variants) {
+            return $variants;
+        }
+
+        $shared = [];
+        $unread = [];
+
+        foreach ($variants as $variant) {
+            if ($variant->variant->isShared()) {
+                $shared[$variant->entry->toString()] = $variant->fields;
+            }
+        }
+
+        foreach ($variants as $variant) {
+            if (! $variant->variant->isShared() && ! isset($shared[$variant->entry->toString()])) {
+                $unread[$variant->entry->toString()] = $variant->entry->toString();
+            }
+        }
+
+        if ($unread !== []) {
+            $shared = [...$shared, ...$payloads->drafts($type, array_values($unread))];
+        }
+
+        $merged = [];
+
+        foreach ($variants as $variant) {
+            if ($variant->variant->isShared()) {
+                $merged[] = $variant;
+
+                continue;
+            }
+
+            $fields = $shared[$variant->entry->toString()] ?? throw new LogicException(sprintf(
+                'The variant %s of the entry %s is written, but the entry has no shared variant to take the shared fields of its row from; the shared variant is written first.',
+                $variant->variant->value,
+                $variant->entry->toString(),
+            ));
+            $merged[] = new VariantFields($variant->entry, $variant->variant, LocaleRow::of($type, $fields, $variant->fields));
+        }
+
+        return $merged;
     }
 
     /**

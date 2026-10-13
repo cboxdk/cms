@@ -26,8 +26,10 @@ import { validateActivateActorV1 } from '../../../../workbench/resources/js/cms/
 import { validateDeactivateActorV1 } from '../../../../workbench/resources/js/cms/generated/protocol/DeactivateActorV1';
 import { validateRegisterActorV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RegisterActorV1';
 import { validateCreateEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateEntryV1';
+import { validateCreateEntryV2 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateEntryV2';
 import { validatePublishEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/PublishEntryV1';
 import { validateReviseEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ReviseEntryV1';
+import { validateReviseEntryV2 } from '../../../../workbench/resources/js/cms/generated/protocol/ReviseEntryV2';
 import { validateUnpublishEntryV1 } from '../../../../workbench/resources/js/cms/generated/protocol/UnpublishEntryV1';
 import { validateAssignGrantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/AssignGrantV1';
 import { validateRevokeGrantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RevokeGrantV1';
@@ -46,6 +48,7 @@ import { validateAddSiteLocaleV1 } from '../../../../workbench/resources/js/cms/
 import { validateRegisterSiteV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RegisterSiteV1';
 import { validateRemoveSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RemoveSiteLocaleV1';
 import { validateReleaseVariantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV1';
+import { validateReleaseVariantV2 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV2';
 
 /** Where the kernel's command schemas are, the files ProtocolSchemas::commands() binds. */
 const COMMAND_SCHEMAS = join(
@@ -62,8 +65,10 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'actor.deactivate.v1.json': validateDeactivateActorV1,
   'actor.register.v1.json': validateRegisterActorV1,
   'entry.create.v1.json': validateCreateEntryV1,
+  'entry.create.v2.json': validateCreateEntryV2,
   'entry.publish.v1.json': validatePublishEntryV1,
   'entry.revise.v1.json': validateReviseEntryV1,
+  'entry.revise.v2.json': validateReviseEntryV2,
   'entry.unpublish.v1.json': validateUnpublishEntryV1,
   'grant.assign.v1.json': validateAssignGrantV1,
   'grant.revoke.v1.json': validateRevokeGrantV1,
@@ -82,6 +87,7 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'site.register.v1.json': validateRegisterSiteV1,
   'site.remove_locale.v1.json': validateRemoveSiteLocaleV1,
   'variant.release.v1.json': validateReleaseVariantV1,
+  'variant.release.v2.json': validateReleaseVariantV2,
 };
 
 function schemas(): string[] {

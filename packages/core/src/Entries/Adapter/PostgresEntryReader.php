@@ -13,6 +13,7 @@ use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
+use Cbox\Cms\Core\Entries\Domain\Dto\StoredVariants;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
@@ -26,7 +27,8 @@ use UnexpectedValueException;
  * actor context, on the default connection, or the one named, and always on the write PDO, inside
  * the command transaction.
  *
- * entry() is one statement by key: the entry, the head of the variant, the number of the head's
+ * entry() and variants() are one statement by key each: the entry, the head of the variant, or of
+ * each of the variants asked for, the number of the head's
  * draft revision, from `revisions` for a type with full history and from `head_snapshots` for one
  * whose history is audit-only or none, which keeps no revisions, the highest number of the
  * variant's revisions, by the unique key (entry_id, variant, rev_no), and the number of the
@@ -54,10 +56,17 @@ final readonly class PostgresEntryReader implements EntryReader
     #[Override]
     public function entry(EntryId $entry, VariantKey $variant): ?StoredEntry
     {
-        $row = $this->db()
+        return $this->variants($entry, [$variant])?->of($variant);
+    }
+
+    #[Override]
+    public function variants(EntryId $entry, array $variants): ?StoredVariants
+    {
+        $keys = array_values(array_unique(array_map(static fn (VariantKey $variant): string => $variant->value, $variants)));
+        $rows = $this->db()
             ->table('entries', 'e')
-            ->leftJoin('variant_heads as h', static function (JoinClause $join) use ($variant): void {
-                $join->on('h.entry_id', '=', 'e.id')->where('h.variant', '=', $variant->value);
+            ->leftJoin('variant_heads as h', static function (JoinClause $join) use ($keys): void {
+                $join->on('h.entry_id', '=', 'e.id')->whereIn('h.variant', $keys);
             })
             ->leftJoin('revisions as r', 'r.revision_id', '=', 'h.draft_revision_id')
             ->leftJoin('revisions as p', static function (JoinClause $join): void {
@@ -71,6 +80,7 @@ final readonly class PostgresEntryReader implements EntryReader
                 'e.type_id',
                 'e.home_node_id',
                 'e.version as entry_version',
+                'h.variant',
                 'h.version as head_version',
                 'h.release_state',
                 'r.rev_no as revision_number',
@@ -86,12 +96,38 @@ final readonly class PostgresEntryReader implements EntryReader
                 'latest_number',
             )
             ->useWritePdo()
-            ->first();
+            ->get();
 
-        if ($row === null) {
+        $first = $rows->first();
+
+        if ($first === null) {
             return null;
         }
 
+        $heads = [];
+
+        foreach ($rows as $row) {
+            $head = $this->head($entry, $row);
+
+            if ($head instanceof StoredHead) {
+                $heads[$this->text($row, 'variant')] = $head;
+            }
+        }
+
+        return new StoredVariants(
+            $entry,
+            TypeId::fromString($this->text($first, 'type_id')),
+            NodeId::fromString($this->text($first, 'home_node_id')),
+            new AggregateVersion($this->integer($first, 'entry_version')),
+            $heads,
+        );
+    }
+
+    /**
+     * The head a row holds, or null for the row of an entry without a head of the variant.
+     */
+    private function head(EntryId $entry, object $row): ?StoredHead
+    {
         $headVersion = $this->integerOrNull($row, 'head_version');
         $revision = $this->integerOrNull($row, 'revision_number') ?? $this->integerOrNull($row, 'snapshot_number');
         $latest = $this->integerOrNull($row, 'latest_number') ?? $revision;
@@ -100,23 +136,17 @@ final readonly class PostgresEntryReader implements EntryReader
         if (($headVersion === null) !== ($revision === null)) {
             throw new UnexpectedValueException(sprintf(
                 'The head of the variant %s of the entry %s has no current revision, or a revision without a head; every head is written with its first revision.',
-                $variant->value,
+                $this->textOrNull($row, 'variant') ?? '',
                 $entry->toString(),
             ));
         }
 
-        return new StoredEntry(
-            $entry,
-            TypeId::fromString($this->text($row, 'type_id')),
-            NodeId::fromString($this->text($row, 'home_node_id')),
-            new AggregateVersion($this->integer($row, 'entry_version')),
-            $headVersion === null || $revision === null || $latest === null ? null : new StoredHead(
-                new AggregateVersion($headVersion),
-                new RevisionNumber($revision),
-                new RevisionNumber($latest),
-                $released === null ? null : new RevisionNumber($released),
-                $this->textOrNull($row, 'release_state') === self::WITHDRAWN,
-            ),
+        return $headVersion === null || $revision === null || $latest === null ? null : new StoredHead(
+            new AggregateVersion($headVersion),
+            new RevisionNumber($revision),
+            new RevisionNumber($latest),
+            $released === null ? null : new RevisionNumber($released),
+            $this->textOrNull($row, 'release_state') === self::WITHDRAWN,
         );
     }
 

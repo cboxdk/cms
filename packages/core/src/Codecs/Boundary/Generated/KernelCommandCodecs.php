@@ -29,8 +29,10 @@ final readonly class KernelCommandCodecs
             DeactivateActorCodecV1::commandCodec(),
             RegisterActorCodecV1::commandCodec(),
             CreateEntryCodecV1::commandCodec(),
+            CreateEntryCodecV2::commandCodec(),
             PublishEntryCodecV1::commandCodec(),
             ReviseEntryCodecV1::commandCodec(),
+            ReviseEntryCodecV2::commandCodec(),
             UnpublishEntryCodecV1::commandCodec(),
             AssignGrantCodecV1::commandCodec(),
             RevokeGrantCodecV1::commandCodec(),
@@ -49,6 +51,7 @@ final readonly class KernelCommandCodecs
             RegisterSiteCodecV1::commandCodec(),
             RemoveSiteLocaleCodecV1::commandCodec(),
             ReleaseVariantCodecV1::commandCodec(),
+            ReleaseVariantCodecV2::commandCodec(),
         ];
     }
 }

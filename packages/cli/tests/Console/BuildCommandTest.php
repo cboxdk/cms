@@ -11,8 +11,11 @@ use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
@@ -127,15 +130,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 39',
+            'actions: 42',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 27',
+            'commands: 30',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 33',
+            'rest: 36',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -152,7 +155,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 41', 'addons: 1', 'commands: 28', 'hooks: 5', 'panel: 16', 'rest: 34'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 44', 'addons: 1', 'commands: 31', 'hooks: 5', 'panel: 16', 'rest: 37'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -179,6 +182,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [
+            'class' => CreateLocalizedEntry::class,
+            'name' => 'entry.create',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 2,
+        ], [
             'class' => PublishEntry::class,
             'name' => 'entry.publish',
             'package' => CoreServiceProvider::PACKAGE,
@@ -188,6 +196,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'name' => 'entry.revise',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
+        ], [
+            'class' => ReviseVariants::class,
+            'name' => 'entry.revise',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 2,
         ], [
             'class' => UnpublishEntry::class,
             'name' => 'entry.unpublish',
@@ -293,6 +306,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
             'name' => 'variant.release',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
+        ], [
+            'class' => ReleaseEntryVariant::class,
+            'name' => 'variant.release',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 2,
         ]]]);
 });
 

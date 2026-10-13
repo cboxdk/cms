@@ -1,21 +1,109 @@
 ---
 title: Entry commands
 weight: 43
-description: "The kernel's commands entry.create and entry.revise: what a caller sends, how the kernel stores the revision and the type table's row for any type as its capabilities say, the events they emit, and how they are rejected."
+description: "The kernel's commands entry.create and entry.revise, in version 1 for one variant and version 2 for an entry's shared variant and its languages: what a caller sends, how the kernel stores the revisions and the type table's rows for any type as its capabilities say, the events they emit, and how they are rejected."
 ---
 
 # Entry commands
 
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry -->
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry -->
+<!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry -->
+<!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants -->
 
-Content is written with two commands of the kernel, `entry.create` and `entry.revise`, version 1 of each (PRD 5.4, 6.4). They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI, and jobs, seeds and subscribers call them too. Both work for any type from its schema; the kernel names no type and reads what it needs from the `TypeCatalog` the generated code binds (GUARDRAILS 2.4). Both commands and their events are `#[Experimental]`.
+Content is written with two commands of the kernel, `entry.create` and `entry.revise`, each in version 1, which writes one variant, and version 2, which writes an entry's shared variant and its languages (PRD 5.4, 6.4, 10.1). They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI, and jobs, seeds and subscribers call them too. Both work for any type from its schema; the kernel names no type and reads what it needs from the `TypeCatalog` the generated code binds (GUARDRAILS 2.4). Both commands and their events are `#[Experimental]`.
 
 ## The commands
 
 `Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry` creates an entry with its first revision: the entry's `EntryId`, which the caller makes, the `TypeId` of its type, the `NodeId` of its home node, which owns its content and where its access is decided (PRD 5.10), and the `FieldValues` of its shared variant. Version 1 of the entry commands, `entry.create`, `entry.revise`, `variant.release`, `entry.publish` and `entry.unpublish`, is the single-variant contract: it writes the shared variant alone, the one variant of a type with `localization: none`, and refuses a type with `localization: variants` for good with `validation_failed` naming version 2 of the command, which writes the languages' variants (PRD 10.1), so no write leaves an entry of such a type without a language. The command expects the entry not to exist, so a repeat of a create with the same idempotency key replays the first receipt, and a create of an id that exists is `version_conflict`.
 
 `Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry` writes the next revision of the shared variant and moves the variant's head to it: the entry, the `AggregateVersion` of the shared variant the caller read, and the variant's fields. A revision is a whole snapshot, so the command carries every field the caller may read, not a change. `variant()` gives the `VariantRef` it revises, and `expectedVersions()` that variant at the version given.
+
+## Version 2: the shared variant and the languages
+
+A type with `localization: variants` has a variant per language beside the shared one: the language's variant holds the type's translatable fields, the shared variant the others, and each has its own revisions and its own release (PRD 10.1). Version 2 of the entry commands writes such a type, and works for a type with `localization: none` too, whose only variant is the shared one.
+
+`Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry`, `entry.create` version 2, creates an entry with the first revision of each of its variants in one changeset: the entry's id, type and home node as in version 1, the `FieldValues` of the shared variant, and a `LocaleFields` per language, its `Locale` and the fields of the language's variant. A type with localization variants needs at least one language, so no entry of it is left without one; a language given for a type without localization is `validation_failed`, as is a type with localization variants without a language, at `locales`. The command expects the entry and each of its variants to be absent. Each variant's fields are validated against the fields that variant holds: a translatable field in the shared variant, or a shared field in a language's, is `validation_unknown_field`.
+
+`Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants`, `entry.revise` version 2, writes the next revision of one or more variants and moves each head, in one changeset: the entry and a `VariantRevision` per variant, its `VariantKey`, `shared` or a language, the `AggregateVersion` of it the caller read and every field of its new revision. A save that changes the Danish text and the main image is one changeset with a revision in `da` and one in `shared` (PRD 10.3). A variant at another version than given, or one the entry does not have, is `version_conflict`, and a variant the type does not hold is `validation_failed`. A variant given twice is not a command.
+
+Rights follow the locale (PRD 5.10, 10.3): a language's variant is authorized at the entry's home in that locale and the shared variant in every locale, so a translator whose grant is limited to `de` writes `de` alone and is `unauthorized` for `da` and for the shared variant. The [release command](release-command.md) has a version 2 the same way, which releases any variant.
+
+In the type table, a language's row holds the language's fields and the shared fields (PRD 11.6), so a write of a language's variant takes the shared fields from the shared revision of the same changeset, or else from the shared variant's current revision, and a write of the shared variant rewrites the shared columns of every language's row. The shared variant of such a type has no row of its own.
+
+<!-- example: examples/Unit/Entries/VariantCommandsTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Content\VariantRef;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\FieldMap;
+use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Fields\TextValue;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\TypeId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
+use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
+
+// Version 2 of the entry commands writes a type whose languages are variants of the entry (PRD
+// 10.1, 10.3): a create gives the shared variant's fields and each language's, a revise gives
+// every variant it changes at the version the caller read, so one save changes the Danish text
+// and a shared field in one changeset, and a release names the variant it releases.
+
+function exampleField(string $handle, string $value): FieldValues
+{
+    return new FieldValues(new FieldMap(new NamedValue(new FieldHandle($handle), new TextValue($value))));
+}
+
+it('creates an entry with its shared variant and a Danish variant, all expected absent', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000111');
+
+    $create = new CreateLocalizedEntry(
+        $entry,
+        TypeId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000102'),
+        NodeId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000103'),
+        exampleField('channel', 'web'),
+        [new LocaleFields(new Locale('da'), exampleField('headline', 'Havnen åbner'))],
+    );
+
+    expect(array_map(static fn (VariantRef $variant): string => $variant->variant->value, $create->variants()))->toBe(['shared', 'da'])
+        ->and($create->expectedVersions()->of(new VariantRef($entry, VariantKey::of(new Locale('da')))))->toEqual(ReadVersion::absent(new VariantRef($entry, VariantKey::of(new Locale('da')))));
+});
+
+it('revises the Danish variant and the shared variant in one changeset, each at its own version', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000111');
+    $da = new VariantRef($entry, VariantKey::of(new Locale('da')));
+
+    $revise = new ReviseVariants($entry, [
+        new VariantRevision(VariantKey::of(new Locale('da')), new AggregateVersion(3), exampleField('headline', 'Havnen åbner fredag')),
+        new VariantRevision(VariantKey::shared(), new AggregateVersion(1), exampleField('channel', 'print')),
+    ]);
+
+    expect($revise->expectedVersions()->of($da))->toEqual(ReadVersion::at($da, new AggregateVersion(3)))
+        ->and($revise->expectedVersions()->of(new VariantRef($entry, VariantKey::shared())))->toEqual(ReadVersion::at(new VariantRef($entry, VariantKey::shared()), new AggregateVersion(1)));
+});
+
+it('releases a revision of the Danish variant alone', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000111');
+
+    $release = new ReleaseEntryVariant($entry, VariantKey::of(new Locale('da')), new RevisionNumber(4), new AggregateVersion(4));
+
+    expect($release->ref())->toEqual(new VariantRef($entry, VariantKey::of(new Locale('da'))))
+        ->and($release->expectedVersions()->of($release->ref()))->toEqual(ReadVersion::at($release->ref(), new AggregateVersion(4)));
+});
+```
 
 ## Fields the caller may not read
 
@@ -111,7 +199,8 @@ A changeset of `entry.create` emits `entry.created` about the entry and `variant
 | Code | When |
 |---|---|
 | `version_conflict` | a create of an entry that exists; a revise of a variant at another version than the command gives, or of an entry that does not exist or the caller cannot reach; and either when another call changed what it read before it committed |
-| `validation_failed` | the fields break the type's rules, the type is not a type of the installation, or the home node does not exist or is outside the caller's regions |
+| `validation_failed` | the fields break the type's rules, the type is not a type of the installation, the home node does not exist or is outside the caller's regions, a variant the type does not hold is written, or version 2 gives a language for a type without localization or none for a type with localization variants |
+| `unauthorized` | no role of the caller with the command's permission reaches the entry's home in the locale of a language's variant, or in every locale for the shared variant |
 | `field_encryption_unavailable` | a value for a field classified confidential or above, which is stored only as ciphertext (PRD 12.2); until key management exists (PRD 12.3), such a field can only be left out or null |
 
 Nothing of a rejected call is kept. See the [error catalog](errors.md) for each code on every surface.

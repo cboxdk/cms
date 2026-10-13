@@ -1,14 +1,15 @@
 ---
 title: Release command
 weight: 43
-description: "The kernel's command variant.release: what a caller sends, what the kernel checks and stores when a revision is released, the event it emits, and how it is rejected."
+description: "The kernel's command variant.release, in version 1 for the shared variant and version 2 for any variant: what a caller sends, what the kernel checks and stores when a revision is released, the event it emits, and how it is rejected."
 ---
 
 # Release command
 
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant -->
+<!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant -->
 
-A release answers one question: which revision of a variant readers see (PRD 5.6). The kernel's command `variant.release`, version 1, makes a revision of an entry's shared variant its released revision. It runs through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes it on REST, Inertia, MCP and the CLI. Where and when the entry is shown is decided by its placements, not by the release. The command works for any type from its schema, and it and its event are `#[Experimental]`.
+A release answers one question: which revision of a variant readers see (PRD 5.6). The kernel's command `variant.release`, version 1, makes a revision of an entry's shared variant its released revision; version 2, `Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant`, releases a revision of any variant, the shared one or a language's, named by its `VariantKey`, at the version of that variant the caller read. Each variant has its own release, so a language goes live on its own (PRD 10.3); a language's release is authorized at the entry's home in its locale, the shared variant's in every locale, and in the type table a language's released row holds its published content and the shared variant's, and exists once both are released, so a release of the shared variant writes the rows of the languages released before it. Version 1 is the single-variant contract and refuses a type with `localization: variants` with `validation_failed` naming version 2. It runs through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes it on REST, Inertia, MCP and the CLI. Where and when the entry is shown is decided by its placements, not by the release. The command works for any type from its schema, and it and its event are `#[Experimental]`.
 
 ## The command
 

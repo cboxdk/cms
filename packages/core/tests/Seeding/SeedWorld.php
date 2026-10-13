@@ -100,9 +100,8 @@ final readonly class SeedWorld
     }
 
     /**
-     * The table of every type of the catalog with localization variants, sorted: the seeder writes
-     * the shared variant alone, and such a table holds a row per language (PRD 10.1), so it stays
-     * empty until the languages are seeded (T90).
+     * The table of every type of the catalog with localization variants, sorted: such a table holds
+     * a row per language (PRD 10.1), and the seeder writes a variant in each locale of the site, en.
      *
      * @return list<string>
      */

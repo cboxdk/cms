@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
 use Cbox\Cms\Core\Operations\Domain\OperationState;
 use Cbox\Cms\Core\Seeding\Domain\EntryGenerator;
 use Cbox\Cms\Core\Seeding\Domain\SeedProfile;
@@ -24,9 +25,9 @@ use Illuminate\Support\Facades\DB;
  * entries of the workbench's types through the kernel, one changeset of seed.entries per chunk on
  * the bulk stream, each step of a chunk written at once. A second run with the same seed into
  * emptied tables gives the same rows and ids; every entry is stored as entry.create and
- * variant.release store it, a type with localization variants through its shared variant alone,
- * whose table therefore holds no row (PRD 10.1); and a chunk costs the same statements whatever
- * its size.
+ * variant.release store it, a type with localization variants with its shared variant and a
+ * variant in each locale of the site, en, whose table therefore holds a row per entry (PRD 10.1);
+ * and a chunk costs the same statements whatever its size.
  */
 
 afterEach(function (): void {
@@ -37,16 +38,17 @@ it('seeds 2,000 entries with the small profile deterministically', function (): 
     $report = new SeedWorld()->seed(SeedProfiles::small(), 7, 2_000);
     $rows = SeedWorld::rows();
     $entries = SeedWorld::entries();
-    // The seeder writes the shared variant alone, and a type with localization variants has a row per language (PRD 10.1).
+    // A type with localization variants has a row per language (PRD 10.1), and the site publishes in one locale.
     $localized = SeedWorld::localizedEntries();
 
     expect($report->operation->state)->toBe(OperationState::Completed)
         ->and($report->operation->completedNames())->toHaveCount(20)
         ->and($rows['entries'])->toBe(2_000)
         ->and($rows['changesets'])->toBe(20)
-        ->and(array_sum(array_map(static fn (string $table): int => $rows[$table], SeedWorld::typeTables())))->toBeGreaterThanOrEqual(2_000 - $localized)
+        ->and(array_sum(array_map(static fn (string $table): int => $rows[$table], SeedWorld::typeTables())))->toBeGreaterThanOrEqual(2_000)
         ->and($localized)->toBeGreaterThan(0)
-        ->and(array_map(static fn (string $table): int => $rows[$table], SeedWorld::localizedTypeTables()))->toBe(array_fill(0, count(SeedWorld::localizedTypeTables()), 0))
+        ->and(array_sum(array_map(static fn (string $table): int => $rows[$table], SeedWorld::localizedTypeTables())))->toBe($localized)
+        ->and($rows['variant_heads'])->toBe(2_000 + $localized)
         ->and($entries)->toHaveCount(2_000)
         ->and(StorageTables::superuser()->table('events')->where('stream', 'bulk')->count())->toBe($rows['events']);
 
@@ -61,39 +63,43 @@ it('seeds 2,000 entries with the small profile deterministically', function (): 
 it('stores each seeded entry as entry.create and variant.release store it', function (): void {
     $report = new SeedWorld()->seed(SeedProfiles::small(), 11, 300);
     $scope = $report->scope;
-    $generator = new EntryGenerator(SeedProfiles::small(), 11, $scope->catalog->types, $scope->nodes, $scope->access->classificationAccess);
+    $generator = new EntryGenerator(SeedProfiles::small(), 11, $scope->catalog->types, $scope->nodes, $scope->access->classificationAccess, $scope->locales);
     $superuser = StorageTables::superuser();
     $released = 0;
+    $variants = 0;
+    $releasedVariants = 0;
     $localizedTypes = 0;
 
     for ($index = 0; $index < 300; $index++) {
         $entry = $generator->entry($index);
         $type = array_find($scope->catalog->types, static fn ($each): bool => $each->definition->id->toString() === $entry->type->toString())?->definition;
         $id = $entry->entry->toString();
-        $head = $superuser->table('variant_heads')->where('entry_id', $id)->first();
+        $head = $superuser->table('variant_heads')->where('entry_id', $id)->where('variant', 'shared')->first();
         $table = $superuser->table((string) $type?->name->table())->where('cms_entry_id', $id);
         $stages = $table->pluck('cms_stage')->all();
         $stored = $superuser->table('entries')->where('id', $id)->first();
-        // The seeder writes the shared variant alone (PRD 10.1), and a type with localization
-        // variants has a row per language, so its table holds no row until T90 seeds the languages.
+        // A type with localization variants has a row per language (PRD 10.1): the seeder writes
+        // its shared variant and a variant in each locale of the site, en.
         $localized = $type?->capabilities->localization === Localization::Variants;
-        $rows = $localized ? [] : null;
+        $languages = array_map(static fn (LocaleFields $language): string => $language->locale->value, $entry->languages);
+        $variants += 1 + count($languages);
 
         expect($type)->not->toBeNull()
             ->and($stored?->home_node_id)->toBe($entry->home->toString())
             ->and($head?->version)->toBe(1)
-            ->and($head?->variant)->toBe('shared')
-            ->and($superuser->table('variant_heads')->where('entry_id', $id)->count())->toBe(1);
+            ->and($languages)->toBe($localized ? ['en'] : [])
+            ->and($superuser->table('variant_heads')->where('entry_id', $id)->orderBy('variant')->pluck('variant')->all())->toBe($localized ? ['en', 'shared'] : ['shared']);
 
         if ($localized) {
             $localizedTypes++;
         }
 
         if ($type?->capabilities->stages === Stages::None) {
-            expect($stages)->toBe($rows ?? ['released'])
-                ->and($superuser->table('head_snapshots')->where('entry_id', $id)->value('rev_no'))->toBe(1);
+            expect($stages)->toBe(['released'])
+                ->and($superuser->table('head_snapshots')->where('entry_id', $id)->where('variant', 'shared')->value('rev_no'))->toBe(1);
         } elseif ($entry->release) {
             $released++;
+            $releasedVariants += 1 + count($languages);
             $published = $superuser->table('revisions')->where('revision_id', $head?->published_revision_id)->first();
             $payloads = $superuser->table('revision_payloads')->whereIn('revision_id', [$head?->draft_revision_id, $head?->published_revision_id])->pluck('content')->all();
 
@@ -101,27 +107,34 @@ it('stores each seeded entry as entry.create and variant.release store it', func
                 ->and([$published?->kind, $published?->rev_no])->toBe(['published', 2])
                 ->and($payloads)->toHaveCount(2)
                 ->and($payloads[0])->toBe($payloads[1])
-                ->and($stages)->toBe($rows ?? ['released'])
-                ->and($superuser->table('release_log')->where('entry_id', $id)->count())->toBe(1);
+                ->and($stages)->toBe(['released'])
+                ->and($superuser->table('release_log')->where('entry_id', $id)->count())->toBe(1 + count($languages))
+                ->and($superuser->table('variant_heads')->where('entry_id', $id)->where('release_state', '<>', 'released')->count())->toBe(0);
         } else {
             expect($head?->release_state)->toBe('unreleased')
-                ->and($stages)->toBe($rows ?? ['draft']);
+                ->and($stages)->toBe(['draft']);
         }
 
         if ($type !== null && $localized) {
             $payload = $superuser->table('revision_payloads')->where('revision_id', $head?->draft_revision_id)->value('content');
             $written = StoredContent::fields($type, is_string($payload) ? $payload : '');
+            $language = $superuser->table('variant_heads')->where('entry_id', $id)->where('variant', 'en')->first();
+            $languagePayload = $superuser->table('revision_payloads')->where('revision_id', $language?->draft_revision_id)->value('content');
+            $translated = StoredContent::fields($type, is_string($languagePayload) ? $languagePayload : '');
+            $row = TypeTableColumns::decode($type, (array) $table->first());
 
             foreach ($type->fields as $field) {
                 $value = $written->own->get($field->handle);
+                $expected = ($field->translatable ? $entry->languages[0]->fields : $entry->fields)->own->get($field->handle) ?? new NullValue;
 
                 if ($field->translatable) {
-                    expect($value)->toBeNull(sprintf('%s of %s is a language\'s field, which the shared variant does not hold', $field->address(), $id));
-
-                    continue;
+                    expect($value)->toBeNull(sprintf('%s of %s is a language\'s field, which the shared variant does not hold', $field->address(), $id))
+                        ->and(($translated->own->get($field->handle) ?? new NullValue)->equals($expected))->toBeTrue(sprintf('%s of %s in en', $field->address(), $id));
+                } else {
+                    expect(($value ?? new NullValue)->equals($expected))->toBeTrue(sprintf('%s of %s', $field->address(), $id));
                 }
 
-                expect(($value ?? new NullValue)->equals($entry->fields->own->get($field->handle) ?? new NullValue))->toBeTrue(sprintf('%s of %s', $field->address(), $id));
+                expect($row->own->get($field->handle)?->equals($expected))->toBeTrue(sprintf('%s of %s in the row of en', $field->address(), $id));
             }
         } elseif ($type !== null) {
             $stored = TypeTableColumns::decode($type, (array) $superuser->table($type->name->table())->where('cms_entry_id', $id)->first());
@@ -136,7 +149,7 @@ it('stores each seeded entry as entry.create and variant.release store it', func
 
     expect($localizedTypes)->toBeGreaterThan(0)
         ->and($released)->toBeGreaterThan(100)
-        ->and($superuser->table('events')->count())->toBe(300 * 2 + $released);
+        ->and($superuser->table('events')->count())->toBe(300 + $variants + $releasedVariants);
 });
 
 it('costs the same statements for a chunk of 20 entries and a chunk of 200 (GUARDRAILS 4.1)', function (): void {

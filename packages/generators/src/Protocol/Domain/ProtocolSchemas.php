@@ -97,14 +97,19 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryExplanation;
 use Cbox\Cms\Core\Delivery\Domain\Dto\DeliveryMeta;
 use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
+use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
@@ -763,6 +768,14 @@ final readonly class ProtocolSchemas
                 '#/properties/home' => $id(NodeId::class),
                 '#/properties/type' => $id(TypeId::class),
             ]),
+            self::command('entry.create.v2.json', 'CreateEntryCodecV2', CreateLocalizedEntry::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/home' => $id(NodeId::class),
+                '#/properties/shared' => ValueBinding::fields(FieldValues::class),
+                '#/properties/type' => $id(TypeId::class),
+                '#/$defs/locale_fields/properties/fields' => ValueBinding::fields(FieldValues::class),
+                '#/$defs/locale_fields/properties/locale' => ValueBinding::value(Locale::class),
+            ], ['#/$defs/locale_fields' => LocaleFields::class], version: 2),
             self::command('entry.publish.v1.json', 'PublishEntryCodecV1', PublishEntry::class, [
                 '#/properties/entry' => $id(EntryId::class),
                 '#/properties/locale' => ValueBinding::value(Locale::class),
@@ -776,6 +789,12 @@ final readonly class ProtocolSchemas
                 '#/properties/fields' => ValueBinding::fields(FieldValues::class),
                 '#/properties/version' => $version,
             ]),
+            self::command('entry.revise.v2.json', 'ReviseEntryCodecV2', ReviseVariants::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/$defs/variant_revision/properties/fields' => ValueBinding::fields(FieldValues::class),
+                '#/$defs/variant_revision/properties/variant' => ValueBinding::value(VariantKey::class),
+                '#/$defs/variant_revision/properties/version' => $version,
+            ], ['#/$defs/variant_revision' => VariantRevision::class], version: 2),
             self::command('entry.unpublish.v1.json', 'UnpublishEntryCodecV1', UnpublishEntry::class, [
                 '#/properties/entry' => $id(EntryId::class),
                 '#/properties/version' => $version,
@@ -874,6 +893,12 @@ final readonly class ProtocolSchemas
                 '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
                 '#/properties/version' => $version,
             ]),
+            self::command('variant.release.v2.json', 'ReleaseVariantCodecV2', ReleaseEntryVariant::class, [
+                '#/properties/entry' => $id(EntryId::class),
+                '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                '#/properties/variant' => ValueBinding::value(VariantKey::class),
+                '#/properties/version' => $version,
+            ], version: 2),
         ];
     }
 
@@ -1093,13 +1118,14 @@ final readonly class ProtocolSchemas
      * @param  array<string, ValueBinding>  $values
      * @param  array<string, string>  $objects  the objects besides the document
      * @param  array<string, string>  $names
+     * @param  int<1, max>  $version  the contract version the schema file and the command's #[Command] name
      */
-    private static function command(string $schema, string $codecClass, string $command, array $values, array $objects = [], array $names = []): SchemaBinding
+    private static function command(string $schema, string $codecClass, string $command, array $values, array $objects = [], array $names = [], int $version = 1): SchemaBinding
     {
         return new SchemaBinding(
             schema: $schema,
             codecClass: $codecClass,
-            version: 1,
+            version: $version,
             objects: ['#' => $command, ...$objects],
             values: $values,
             names: $names,

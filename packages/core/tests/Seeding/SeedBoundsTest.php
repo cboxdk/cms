@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Seeding;
 
 use Cbox\Cms\Contracts\Attributes\Command;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Errors\ExitCode;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
@@ -127,20 +128,21 @@ it('seeds up to exactly a hundred million entries a run', function (): void {
 
 it('generates entries with the indexes 0 to 99999999 and a seed of 0 or more', function (): void {
     $catalog = SeedTypes::of(app(TypeCatalog::class)->all(), app(TypeValidators::class), ClassificationAccess::Internal);
-    $generator = new EntryGenerator(SeedProfiles::small(), 0, $catalog->types, boundNodes(1), ClassificationAccess::Internal);
+    $generator = new EntryGenerator(SeedProfiles::small(), 0, $catalog->types, boundNodes(1), ClassificationAccess::Internal, [new Locale('en')]);
 
     expect($generator->entry(99_999_999)->entry->toString())->toBeString()
         ->and(fn (): mixed => $generator->entry(100_000_000))->toThrow(InvalidArgumentException::class, 'An entry index is 0 to 99999999, got 100000000.')
         ->and(fn (): mixed => $generator->entry(-1))->toThrow(InvalidArgumentException::class, 'An entry index is 0 to 99999999, got -1.')
         ->and(fn (): EntryGenerator => new EntryGenerator(SeedProfiles::small(), 0, [], boundNodes(1), ClassificationAccess::Internal))->toThrow(InvalidArgumentException::class, 'at least one seedable type')
         ->and(fn (): EntryGenerator => new EntryGenerator(SeedProfiles::small(), 0, $catalog->types, [], ClassificationAccess::Internal))->toThrow(InvalidArgumentException::class, 'at least one node')
-        ->and(fn (): EntryGenerator => new EntryGenerator(SeedProfiles::small(), -1, $catalog->types, boundNodes(1), ClassificationAccess::Internal))->toThrow(InvalidArgumentException::class, 'a seed of 0 or more');
+        ->and(fn (): EntryGenerator => new EntryGenerator(SeedProfiles::small(), -1, $catalog->types, boundNodes(1), ClassificationAccess::Internal))->toThrow(InvalidArgumentException::class, 'a seed of 0 or more')
+        ->and(fn (): EntryGenerator => new EntryGenerator(SeedProfiles::small(), 0, $catalog->types, boundNodes(1), ClassificationAccess::Internal))->toThrow(InvalidArgumentException::class, 'has localization variants, so an entry of it needs a language, and no locale was given');
 });
 
 it('releases the share of a releasable type\'s entries the profile says, none at 0 and all at 100', function (int $percent, callable $check): void {
     $catalog = SeedTypes::of(app(TypeCatalog::class)->all(), app(TypeValidators::class), ClassificationAccess::Internal);
     $releasable = array_values(array_filter($catalog->types, static fn (SeedableType $type): bool => $type->releasable));
-    $generator = new EntryGenerator(profileWith(releasedPercent: $percent), 5, $releasable, boundNodes(2), ClassificationAccess::Internal);
+    $generator = new EntryGenerator(profileWith(releasedPercent: $percent), 5, $releasable, boundNodes(2), ClassificationAccess::Internal, [new Locale('en')]);
     $released = 0;
 
     for ($index = 0; $index < 1000; $index++) {

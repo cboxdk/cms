@@ -114,7 +114,7 @@ final readonly class SeedChunks implements ChunkedAction
      */
     public function command(int $chunk): SeedEntries
     {
-        $generator = new EntryGenerator($this->request->profile, $this->request->seed, $this->scope->catalog->types, $this->scope->nodes, $this->scope->access->classificationAccess);
+        $generator = new EntryGenerator($this->request->profile, $this->request->seed, $this->scope->catalog->types, $this->scope->nodes, $this->scope->access->classificationAccess, $this->scope->locales);
         $first = $this->request->firstOf($chunk);
         $entries = [];
 

@@ -4,7 +4,9 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Entries;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Envelope\CorrelationId;
 use Cbox\Cms\Contracts\Envelope\Envelope;
 use Cbox\Cms\Contracts\Envelope\IssuerKind as EnvelopeIssuer;
@@ -34,16 +36,25 @@ use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Validation\TypeValidator;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Actions\VariantReleasePlanner;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
+use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
 use Cbox\Cms\Core\Pipeline\Actions\CommandPipeline;
 use Cbox\Cms\Core\Pipeline\Actions\HookRunner;
+use Cbox\Cms\Core\Pipeline\Domain\CommandAuthorizer;
 use Cbox\Cms\Core\Pipeline\Domain\CommitOutcome;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\ActionBinding;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\CommandCall;
@@ -74,7 +85,8 @@ use Cbox\Cms\Testkit\Validation\FakeTypeValidators;
 use LogicException;
 
 /**
- * The entry actions, entry.create, entry.revise and variant.release, in the command pipeline with
+ * The entry actions, entry.create, entry.revise and variant.release, each in version 1 and in
+ * version 2, in the command pipeline with
  * the fakes of its ports and of the contracts it reads (GUARDRAILS 9): an active editor, the test
  * type NoteType in the catalog and its validator, beside any other types a test adds, the entries
  * and nodes of a FakeEntryReader, which knows the node HOME at version 1, the revisions of a
@@ -102,6 +114,9 @@ final class EntryActionWorld
 
     /** The hooks the pipeline runs: none unless a test adds some. */
     public readonly FakeCommandHooks $hooks;
+
+    /** The authorizer: the fake that allows everything, unless a test gives one that decides from grants. */
+    public ?CommandAuthorizer $authorizer = null;
 
     public IssuerKind $credential = IssuerKind::Service;
 
@@ -194,6 +209,46 @@ final class EntryActionWorld
         return $this->run(new ReleaseVariant(self::entry(), new RevisionNumber($revision), new AggregateVersion($version)));
     }
 
+    /**
+     * entry.create version 2: the shared variant and a language's variant per locale.
+     *
+     * @param  array<string, FieldValues>  $locales  each language's fields by locale
+     */
+    public function createLocalized(FieldValues $shared, array $locales, ?TypeId $type = null, ?NodeId $home = null): WriteResult
+    {
+        $languages = [];
+
+        foreach ($locales as $locale => $fields) {
+            $languages[] = new LocaleFields(new Locale($locale), $fields);
+        }
+
+        return $this->run(new CreateLocalizedEntry(self::entry(), $type ?? self::type(), $home ?? self::home(), $shared, $languages));
+    }
+
+    /**
+     * entry.revise version 2: each variant at the version the caller saw with its fields.
+     *
+     * @param  array<string, array{int, FieldValues}>  $variants  by variant key: the version and the fields
+     */
+    public function reviseVariants(array $variants): WriteResult
+    {
+        $revisions = [];
+
+        foreach ($variants as $variant => [$version, $fields]) {
+            $revisions[] = new VariantRevision(VariantKey::fromString($variant), new AggregateVersion($version), $fields);
+        }
+
+        return $this->run(new ReviseVariants(self::entry(), $revisions));
+    }
+
+    /**
+     * variant.release version 2 of the variant.
+     */
+    public function releaseVariant(string $variant, int $version, int $revision): WriteResult
+    {
+        return $this->run(new ReleaseEntryVariant(self::entry(), VariantKey::fromString($variant), new RevisionNumber($revision), new AggregateVersion($version)));
+    }
+
     public function run(Command $command): WriteResult
     {
         $clock = new FakeClock;
@@ -206,9 +261,12 @@ final class EntryActionWorld
                 CreateEntry::class => $this->binding('entry.create', new CreateEntryAction($this->entries, $types)),
                 ReviseEntry::class => $this->binding('entry.revise', new ReviseEntryAction($this->entries, $types)),
                 ReleaseVariant::class => $this->binding('variant.release', new ReleaseVariantAction($this->entries, $types, new VariantReleasePlanner)),
+                CreateLocalizedEntry::class => $this->binding('entry.create', new CreateLocalizedEntryAction($this->entries, $types), 2),
+                ReviseVariants::class => $this->binding('entry.revise', new ReviseVariantsAction($this->entries, $types), 2),
+                ReleaseEntryVariant::class => $this->binding('variant.release', new ReleaseEntryVariantAction($this->entries, $types, new VariantReleasePlanner), 2),
             ]),
             $this->identity,
-            new FakeCommandAuthorizer,
+            $this->authorizer ?? new FakeCommandAuthorizer,
             $types,
             new FakeFieldValidation(new FakeTypeValidators(new NoteType, ...$this->validators)),
             $this->revisions,
@@ -240,14 +298,14 @@ final class EntryActionWorld
     }
 
     /**
-     * The binding of a command, version 1, as the registry gives it: it takes any write action.
+     * The binding of a command's version, as the registry gives it: it takes any write action.
      */
-    private function binding(string $command, object $action): ActionBinding
+    private function binding(string $command, object $action, int $version = 1): ActionBinding
     {
         if (! $action instanceof WriteAction) {
             throw new LogicException(sprintf('%s is not a write action.', $action::class));
         }
 
-        return new ActionBinding(new CommandName($command), 1, $action);
+        return new ActionBinding(new CommandName($command), $version, $action);
     }
 }

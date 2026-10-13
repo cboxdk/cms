@@ -54,6 +54,16 @@ final class SurfaceContractTest extends TestCase
     ];
 
     /**
+     * The commands exposed in more than one version, each with its versions (B2 point 2): the
+     * entry commands of version 2 write an entry's shared variant and its languages.
+     */
+    private const array VERSIONS = [
+        'entry.create' => [1, 2],
+        'entry.revise' => [1, 2],
+        'variant.release' => [1, 2],
+    ];
+
+    /**
      * The kernel's commands exposed on some surfaces, by name, with those surfaces (B1 point 4):
      * actor.activate, grant.assign, grant.revoke, role.create and role.set_permissions on every
      * surface but MCP, and actor.register on the CLI alone.
@@ -133,8 +143,10 @@ final class SurfaceContractTest extends TestCase
         ksort($commands);
 
         foreach ($commands as $command => $surfaces) {
-            foreach ($surfaces as $surface) {
-                $expected[] = sprintf('%s v1 on %s', $command, $surface);
+            foreach (self::VERSIONS[$command] ?? [1] as $version) {
+                foreach ($surfaces as $surface) {
+                    $expected[] = sprintf('%s v%d on %s', $command, $version, $surface);
+                }
             }
         }
 

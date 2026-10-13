@@ -19,13 +19,19 @@ use Cbox\Cms\Core\Access\Domain\Commands\RevokeGrant;
 use Cbox\Cms\Core\Access\Domain\Commands\SetRolePermissions;
 use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
+use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
 use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
+use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
+use Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Identity\Actions\ActivateActorAction;
 use Cbox\Cms\Core\Identity\Actions\DeactivateActorAction;
@@ -159,8 +165,10 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'actor.deactivate@1 '.DeactivateActor::class,
             'actor.register@1 '.RegisterActor::class,
             'entry.create@1 '.CreateEntry::class,
+            'entry.create@2 '.CreateLocalizedEntry::class,
             'entry.publish@1 '.PublishEntry::class,
             'entry.revise@1 '.ReviseEntry::class,
+            'entry.revise@2 '.ReviseVariants::class,
             'entry.unpublish@1 '.UnpublishEntry::class,
             'grant.assign@1 '.AssignGrant::class,
             'grant.revoke@1 '.RevokeGrant::class,
@@ -180,6 +188,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'site.register@1 '.RegisterSite::class,
             'site.remove_locale@1 '.RemoveSiteLocale::class,
             'variant.release@1 '.ReleaseVariant::class,
+            'variant.release@2 '.ReleaseEntryVariant::class,
         ])
         ->and(array_map(static fn (ActionEntry $entry): string => $entry->command->value.'@'.$entry->commandVersion.' '.$entry->class.' '.$entry->kind->value, $registry->actions))
         ->toBe([
@@ -191,10 +200,12 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'actor.me@1 '.WhoAmIAction::class.' query',
             'actor.register@1 '.RegisterActorAction::class.' write',
             'entry.create@1 '.CreateEntryAction::class.' write',
+            'entry.create@2 '.CreateLocalizedEntryAction::class.' write',
             'entry.get@1 '.GetEntryAction::class.' query',
             'entry.list@1 '.ListEntriesAction::class.' query',
             'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
+            'entry.revise@2 '.ReviseVariantsAction::class.' write',
             'entry.unpublish@1 '.UnpublishEntryAction::class.' write',
             'grant.assign@1 '.AssignGrantAction::class.' write',
             'grant.list@1 '.ListGrantsAction::class.' query',
@@ -220,6 +231,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'type.describe@1 '.DescribeTypeAction::class.' query',
             'type.list@1 '.ListTypesAction::class.' query',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
+            'variant.release@2 '.ReleaseEntryVariantAction::class.' write',
         ])
         ->and($registry->actionFor(DeactivateActor::class)?->surfaces)->toBe([])
         ->and($registry->actionFor(ActivateActor::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia, Surface::Cli])
@@ -235,7 +247,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([37, 0, 26, 0, 15, 31, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([40, 0, 29, 0, 15, 34, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

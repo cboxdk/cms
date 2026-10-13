@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Action;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Pipeline\Aggregates;
 use Cbox\Cms\Contracts\Pipeline\Command;
@@ -25,11 +26,12 @@ use Override;
 
 /**
  * seed.entries (GUARDRAILS 4.3): one composed plan for the chunk, with the mutations of each entry
- * that does not exist yet as entry.create and variant.release plan them (PRD 5.4, 5.6, 6.4): the
- * entry, its first revision, the head moved to it, and, for an entry the seeder releases, the
- * release of that revision in the same changeset, which the kernel validates at the release stage
- * as the plan holds it. The plan has four sub-plans, one per step, each with that step of every
- * entry, so an entry's steps keep their order and the commit writes each step of the whole chunk
+ * that does not exist yet as entry.create and variant.release plan them (PRD 5.4, 5.6, 6.4, 10.1):
+ * the entry, the first revision of its shared variant and of each language's variant, each head
+ * moved to its revision, and, for an entry the seeder releases, the release of each of those
+ * revisions in the same changeset, which the kernel validates at the release stage as the plan
+ * holds it. The plan has four sub-plans, one per step, each with that step of every entry and
+ * variant, so an entry's steps keep their order and the commit writes each step of the whole chunk
  * at once (BatchMutationWriter). An entry of the chunk that exists is left out. It reads the chunk
  * in two statements through the SeedReader, whatever its size.
  *
@@ -56,16 +58,21 @@ final readonly class SeedEntriesAction implements WriteAction
         }
 
         $absent = [];
+        $languages = [];
         $homes = [];
 
         foreach ($command->entries as $entry) {
             if (! isset($existing[$entry->entry->toString()])) {
                 $absent[] = $entry->entry;
                 $homes[$entry->home->toString()] = $entry->home;
+
+                foreach ($entry->languages as $language) {
+                    $languages[] = new VariantRef($entry->entry, $language->variant());
+                }
             }
         }
 
-        return new SeedEntriesAggregates($absent, $homes === [] ? [] : $this->reader->nodes(array_values($homes)));
+        return new SeedEntriesAggregates($absent, $homes === [] ? [] : $this->reader->nodes(array_values($homes)), $languages);
     }
 
     /**
@@ -88,11 +95,19 @@ final readonly class SeedEntriesAction implements WriteAction
             }
 
             $created[] = new EntryCreated($entry->entry, $entry->type, $entry->home);
-            $revisions[] = new RevisionCreated($entry->entry, $entry->type, $shared, $first, $entry->fields);
-            $heads[] = new HeadMoved($entry->entry, $shared, null, $first);
+            $variants = [[$shared, $entry->fields]];
 
-            if ($entry->release) {
-                $releases[] = new VariantReleased($entry->entry, $entry->type, $shared, $first);
+            foreach ($entry->languages as $language) {
+                $variants[] = [$language->variant(), $language->fields];
+            }
+
+            foreach ($variants as [$variant, $fields]) {
+                $revisions[] = new RevisionCreated($entry->entry, $entry->type, $variant, $first, $fields);
+                $heads[] = new HeadMoved($entry->entry, $variant, null, $first);
+
+                if ($entry->release) {
+                    $releases[] = new VariantReleased($entry->entry, $entry->type, $variant, $first);
+                }
             }
         }
 

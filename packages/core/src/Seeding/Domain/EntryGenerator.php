@@ -5,10 +5,13 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Seeding\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\Uuid7;
+use Cbox\Cms\Contracts\Validation\TypeRules;
+use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedableType;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeededEntry;
 use InvalidArgumentException;
@@ -26,7 +29,9 @@ use Random\Randomizer;
  * bits come from the entry's randomizer, so ids are unique, rise with n and are the same in every
  * run. Its type follows the profile's type skew over the types (sorted by name), its home node the
  * node skew over the nodes (sorted by id), its fields the FieldValueGenerator, and an entry of a
- * releasable type is released in releasedPercent of the cases.
+ * releasable type is released in releasedPercent of the cases. An entry of a type with localization
+ * variants gets a variant in each of the locales given, in their order, its fields from the type's
+ * rules for a language's variant (PRD 10.1); such a type needs at least one locale.
  */
 #[Internal]
 final readonly class EntryGenerator
@@ -42,8 +47,9 @@ final readonly class EntryGenerator
     /**
      * @param  list<SeedableType>  $types
      * @param  list<NodeId>  $nodes
+     * @param  list<Locale>  $locales  the languages of an entry of a type with localization variants
      *
-     * @throws InvalidArgumentException for no types, no nodes or a negative seed
+     * @throws InvalidArgumentException for no types, no nodes, a negative seed, or a type with localization variants without a locale
      */
     public function __construct(
         private SeedProfile $profile,
@@ -51,9 +57,16 @@ final readonly class EntryGenerator
         private array $types,
         private array $nodes,
         private ClassificationAccess $access,
+        private array $locales = [],
     ) {
         if ($types === [] || $nodes === [] || $seed < 0) {
             throw new InvalidArgumentException('An entry generator needs a seed of 0 or more, at least one seedable type and at least one node.');
+        }
+
+        foreach ($types as $type) {
+            if ($type->languageRules instanceof TypeRules && $locales === []) {
+                throw new InvalidArgumentException(sprintf('The type %s has localization variants, so an entry of it needs a language, and no locale was given.', $type->definition->name->value));
+            }
         }
 
         $this->typeMix = new ZipfDistribution(count($types), $profile->typeSkew);
@@ -73,7 +86,15 @@ final readonly class EntryGenerator
         $type = $this->types[$this->typeMix->pick($random)];
         $home = $this->nodes[$this->nodeSpread->pick($random)];
         $release = $type->releasable && $random->getInt(1, 100) <= $this->profile->releasedPercent;
+        $shared = $this->fields->fields($type, $this->access, $random);
+        $languages = [];
 
-        return new SeededEntry($id, $type->definition->id, $home, $this->fields->fields($type, $this->access, $random), $release);
+        if ($type->languageRules instanceof TypeRules) {
+            foreach ($this->locales as $locale) {
+                $languages[] = new LocaleFields($locale, $this->fields->fields($type, $this->access, $random, $type->languageRules));
+            }
+        }
+
+        return new SeededEntry($id, $type->definition->id, $home, $shared, $release, $languages);
     }
 }

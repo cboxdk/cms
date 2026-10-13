@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding\Fakes;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -13,9 +14,10 @@ use Override;
 
 /**
  * The SeedTargets of the seeder's action tests: nodes with their paths and kinds, of which it gives
- * those the context's regions reach and that are not mounts, sorted by id, and entries with the path
- * of their home node, of which it gives those the context's regions reach, as
- * TransactionalSeedTargets does. SeedTargetsBehaviour holds the two to each other. It counts the
+ * those the context's regions reach and that are not mounts, sorted by id, sites as the path of
+ * their root node with their locales, of which it gives the locales of those the context's regions
+ * reach, sorted and each once, and entries with the path of their home node, of which it gives those the context's
+ * regions reach, as TransactionalSeedTargets does. SeedTargetsBehaviour holds the two to each other. It counts the
  * reads of entries.
  */
 final class FakeSeedTargets implements SeedTargets
@@ -27,6 +29,19 @@ final class FakeSeedTargets implements SeedTargets
 
     /** @var array<string, NodePath> the path of each entry's home by entry id */
     private array $entries = [];
+
+    /** @var list<array{NodePath, list<Locale>}> the path of each site's root node with the site's locales */
+    private array $sites = [];
+
+    /**
+     * A site by the path of its root node, with its locales.
+     */
+    public function withSite(NodePath $root, Locale ...$locales): self
+    {
+        $this->sites[] = [$root, array_values($locales)];
+
+        return $this;
+    }
 
     public function withNode(NodeId $node, NodePath $path, string $kind = 'section'): self
     {
@@ -52,6 +67,24 @@ final class FakeSeedTargets implements SeedTargets
 
             return $home instanceof NodePath && $access->reaches($home);
         }));
+    }
+
+    #[Override]
+    public function locales(AccessContext $access): array
+    {
+        $tags = [];
+
+        foreach ($this->sites as [$root, $locales]) {
+            if ($access->reaches($root)) {
+                foreach ($locales as $locale) {
+                    $tags[$locale->value] = $locale;
+                }
+            }
+        }
+
+        ksort($tags, SORT_STRING);
+
+        return array_values($tags);
     }
 
     #[Override]

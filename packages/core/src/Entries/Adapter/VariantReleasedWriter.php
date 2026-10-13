@@ -5,14 +5,19 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Entries\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
+use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Plans\Mutation;
 use Cbox\Cms\Contracts\Plans\Mutations\VariantReleased;
+use Cbox\Cms\Contracts\Schema\Localization;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
+use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantFields;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased as VariantReleasedEvent;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleasedV1;
+use Cbox\Cms\Core\Entries\Domain\LocaleRow;
 use Cbox\Cms\Core\Pipeline\Domain\BatchMutationWriter;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\MutationContext;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\PendingMutation;
@@ -39,7 +44,14 @@ use UnexpectedValueException;
  * 3. The release in `release_log`: the published revision, the time it took effect, which is the
  *    changeset's, and the changeset.
  * 4. The type table's released row from the revision's fields, through TypeRows, with the draft row
- *    kept only where the pending draft differs.
+ *    kept only where the pending draft differs. In a type with localization variants a language's
+ *    released row holds the language's published content and the shared variant's, and exists
+ *    while both are released (PRD 10.1, 11.6): after the heads moved, the writer reads the
+ *    published content of the shared head and of every released language of each entry of the run
+ *    (VariantPayloads, one statement each) and writes the row of each released language whose
+ *    shared variant is released (LocaleRow), so a release of the shared variant writes the rows of
+ *    the languages released before it, and a release of a language before the shared one writes no
+ *    row yet.
  *
  * It returns variant.released. Every statement is by key, so a release costs the same however many
  * revisions the variant has, and a run of releases costs one statement per step (GUARDRAILS 4.1). It runs as the app role under the call's actor
@@ -215,12 +227,53 @@ final readonly class VariantReleasedWriter implements BatchMutationWriter
 
         $db->table('release_log')->insert($log);
         $typeRows = new TypeRows($db);
+        $payloads = new VariantPayloads($db);
 
         foreach ($rows as $type => $variants) {
-            $typeRows->releaseAll($types[$type], $variants);
+            $released = $this->localized($types[$type], $variants, $payloads);
+
+            if ($released !== []) {
+                $typeRows->releaseAll($types[$type], $released);
+            }
         }
 
         return $events;
+    }
+
+    /**
+     * The rows to release: the variants as they are for a type whose table has a row per variant,
+     * and for a type with localization variants the row of each released language of the run's
+     * entries whose shared variant is released, merged from the published content of both.
+     *
+     * @param  non-empty-list<VariantFields>  $variants
+     * @return list<VariantFields>
+     */
+    private function localized(TypeDefinition $type, array $variants, VariantPayloads $payloads): array
+    {
+        if ($type->capabilities->localization !== Localization::Variants) {
+            return $variants;
+        }
+
+        $entries = array_values(array_unique(array_map(static fn (VariantFields $variant): string => $variant->entry->toString(), $variants)));
+        $released = $payloads->released($type, $entries);
+        $rows = [];
+
+        foreach ($variants as $variant) {
+            $entry = $variant->entry->toString();
+            $shared = $released[$entry][VariantKey::SHARED] ?? null;
+
+            if (! $shared instanceof FieldValues) {
+                continue;
+            }
+
+            foreach ($released[$entry] as $key => $fields) {
+                if ($key !== VariantKey::SHARED && ! isset($rows[$entry.' '.$key])) {
+                    $rows[$entry.' '.$key] = new VariantFields($variant->entry, VariantKey::fromString($key), LocaleRow::of($type, $shared, $fields));
+                }
+            }
+        }
+
+        return array_values($rows);
     }
 
     /**

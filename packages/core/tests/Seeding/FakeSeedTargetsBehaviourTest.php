@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Seeding;
 
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Identity\NodePath;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -32,6 +33,8 @@ final class FakeSeedTargetsBehaviourTest extends TestCase
             ->withNode(NodeId::fromString(self::OUTSIDE), new NodePath($this->label(self::OUTSIDE)), 'site')
             ->withNode(NodeId::fromString(self::ROOT), new NodePath($root), 'site')
             ->withNode(NodeId::fromString(self::SECOND), new NodePath($root.'.'.$this->label(self::SECOND)))
+            ->withSite(new NodePath($root), new Locale('en'), new Locale('da'))
+            ->withSite(new NodePath($this->label(self::OUTSIDE)), new Locale('fr'), new Locale('en'))
             ->withEntry(EntryId::fromString(self::IN_DEEP), new NodePath($root.'.'.$this->label(self::SECOND).'.'.$this->label(self::DEEP)))
             ->withEntry(EntryId::fromString(self::IN_FIRST), new NodePath($root.'.'.$this->label(self::FIRST)))
             ->withEntry(EntryId::fromString(self::IN_OUTSIDE), new NodePath($this->label(self::OUTSIDE)));

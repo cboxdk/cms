@@ -28,6 +28,7 @@ use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Presence;
 use Cbox\Cms\Contracts\Validation\RuleName;
 use Cbox\Cms\Contracts\Validation\RuleValues;
+use Cbox\Cms\Contracts\Validation\TypeRules;
 use Cbox\Cms\Core\Seeding\Domain\Dto\SeedableType;
 use DateInterval;
 use DateTimeImmutable;
@@ -86,12 +87,17 @@ final readonly class FieldValueGenerator
         return $field->presence !== Presence::Optional;
     }
 
-    public function fields(SeedableType $type, ClassificationAccess $access, Randomizer $random): FieldValues
+    /**
+     * The fields of a variant of an entry of the type: those of its shared variant by its rules, or
+     * those of a language's variant by the rules given.
+     */
+    public function fields(SeedableType $type, ClassificationAccess $access, Randomizer $random, ?TypeRules $rules = null): FieldValues
     {
-        $own = $this->top($type, null, $type->rules->fields, $access, $random);
+        $rules ??= $type->rules;
+        $own = $this->top($type, null, $rules->fields, $access, $random);
         $extensions = [];
 
-        foreach ($type->rules->extensions as $extension) {
+        foreach ($rules->extensions as $extension) {
             $fields = $this->top($type, $extension->namespace, $extension->fields, $access, $random);
 
             if (! $fields->isEmpty()) {

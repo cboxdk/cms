@@ -32,7 +32,9 @@ use Cbox\Cms\Core\Seeding\Domain\SeedTypes;
  * 1. The service actor cbox-cms.seeding.service_actor names must exist, be of class service and be
  *    active; its access context is computed from its grants, as for any caller.
  * 2. The seedable types are the catalog's types whose required fields the actor may write
- *    (SeedTypes), and the nodes are those its regions reach (SeedTargets); a run needs both.
+ *    (SeedTypes), the nodes are those its regions reach and the locales those of the sites it
+ *    reaches (SeedTargets), in which the languages of an entry of a type with localization variants
+ *    are seeded; a run needs types and nodes.
  * 3. The chunks run as an operation (SeedChunks) through the OperationRunner, keyed by the profile,
  *    the seed and the entries: a run that stopped resumes at its first chunk that did not complete,
  *    and a completed run seeds nothing again.
@@ -77,7 +79,8 @@ final readonly class SeedDataset
     {
         $actor = $this->actor();
         $access = $this->contexts->for(new ActorPrincipal($actor, [], IssuerKind::Service, IssuerKind::Service->maximumCeiling()));
-        $catalog = SeedTypes::of($this->types->all(), $this->validators, $access->classificationAccess);
+        $locales = $this->targets->locales($access);
+        $catalog = SeedTypes::of($this->types->all(), $this->validators, $access->classificationAccess, $locales !== []);
 
         if ($catalog->types === []) {
             throw SeedRefused::noTypes($catalog->skipped);
@@ -89,7 +92,7 @@ final readonly class SeedDataset
             throw SeedRefused::noNodes($actor);
         }
 
-        return new SeedScope($actor, $access, $catalog, $nodes);
+        return new SeedScope($actor, $access, $catalog, $nodes, $locales);
     }
 
     private function actor(): ActorId
