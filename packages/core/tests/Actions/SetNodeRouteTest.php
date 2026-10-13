@@ -19,8 +19,8 @@ use ReflectionClass;
  * invariant 18): a set_route reads the node at its version, the site, the node that holds the route
  * and the route the node has already, and plans the route. It is unauthorized for a node outside
  * the actor's regions, node_route_taken for a route another node holds, validation_failed for an
- * archived node, a mount, a site that does not exist, a language the site does not publish in, a
- * node outside the site's tree and a node that has a route there already, version_conflict for a
+ * archived node, a site that does not exist, a language the site does not publish in, a node
+ * outside the site's tree and a node that has a route there already, version_conflict for a
  * node at another version and for a route claimed before the commit, and
  * agent_visibility_forbidden for an agent, because a route makes the node public.
  */
@@ -76,18 +76,28 @@ it('refuses a node that has a route on the site in the language already', functi
         ->and($world->committer->pending)->toBe([]);
 });
 
-it('refuses an archived node and a mount', function (string $node, string $message): void {
+it('refuses an archived node', function (): void {
     $world = new NodeActionWorld;
 
-    $result = $world->setRoute($node);
+    $result = $world->setRoute(NodeActionWorld::ARCHIVED);
 
     expect(NodeActionWorld::paths($result))->toBe(['validation_failed node'])
-        ->and($result->errors[0]->message)->toContain($message)
+        ->and($result->errors[0]->message)->toContain('is archived')
         ->and($world->committer->pending)->toBe([]);
-})->with([
-    [NodeActionWorld::ARCHIVED, 'is archived'],
-    [NodeActionWorld::MOUNT, 'is a mount'],
-]);
+});
+
+it('plans the route of a mount, which is how the mount is reached on its site (PRD 5.9)', function (): void {
+    $world = new NodeActionWorld;
+
+    $result = $world->setRoute(NodeActionWorld::MOUNT, route: '/arkiv');
+    $mutations = $world->committer->pending[0]->plan->mutations();
+
+    expect(NodeActionWorld::paths($result))->toBe([])
+        ->and($result->outcome())->toBe(Outcome::Committed)
+        ->and($mutations)->toHaveCount(1)
+        ->and($mutations[0] ?? null)->toBeInstanceOf(NodeRouteSet::class)
+        ->and($mutations[0] instanceof NodeRouteSet ? $mutations[0]->node->toString() : null)->toBe(NodeActionWorld::MOUNT);
+});
 
 it('refuses a site the installation does not have, a language it does not publish in and a node outside its tree', function (): void {
     $world = new NodeActionWorld;

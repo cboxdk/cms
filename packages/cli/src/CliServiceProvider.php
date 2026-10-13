@@ -7,6 +7,7 @@ namespace Cbox\Cms\Cli;
 use Cbox\Cms\Cli\Console\AccessBootstrapCommand;
 use Cbox\Cms\Cli\Console\ActionsCommand;
 use Cbox\Cms\Cli\Console\BuildCommand;
+use Cbox\Cms\Cli\Console\CredentialIssueCommand;
 use Cbox\Cms\Cli\Console\DoctorCommand;
 use Cbox\Cms\Cli\Console\ExplainCommand;
 use Cbox\Cms\Cli\Console\HooksCommand;
@@ -21,6 +22,7 @@ use Cbox\Cms\Cli\Console\ReleaseParkedCommand;
 use Cbox\Cms\Cli\Console\RunCommand;
 use Cbox\Cms\Cli\Console\RunEventsCommand;
 use Cbox\Cms\Cli\Console\SeedScaleCommand;
+use Cbox\Cms\Cli\Console\ServiceCreateCommand;
 use Cbox\Cms\Cli\Console\SitesSyncCommand;
 use Cbox\Cms\Cli\Domain\CliActions;
 use Cbox\Cms\Contracts\Attributes\Internal;
@@ -59,6 +61,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
                 AccessBootstrapCommand::class,
                 ActionsCommand::class,
                 BuildCommand::class,
+                CredentialIssueCommand::class,
                 DoctorCommand::class,
                 ExplainCommand::class,
                 HooksCommand::class,
@@ -73,6 +76,7 @@ final class CliServiceProvider extends ServiceProvider implements DeclaresScanRo
                 RunCommand::class,
                 RunEventsCommand::class,
                 SeedScaleCommand::class,
+                ServiceCreateCommand::class,
                 SitesSyncCommand::class,
             ]);
         }

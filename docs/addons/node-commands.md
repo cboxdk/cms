@@ -177,6 +177,8 @@ The route is an aggregate of its own, `node_route:<site>:<locale>:<route>`, whic
 
 A node that has a route on the site in that language already is `validation_failed`: moving a route changes URLs that are out there, which needs the redirects of PRD 5.9, and those come with the redirect manager. Until then the kernel refuses the change instead of breaking the old URLs silently.
 
+A mount takes a route like any other node: the route is how the mount is reached on its site, and the rest of a request's path is then looked up as a slug under the mount's source (PRD 5.9), so the source's placements show on the mount's site at the mount's route, identical with the source and canonical there ([mount commands](mount-commands.md)).
+
 ## node.move
 
 `MoveNode` takes the node, the `AggregateVersion` the caller read, and the `NodeId` of the parent it goes below. The node's new path is the parent's path with the node's own label below it, and the kernel rewrites the path of every descendant in the same changeset, in one statement however many there are, so the subtree stays one and every grant that reaches the new parent reaches the moved nodes (PRD 5.10). Each descendant goes one version up with its path, so a command that read one of them before the move is `version_conflict`. Routes belong to their nodes and move with them, so a move within a site changes no URL.

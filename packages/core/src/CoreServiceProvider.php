@@ -150,6 +150,7 @@ use Cbox\Cms\Core\Maintenance\Actions\BootstrapAccess;
 use Cbox\Cms\Core\Maintenance\Actions\RunMaintenanceCommand;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresInstallationOperator;
 use Cbox\Cms\Core\Maintenance\Adapter\PostgresOperatorGenesis;
+use Cbox\Cms\Core\Maintenance\Adapter\PostgresServiceCredentialIssuer;
 use Cbox\Cms\Core\Maintenance\Adapter\TransactionalAccessBootstrapState;
 use Cbox\Cms\Core\Maintenance\Boundary\BootstrapConfig;
 use Cbox\Cms\Core\Maintenance\Domain\AccessBootstrapState;
@@ -157,6 +158,7 @@ use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapSettings;
 use Cbox\Cms\Core\Maintenance\Domain\InstallationOperator;
 use Cbox\Cms\Core\Maintenance\Domain\MaintenanceAuthorizer;
 use Cbox\Cms\Core\Maintenance\Domain\OperatorGenesis;
+use Cbox\Cms\Core\Maintenance\Domain\ServiceCredentialIssuer;
 use Cbox\Cms\Core\Operations\Adapter\PackageOperationRunner;
 use Cbox\Cms\Core\Operations\Domain\OperationRunner;
 use Cbox\Cms\Core\PanelThemes\Adapter\FileThemeSources;
@@ -777,6 +779,15 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
             static fn (Application $app): OperatorGenesis => new PostgresOperatorGenesis(
                 $app->make(ConnectionResolverInterface::class),
                 $app->make(Clock::class),
+                self::ownerConnection($app->make(Repository::class)),
+            ),
+        );
+        $this->app->bind(
+            ServiceCredentialIssuer::class,
+            static fn (Application $app): ServiceCredentialIssuer => new PostgresServiceCredentialIssuer(
+                $app->make(ConnectionResolverInterface::class),
+                $app->make(Clock::class),
+                $app->make(IdGenerator::class),
                 self::ownerConnection($app->make(Repository::class)),
             ),
         );

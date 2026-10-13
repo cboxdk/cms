@@ -18,7 +18,6 @@ use Cbox\Cms\Contracts\Plans\Mutations\NodeRouteSet;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
-use Cbox\Cms\Core\Routing\Domain\NodeKind;
 use Cbox\Cms\Core\Routing\Domain\RequestPath;
 use Cbox\Cms\Core\Structure\Domain\Commands\SetNodeRoute;
 use Cbox\Cms\Core\Structure\Domain\Dto\SetNodeRouteAggregates;
@@ -38,10 +37,13 @@ use Override;
  *
  * A node that exists but is not reached by the actor's regions is unauthorized (PRD 5.10). A route
  * another node holds is node_route_taken. A node that is archived, a site the installation does not
- * have, a language the site does not publish in, a node that is not below the site's root, a mount,
- * and a node that has a route on the site in that language already are validation_failed: a route
- * that moves needs the redirects of PRD 5.9, which come with the redirect manager, so the kernel
- * refuses a change instead of breaking the URLs that are out there.
+ * have, a language the site does not publish in, a node that is not below the site's root, and a
+ * node that has a route on the site in that language already are validation_failed: a route that
+ * moves needs the redirects of PRD 5.9, which come with the redirect manager, so the kernel refuses
+ * a change instead of breaking the URLs that are out there. A mount takes a route like any other
+ * node: the route is how the mount is reached on its site, and the rest of a request's path is
+ * then looked up as a slug under the mount's source (PRD 5.9), so the source's placements show on
+ * the mount's site at the mount's route.
  *
  * The plan's NodeRouteSet makes content public, so the pipeline refuses the command from an agent
  * or a token with agent_visibility_forbidden (invariant 18).
@@ -97,10 +99,6 @@ final readonly class SetNodeRouteAction implements RefusesCommand, WriteAction
 
         if ($node instanceof StoredNode && $node->archived()) {
             $refusals[] = $this->invalid('node', sprintf('The node %s is archived, and archived structure takes no route (PRD 6.4).', $command->node->toString()));
-        }
-
-        if ($node instanceof StoredNode && $node->kind === NodeKind::Mount) {
-            $refusals[] = $this->invalid('node', sprintf('The node %s is a mount, which is addressed through its source (PRD 5.8).', $command->node->toString()));
         }
 
         if (! $site instanceof StoredSite) {

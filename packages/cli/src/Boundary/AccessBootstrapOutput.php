@@ -6,14 +6,10 @@ namespace Cbox\Cms\Cli\Boundary;
 
 use Cbox\Cms\Cli\Domain\Dto\CliAnswer;
 use Cbox\Cms\Contracts\Attributes\Internal;
-use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Errors\ExitCode;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
-use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Maintenance\Domain\Dto\BootstrapOutcome;
-use Cbox\Cms\Core\Process\Boundary\ProcessWorkload;
-use Cbox\Cms\Core\Process\Domain\Workload;
 use Illuminate\Contracts\Config\Repository;
 use Illuminate\Contracts\Foundation\Application;
 use LogicException;
@@ -36,16 +32,7 @@ final readonly class AccessBootstrapOutput
      */
     public static function refusedProcess(Application $app, Repository $config): ?CatalogError
     {
-        $workload = ProcessWorkload::of($app);
-
-        if ($workload === Workload::Console && CoreServiceProvider::ownerConnectionConfigured($config)) {
-            return null;
-        }
-
-        return new CatalogError(ErrorCode::MaintenanceProcessRequired, null, sprintf(
-            'cms:access:bootstrap runs only in the maintenance process, a console process with the owner connection, not %s.',
-            $workload === Workload::Console ? 'a console process without the owner connection' : $workload->described(),
-        ));
+        return MaintenanceProcessRefusal::of($app, $config, 'cms:access:bootstrap');
     }
 
     public function of(BootstrapOutcome $outcome): CliAnswer

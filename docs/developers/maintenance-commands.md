@@ -1,7 +1,7 @@
 ---
 title: Maintenance commands
 weight: 30
-description: How cms:install creates the installation operator once, why its genesis is the one exception to invariant 37, how the maintenance commands run as the operator through a pipeline that allows only a named list of commands, and how cms:access:bootstrap gives the first staff member access once.
+description: How cms:install creates the installation operator once, why its genesis is the one exception to invariant 37, how the maintenance commands run as the operator through a pipeline that allows only a named list of commands, how cms:access:bootstrap gives the first staff member access once, and how cms:service:create and cms:credential:issue give an integration a service actor with a credential.
 ---
 
 # Maintenance commands
@@ -63,8 +63,8 @@ The operator holds no grant, so the kernel's own authorizer refuses it every com
 
 | Command | Added by | What it sets up |
 |---|---|---|
-| `actor.register` | block B1, task 4; run by `cms:staff:create` | a staff or service actor, pending |
-| `actor.activate` | block B1, task 4; run by `cms:staff:create` | a pending actor, active |
+| `actor.register` | block B1, task 4; run by `cms:staff:create` and `cms:service:create` | a staff or service actor, pending |
+| `actor.activate` | block B1, task 4; run by `cms:staff:create` and `cms:service:create` | a pending actor, active |
 | `site.register` | block B1, task 6 | a site with its root node and locales, from `cbox-cms.sites`, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
 | `site.add_locale` | block B2, task 65 | a locale `cbox-cms.sites` names and the site lacks, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
 | `site.remove_locale` | block B2, task 65 | a locale the site publishes in and `cbox-cms.sites` no longer names, through `cms:sites:sync` ([site commands](../addons/site-commands.md)) |
@@ -82,6 +82,26 @@ A command that is not in the list today, such as `actor.deactivate`, is added to
 ## cms:staff:create
 
 `php artisan cms:staff:create --email=<address> --name=<display name>` is the first maintenance command of the identity module: it registers a local member of staff as the operator, `actor.register`, then the credential, then `actor.activate`, and prints the actor's id. The password is read hidden from the terminal or with `--password-stdin` from standard input, never from an argument. [Local accounts](../security/local-accounts.md#creating-a-member-of-staff) describes the order, what a failure leaves and the exit codes. The command lives in the identity module, `Cbox\Cms\Identity\Cli\Console\StaffCreateCommand`, because the cli module may not use the identity module.
+
+## cms:service:create and cms:credential:issue
+
+An integration, such as an importer or a build that publishes through the API, is a service actor with a service credential (PRD 5.16): the credential is the Bearer token of the REST API and `cbox-cms.cli.credential` of `cms:run`, its issuer kind is `service`, so a write with it is recorded with the issuer kind `system` and may make content public, which an agent's may not (invariant 18), and it expires. Two maintenance commands give an installation one, from the console of the maintenance process; the panel and the API issue none, because a service credential is shown once, in the terminal of the operator who keeps it.
+
+`php artisan cms:service:create --email=<address> --name=<display name> --responsible=<staff actor>` registers the service actor as the operator (the core action `RegisterServiceActor`): `actor.register` with the class `service`, its contact email and the active member of staff responsible for it, which every service actor has, then `actor.activate`, two changesets under the unit of work `service:<actor id>`. It prints the actor's id alone on standard output and the two changesets on standard error. The actor holds no grant yet: a member of staff who may give one assigns it a role on a node through `grant.assign`, in the panel or on REST, and gives it only what they hold themselves.
+
+`php artisan cms:credential:issue <actor> [--ceiling=internal] [--days=90]` issues the credential (the core action `IssueServiceCredential` and the port `ServiceCredentialIssuer`, on Postgres `PostgresServiceCredentialIssuer`): 256 random bits with a checksum, printed once, alone on standard output, and stored only as its SHA-256 in `service_credentials`, with the actor's current credential generation, so `actor.deactivate` refuses it with everything else the actor holds, the ceiling given, one of the classification levels, and an expiry the given days from now, 1 to 365. The row is written as the owner role, whose write policy the table has alone, so the command runs only in the maintenance process. Issue a new credential before the old one expires; an issue never revokes another.
+
+Both are refused, with nothing written:
+
+| Exit | Code | When |
+|---|---|---|
+| 78 | [`maintenance_process_required`](../reference/errors.md#maintenance_process_required) | the process serves HTTP, runs queued jobs or has no owner connection |
+| 78 | [`installation_operator_missing`](../reference/errors.md#installation_operator_missing) | `cms:service:create` before `cms:install` |
+| 65 | [`validation_failed`](../reference/errors.md#validation_failed) | the responsible person is not an active member of staff; the actor of `cms:credential:issue` does not exist or is not a service actor |
+| 77 | [`actor_not_active`](../reference/errors.md#actor_not_active) | the service actor of `cms:credential:issue` is not active |
+| 64 | | a missing or invalid option, an actor that is not a UUIDv7, a ceiling that is not a level, days outside 1 to 365 |
+
+A registration whose `actor.activate` is rejected, which only a change of the actor meanwhile makes it, leaves the actor pending and names it; a rerun registers another actor, and the job that deprovisions actors pending for 24 hours comes with block B6. The two commands take well under a second, so the registration is no operation (GUARDRAILS 4.2). [A site goes live](site-goes-live.md) uses both to give a site its first editor.
 
 ## cms:staff:reset-link and cms:identity:prune
 
