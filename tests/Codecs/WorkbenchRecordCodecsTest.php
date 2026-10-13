@@ -19,6 +19,7 @@ use Workbench\App\Cms\Generated\Boundary\AppFixtureMeasurementCodecV1;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1Ext;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1ExtFixtureaddon;
+use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1FixtureByline;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1FixtureEmbargo;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1FixtureSources;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureMeasurementV1;
@@ -42,6 +43,7 @@ const MEASUREMENT_ID = '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02';
 const ARTICLE_JSON = '{"cms_id":"'.ARTICLE_ID.'",'
     .'"ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},'
     .'"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],'
+    .'"fixture_byline":[{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_role":"fixture_author"},{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_credit_note":"Photos by the desk","fixture_role":"fixture_photo"}],'
     .'"fixture_embargo":{"fixture_embargo_reason":"Waiting for the minister.","fixture_embargo_until":"2026-03-10T08:00:00.000000Z"},'
     .'"fixture_featured":true,'
     .'"fixture_published_on":"2026-03-09",'
@@ -75,6 +77,10 @@ function article(): AppFixtureArticleV1
         cmsId: EntryId::fromString(ARTICLE_ID),
         ext: new AppFixtureArticleV1Ext(new AppFixtureArticleV1ExtFixtureaddon(fixtureSlug: 'budget-report-out')),
         fixtureBody: articleBody(),
+        fixtureByline: [
+            new AppFixtureArticleV1FixtureByline(entry: EntryId::fromString(CORRECTED_ID), fixtureCreditNote: Omitted::Field, fixtureRole: 'fixture_author'),
+            new AppFixtureArticleV1FixtureByline(entry: EntryId::fromString(CORRECTED_ID), fixtureCreditNote: 'Photos by the desk', fixtureRole: 'fixture_photo'),
+        ],
         fixtureEmbargo: new AppFixtureArticleV1FixtureEmbargo(
             fixtureEmbargoReason: 'Waiting for the minister.',
             fixtureEmbargoUntil: new DateTimeImmutable('2026-03-10T09:00:00+01:00'),
@@ -187,6 +193,7 @@ it('keeps null as null and a missing optional field as Omitted', function (): vo
         cmsId: EntryId::fromString(ARTICLE_ID),
         ext: new AppFixtureArticleV1Ext(new AppFixtureArticleV1ExtFixtureaddon(fixtureSlug: null)),
         fixtureBody: null,
+        fixtureByline: null,
         fixtureEmbargo: null,
         fixtureFeatured: false,
         fixturePublishedOn: null,
@@ -197,11 +204,12 @@ it('keeps null as null and a missing optional field as Omitted', function (): vo
         fixtureTitle: null,
         fixtureTopics: null,
     );
-    $nullJson = '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":null}},"fixture_body":null,"fixture_embargo":null,"fixture_featured":false,"fixture_published_on":null,"fixture_reading_minutes":null,"fixture_related":null,"fixture_slug":null,"fixture_sources":null,"fixture_title":null,"fixture_topics":null}';
+    $nullJson = '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":null}},"fixture_body":null,"fixture_byline":null,"fixture_embargo":null,"fixture_featured":false,"fixture_published_on":null,"fixture_reading_minutes":null,"fixture_related":null,"fixture_slug":null,"fixture_sources":null,"fixture_title":null,"fixture_topics":null}';
     $missing = new AppFixtureArticleV1(
         cmsId: EntryId::fromString(ARTICLE_ID),
         ext: new AppFixtureArticleV1Ext(new AppFixtureArticleV1ExtFixtureaddon(fixtureSlug: Omitted::Field)),
         fixtureBody: Omitted::Field,
+        fixtureByline: Omitted::Field,
         fixtureEmbargo: Omitted::Field,
         fixtureFeatured: false,
         fixturePublishedOn: Omitted::Field,
@@ -228,12 +236,12 @@ it('leaves out every field classified above the caller\'s classification access'
 })->with([
     'public' => [
         ClassificationAccess::Public,
-        '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],"fixture_featured":true,"fixture_published_on":"2026-03-09","fixture_reading_minutes":7,"fixture_slug":"the-report","fixture_title":"Budget: the report is out","fixture_topics":["fixture_politics","fixture_science"]}',
+        '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],"fixture_byline":[{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_role":"fixture_author"},{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_credit_note":"Photos by the desk","fixture_role":"fixture_photo"}],"fixture_featured":true,"fixture_published_on":"2026-03-09","fixture_reading_minutes":7,"fixture_slug":"the-report","fixture_title":"Budget: the report is out","fixture_topics":["fixture_politics","fixture_science"]}',
         '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius"}',
     ],
     'internal' => [
         ClassificationAccess::Internal,
-        '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],"fixture_featured":true,"fixture_published_on":"2026-03-09","fixture_reading_minutes":7,"fixture_slug":"the-report","fixture_sources":[{"fixture_source_title":"The report","fixture_source_url":"https://example.org/report"},{"fixture_source_title":"An interview"}],"fixture_title":"Budget: the report is out","fixture_topics":["fixture_politics","fixture_science"]}',
+        '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],"fixture_byline":[{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_role":"fixture_author"},{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_credit_note":"Photos by the desk","fixture_role":"fixture_photo"}],"fixture_featured":true,"fixture_published_on":"2026-03-09","fixture_reading_minutes":7,"fixture_slug":"the-report","fixture_sources":[{"fixture_source_title":"The report","fixture_source_url":"https://example.org/report"},{"fixture_source_title":"An interview"}],"fixture_title":"Budget: the report is out","fixture_topics":["fixture_politics","fixture_science"]}',
         MEASUREMENT_JSON,
     ],
     'sensitive' => [ClassificationAccess::Sensitive, ARTICLE_JSON, MEASUREMENT_JSON],
@@ -253,6 +261,7 @@ it('gives the record as the caller may see it, with the fields above its access 
             cmsId: EntryId::fromString(ARTICLE_ID),
             ext: new AppFixtureArticleV1Ext(new AppFixtureArticleV1ExtFixtureaddon(fixtureSlug: Omitted::Field)),
             fixtureBody: Omitted::Field,
+            fixtureByline: Omitted::Field,
             fixtureEmbargo: Omitted::Field,
             fixtureFeatured: true,
             fixturePublishedOn: Omitted::Field,

@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\TypeTables\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
@@ -24,22 +25,26 @@ use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\CursorKey;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
 use Cbox\Cms\Contracts\TypeTables\InvalidTypeTableQuery;
+use Cbox\Cms\Contracts\TypeTables\RelationFilter;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Contracts\TypeTables\TypeTablePage;
 use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Contracts\TypeTables\TypeTableRow;
+use Cbox\Cms\Core\Entries\Domain\RelationSortKey;
 use Cbox\Cms\Core\Reads\Adapter\ConnectionQueryTransaction;
 use Cbox\Cms\Core\Reads\Domain\Dto\AuditedRead;
 use Cbox\Cms\Core\Reads\Domain\Dto\ReadAuditRecord;
 use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Reads\Domain\ReadAudit;
 use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
+use Cbox\Cms\Core\TypeTables\Domain\Dto\SortKey;
 use Cbox\Cms\Core\TypeTables\Domain\UnreadableTypeTable;
 use Illuminate\Database\ConnectionInterface;
 use Illuminate\Database\ConnectionResolverInterface;
 use Illuminate\Database\Query\Builder;
+use Illuminate\Database\Query\JoinClause;
 use Override;
 
 /**
@@ -71,6 +76,17 @@ use Override;
  * Null sorts as the greatest value, as Postgres sorts it by default, so the type table's indexes
  * on (cms_stage, cms_locale, column, cms_entry_id) serve both directions. The entry id follows the
  * direction of the last key.
+ *
+ * A relation filter (PRD 5.11) keeps the rows with a released edge in `relations` from the row's
+ * entry, in the variant that holds the relation, to the target, with the attribute filter's value
+ * as the edge's filter key. When the query is a target's reverse listing (TypeTableQuery::sortedRelation()),
+ * the page joins that relation's edges and orders and pages by their sort key and the source entry
+ * instead of the sort_by column, so it reads `relations_sorted`, or the partial index of an
+ * attribute it filters on, backwards from the cursor, which the cursor's sort key, encoded as the
+ * kernel writes it (RelationSortKey), bounds: an index scan of the page's rows, whatever
+ * the number of sources. The sort key is the sort_by field's released value, so the order and the
+ * cursor are the field's. An edge to the target that repeats one before it in the field, which a
+ * relation whose targets carry attributes allows, is left out, so each row comes once.
  */
 #[Experimental]
 final readonly class PostgresTypeTableReader implements TypeTableReader
@@ -86,6 +102,11 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
     private const string TABLE = 't';
 
     private const string NODES = 'n';
+
+    /** The alias of the edges of a reverse listing. */
+    private const string EDGES = 'r';
+
+    private const string RELATIONS = 'relations';
 
     /**
      * @param  string|null  $connection  the connection name; null for the default connection
@@ -127,11 +148,23 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
             $this->filter($builder, $filter);
         }
 
+        $sorted = $query->sortedRelation($type);
+
+        foreach ($query->relations as $relation) {
+            if ($relation === $sorted) {
+                $builder->join(self::RELATIONS.' as '.self::EDGES, fn (JoinClause $edges): JoinClause => $this->edges($edges, $type, $query->variant, $relation, self::EDGES));
+                $this->firstEdge($builder, $type, $relation);
+            } else {
+                $builder->whereExists(fn (Builder $exists): Builder => $this->edges($exists->from(self::RELATIONS.' as e')->select('e.ordinal'), $type, $query->variant, $relation, 'e'));
+            }
+        }
+
         $this->access($db, $builder, $actor, $access->regions);
-        $direction = $this->order($builder, $query->order);
+        $keys = $this->keys($type, $query->order, $sorted instanceof RelationFilter);
+        $direction = $this->order($builder, $keys);
 
         if ($query->after instanceof TypeTableCursor) {
-            $this->after($builder, $type, $query->order, $query->after, $direction);
+            $this->after($builder, $keys, $query->after, $direction, $sorted instanceof RelationFilter);
         }
 
         $rows = $builder->limit($query->limit + 1)->get()->all();
@@ -264,22 +297,107 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
     }
 
     /**
-     * Orders by the keys and then the entry id, and gives the entry id's direction.
+     * The keys of the order, each as the expression it sorts by and how a value of it is bound: the
+     * row's column, or for a reverse listing the sort key on the joined edges, which holds the
+     * column's released value as JSON.
      *
      * @param  list<ColumnOrder>  $order
+     * @return list<SortKey>
      */
-    private function order(Builder $builder, array $order): SortDirection
+    private function keys(TypeDefinition $type, array $order, bool $sorted): array
+    {
+        return array_map(fn (ColumnOrder $key): SortKey => new SortKey(
+            $sorted ? self::EDGES.'.sort_key' : self::column($key->column),
+            $key->direction,
+            $sorted ? static fn (FieldValue $value): string => RelationSortKey::of($value) ?? '' : static fn (FieldValue $value): bool|int|string => TypeTableColumns::binding($key->column, $value),
+            ! $sorted && $this->notNull($type, $key->column),
+        ), $order);
+    }
+
+    /**
+     * The entry id's expression: the row's, or the source's on the joined edges of a reverse
+     * listing, which the edges' index ends with.
+     */
+    private function entryColumn(bool $sorted): string
+    {
+        return $sorted ? self::EDGES.'.source_entry_id' : self::column('cms_entry_id');
+    }
+
+    /**
+     * Orders by the keys and then the entry id, and gives the entry id's direction.
+     *
+     * @param  list<SortKey>  $keys
+     */
+    private function order(Builder $builder, array $keys): SortDirection
     {
         $direction = SortDirection::Ascending;
 
-        foreach ($order as $key) {
-            $builder->orderBy(self::column($key->column), $key->direction->value);
+        foreach ($keys as $key) {
+            $builder->orderBy($key->expression, $key->direction->value);
             $direction = $key->direction;
         }
 
-        $builder->orderBy(self::column('cms_entry_id'), $direction->value);
+        $builder->orderBy($this->entryColumn($keys !== [] && $keys[0]->expression === self::EDGES.'.sort_key'), $direction->value);
 
         return $direction;
+    }
+
+    /**
+     * The released edges of the relation from the row's entry to the filter's target, in the
+     * variant that holds the relation (PRD 10.1), with the attribute filters' values: as the join
+     * of a reverse listing, or as the condition of an EXISTS.
+     *
+     * @template T of Builder
+     *
+     * @param  T  $edges
+     * @return T
+     */
+    private function edges(Builder $edges, TypeDefinition $type, VariantKey $variant, RelationFilter $relation, string $alias): Builder
+    {
+        $field = TypeTableQuery::fieldOf($type, $relation->column);
+        $held = $field->heldBy($variant, $type->capabilities->localization) ? $variant : VariantKey::shared();
+        if ($edges instanceof JoinClause) {
+            $edges->on($alias.'.source_entry_id', '=', self::column('cms_entry_id'));
+        } else {
+            $edges->whereColumn($alias.'.source_entry_id', '=', self::column('cms_entry_id'));
+        }
+
+        $edges->where($alias.'.variant', '=', $held->value)
+            ->where($alias.'.stage', '=', 'released')
+            ->where($alias.'.field', '=', $field->address())
+            ->where($alias.'.target_entry_id', '=', $relation->target->toString());
+
+        foreach ($relation->attributes as $attribute) {
+            $edges->where($alias.'.filter_key', '=', $attribute->text());
+        }
+
+        return $edges;
+    }
+
+    /**
+     * Leaves out the joined edge of a reverse listing when an edge before it in the field points
+     * to the same target with the same attributes, so each row comes once.
+     */
+    private function firstEdge(Builder $builder, TypeDefinition $type, RelationFilter $relation): void
+    {
+        if (TypeTableQuery::fieldOf($type, $relation->column)->relation?->meta !== true) {
+            return;
+        }
+
+        $builder->whereNotExists(function (Builder $earlier) use ($relation): void {
+            $earlier->from(self::RELATIONS.' as f')
+                ->select('f.ordinal')
+                ->whereColumn('f.source_entry_id', '=', self::EDGES.'.source_entry_id')
+                ->whereColumn('f.variant', '=', self::EDGES.'.variant')
+                ->whereColumn('f.stage', '=', self::EDGES.'.stage')
+                ->whereColumn('f.field', '=', self::EDGES.'.field')
+                ->whereColumn('f.target_entry_id', '=', self::EDGES.'.target_entry_id')
+                ->whereColumn('f.ordinal', '<', self::EDGES.'.ordinal');
+
+            foreach ($relation->attributes as $attribute) {
+                $earlier->where('f.filter_key', '=', $attribute->text());
+            }
+        });
     }
 
     /**
@@ -288,38 +406,39 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
      * after it on ki, with null as the greatest value. When the first key's value bounds the rest,
      * the condition starts with that bound, so the index scan starts at the cursor.
      *
-     * @param  list<ColumnOrder>  $order
+     * @param  list<SortKey>  $keys
      */
-    private function after(Builder $builder, TypeDefinition $type, array $order, TypeTableCursor $cursor, SortDirection $entryDirection): void
+    private function after(Builder $builder, array $keys, TypeTableCursor $cursor, SortDirection $entryDirection, bool $sorted): void
     {
-        /** @var list<array{string, SortDirection, FieldValue, bool}> $keys */
-        $keys = [];
+        /** @var list<array{SortKey, FieldValue}> $at */
+        $at = [];
 
-        foreach ($order as $index => $key) {
-            $keys[] = [$key->column, $key->direction, $cursor->keys[$index]->value, $this->notNull($type, $key->column)];
+        foreach ($keys as $index => $key) {
+            $at[] = [$key, $cursor->keys[$index]->value];
         }
 
-        if ($keys !== []) {
-            $this->bound($builder, ...$keys[0]);
+        if ($at !== []) {
+            $this->bound($builder, ...$at[0]);
         }
 
         $entry = $cursor->entry->toString();
+        $entryColumn = $this->entryColumn($sorted);
 
-        $builder->where(static function (Builder $after) use ($keys, $entry, $entryDirection): void {
-            foreach ($keys as $position => [, $direction, $value]) {
-                if ($direction === SortDirection::Ascending && $value instanceof NullValue) {
+        $builder->where(static function (Builder $after) use ($at, $entry, $entryColumn, $entryDirection): void {
+            foreach ($at as $position => [$key, $value]) {
+                if ($key->direction === SortDirection::Ascending && $value instanceof NullValue) {
                     continue;
                 }
 
-                $after->orWhere(static function (Builder $branch) use ($keys, $position): void {
-                    self::equalBefore($branch, $keys, $position);
-                    self::beyond($branch, ...$keys[$position]);
+                $after->orWhere(static function (Builder $branch) use ($at, $position): void {
+                    self::equalBefore($branch, $at, $position);
+                    self::beyond($branch, ...$at[$position]);
                 });
             }
 
-            $after->orWhere(static function (Builder $branch) use ($keys, $entry, $entryDirection): void {
-                self::equalBefore($branch, $keys, count($keys));
-                $branch->where(self::column('cms_entry_id'), $entryDirection === SortDirection::Descending ? '<' : '>', $entry);
+            $after->orWhere(static function (Builder $branch) use ($at, $entry, $entryColumn, $entryDirection): void {
+                self::equalBefore($branch, $at, count($at));
+                $branch->where($entryColumn, $entryDirection === SortDirection::Descending ? '<' : '>', $entry);
             });
         });
     }
@@ -329,35 +448,35 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
      * an OR: at or below it descending, where nulls came first; at or above it ascending on a
      * column that holds no null; and null ascending after a null.
      */
-    private function bound(Builder $builder, string $column, SortDirection $direction, FieldValue $value, bool $notNull): void
+    private function bound(Builder $builder, SortKey $key, FieldValue $value): void
     {
         if ($value instanceof NullValue) {
-            if ($direction === SortDirection::Ascending) {
-                $builder->whereNull(self::column($column));
+            if ($key->direction === SortDirection::Ascending) {
+                $builder->whereNull($key->expression);
             }
 
             return;
         }
 
-        if ($direction === SortDirection::Descending) {
-            $builder->where(self::column($column), '<=', TypeTableColumns::binding($column, $value));
-        } elseif ($notNull) {
-            $builder->where(self::column($column), '>=', TypeTableColumns::binding($column, $value));
+        if ($key->direction === SortDirection::Descending) {
+            $builder->where($key->expression, '<=', ($key->bind)($value));
+        } elseif ($key->notNull) {
+            $builder->where($key->expression, '>=', ($key->bind)($value));
         }
     }
 
     /**
      * The rows equal to the cursor on the keys before the position.
      *
-     * @param  list<array{string, SortDirection, FieldValue, bool}>  $keys
+     * @param  list<array{SortKey, FieldValue}>  $at
      */
-    private static function equalBefore(Builder $builder, array $keys, int $position): void
+    private static function equalBefore(Builder $builder, array $at, int $position): void
     {
-        foreach (array_slice($keys, 0, $position) as [$column, , $value]) {
+        foreach (array_slice($at, 0, $position) as [$key, $value]) {
             if ($value instanceof NullValue) {
-                $builder->whereNull(self::column($column));
+                $builder->whereNull($key->expression);
             } else {
-                $builder->where(self::column($column), '=', TypeTableColumns::binding($column, $value));
+                $builder->where($key->expression, '=', ($key->bind)($value));
             }
         }
     }
@@ -365,9 +484,9 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
     /**
      * The rows after the value on one key, null being the greatest value.
      */
-    private static function beyond(Builder $builder, string $column, SortDirection $direction, FieldValue $value, bool $notNull): void
+    private static function beyond(Builder $builder, SortKey $key, FieldValue $value): void
     {
-        $name = self::column($column);
+        $name = $key->expression;
 
         if ($value instanceof NullValue) {
             $builder->whereNotNull($name);
@@ -375,11 +494,11 @@ final readonly class PostgresTypeTableReader implements TypeTableReader
             return;
         }
 
-        $bound = TypeTableColumns::binding($column, $value);
+        $bound = ($key->bind)($value);
 
-        if ($direction === SortDirection::Descending) {
+        if ($key->direction === SortDirection::Descending) {
             $builder->where($name, '<', $bound);
-        } elseif ($notNull) {
+        } elseif ($key->notNull) {
             $builder->where($name, '>', $bound);
         } else {
             $builder->where(static fn (Builder $greater): Builder => $greater->where($name, '>', $bound)->orWhereNull($name));

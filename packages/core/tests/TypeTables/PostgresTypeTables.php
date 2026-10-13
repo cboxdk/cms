@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\TypeTables;
 
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Identity\AccessContext;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
@@ -14,6 +15,9 @@ use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
 use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Access\Infrastructure\TypeTableAccess;
+use Cbox\Cms\Core\Entries\Adapter\RelationRows;
+use Cbox\Cms\Core\Entries\Domain\RelationEdges;
+use Cbox\Cms\Core\Entries\Domain\RelationStage;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Core\TypeTables\Boundary\TypeTableColumns;
 use Cbox\Cms\Testkit\TypeTables\TypeTableSeed;
@@ -25,7 +29,9 @@ use Override;
  * create() makes the table of a type the migrations do not know, as the owner role, with the
  * system columns and the row level security of a generated type table (TypeTableAccess); seed()
  * writes released rows, each of the shared variant or of the locale its seed names (PRD 10.1),
- * with their nodes, owners and entries as the superuser, the fields through TypeTableColumns; and
+ * with their nodes, owners and entries as the superuser, the fields through TypeTableColumns, and
+ * the released relation edges of the rows' relation fields, with their attributes and sort keys,
+ * through the entry commands' RelationEdges and RelationRows, as a release writes them (PRD 5.11); and
  * inContext() wraps a reader so each page runs
  * in a transaction of the app role with the context's actor context set, as the query pipeline
  * runs it.
@@ -67,6 +73,7 @@ final class PostgresTypeTables
     public static function seed(TypeDefinition $type, TypeTableSeed ...$rows): void
     {
         $superuser = StorageTables::superuser();
+        $edges = [];
 
         foreach ($rows as $row) {
             $labels = explode('.', $row->home->value);
@@ -107,7 +114,21 @@ final class PostgresTypeTables
                 'cms_owner_actor' => $row->owner?->toString(),
                 ...TypeTableColumns::encode($type, $row->fields),
             ]);
+
+            foreach ($type->holds(VariantKey::shared()) && ! $row->variant()->isShared() ? [VariantKey::shared(), $row->variant()] : [$row->variant()] as $variant) {
+                $superuser->table('variant_heads')->insertOrIgnore([
+                    'entry_id' => $row->entry->toString(),
+                    'variant' => $variant->value,
+                    'schema_version' => $type->version,
+                    'release_state' => 'unreleased',
+                    'version' => 1,
+                    'created_at' => self::CREATED_AT,
+                ]);
+                $edges[] = RelationEdges::variant($type, $row->entry, $variant, RelationStage::Released, $row->fields);
+            }
         }
+
+        new RelationRows($superuser)->replace($edges);
     }
 
     /**

@@ -6,18 +6,24 @@ namespace Cbox\Cms\Core\Entries\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Fields\NamedValue;
+use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
+use Cbox\Cms\Contracts\Schema\RelationDefinition;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
+use Cbox\Cms\Contracts\TypeTables\AttributeFilter;
 use Cbox\Cms\Core\Entries\Domain\Dto\RelationEdge;
+use Cbox\Cms\Core\Entries\Domain\Dto\RelationTarget;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantEdges;
 
 /**
@@ -32,26 +38,38 @@ use Cbox\Cms\Core\Entries\Domain\Dto\VariantEdges;
  * ordinal counts the field's targets in the variant in the order the fields hold them, across the
  * items of a repeated group. A value that is not an entry's id gives no edge, because the input
  * validator refuses it before the commit.
+ *
+ * A relation whose targets carry attributes (RelationDefinition::$meta) holds a group per target,
+ * the entry under `entry` and the attributes beside it: its edge carries those attributes, and the
+ * text of its filterable attribute as its filter key (AttributeFilter::textOf()). A
+ * released edge of a top-level relation with a sort_by field carries that field's value of the
+ * same variant's fields as its sort key, which the kernel writes in the transaction of the release;
+ * a draft edge carries none.
  */
 #[Internal]
 final readonly class RelationEdges
 {
-    public const string RELATION = 'relation';
-
     /**
      * @return list<RelationEdge>
      */
-    public static function of(TypeDefinition $type, VariantKey $variant, FieldValues $values): array
+    public static function of(TypeDefinition $type, VariantKey $variant, FieldValues $values, bool $sorted = false): array
     {
-        /** @var array<string, list<EntryId>> $targets by field address, in order */
+        /** @var array<string, list<RelationTarget>> $targets by field address, in order */
         $targets = [];
+        /** @var array<string, FieldValue> $sortKeys by field address */
+        $sortKeys = [];
 
         foreach ($type->fieldsOf($variant) as $field) {
-            $map = $field->namespace instanceof FieldNamespace ? $values->extension($field->namespace) : $values->own;
-            $value = $map instanceof FieldMap ? $map->get($field->handle) : null;
+            $value = self::valueOf($field, $values);
 
             if ($value instanceof FieldValue) {
                 self::collect($field, $value, $field->address(), $targets);
+            }
+
+            $sortKey = $type->sortKeyOf($field);
+
+            if ($sorted && $sortKey instanceof FieldDefinition) {
+                $sortKeys[$field->address()] = self::valueOf($sortKey, $values) ?? new NullValue;
             }
         }
 
@@ -59,7 +77,7 @@ final readonly class RelationEdges
 
         foreach ($targets as $address => $entries) {
             foreach ($entries as $ordinal => $target) {
-                $edges[] = new RelationEdge($address, $ordinal, $target);
+                $edges[] = new RelationEdge($address, $ordinal, $target->entry, $target->meta, $target->filterKey, $sortKeys[$address] ?? null);
             }
         }
 
@@ -67,26 +85,33 @@ final readonly class RelationEdges
     }
 
     /**
-     * The edges of the variant's fields in the stage.
+     * The edges of the variant's fields in the stage, with their sort keys in the released stage.
      */
     public static function variant(TypeDefinition $type, EntryId $entry, VariantKey $variant, RelationStage $stage, FieldValues $values): VariantEdges
     {
-        return new VariantEdges($entry, $variant, $stage, self::of($type, $variant, $values));
+        return new VariantEdges($entry, $variant, $stage, self::of($type, $variant, $values, $stage === RelationStage::Released));
+    }
+
+    private static function valueOf(FieldDefinition $field, FieldValues $values): ?FieldValue
+    {
+        $map = $field->namespace instanceof FieldNamespace ? $values->extension($field->namespace) : $values->own;
+
+        return $map instanceof FieldMap ? $map->get($field->handle) : null;
     }
 
     /**
-     * @param  array<string, list<EntryId>>  $targets
+     * @param  array<string, list<RelationTarget>>  $targets
      */
     private static function collect(FieldDefinition $field, FieldValue $value, string $address, array &$targets): void
     {
-        if ($field->valueType() === self::RELATION) {
+        if ($field->isRelation()) {
             $items = $value instanceof ListValue ? $value->items : [$value];
 
             foreach ($items as $item) {
-                $entry = $item instanceof TextValue ? self::entry($item) : null;
+                $target = self::target($field, $item);
 
-                if ($entry instanceof EntryId) {
-                    $targets[$address][] = $entry;
+                if ($target instanceof RelationTarget) {
+                    $targets[$address][] = $target;
                 }
             }
 
@@ -112,6 +137,38 @@ final readonly class RelationEdges
                 }
             }
         }
+    }
+
+    /**
+     * The entry of one target and the attributes it carries: a group of `entry` and the attributes
+     * for a relation that declares them, the entry's id for another; null for a value that names
+     * no entry.
+     */
+    private static function target(FieldDefinition $field, FieldValue $item): ?RelationTarget
+    {
+        if ($field->relation?->meta !== true) {
+            $entry = $item instanceof TextValue ? self::entry($item) : null;
+
+            return $entry instanceof EntryId ? new RelationTarget($entry, null) : null;
+        }
+
+        if (! $item instanceof GroupValue) {
+            return null;
+        }
+
+        $entry = $item->fields->get(new FieldHandle(RelationDefinition::ENTRY));
+        $attributes = array_values(array_filter(
+            $item->fields->fields,
+            static fn (NamedValue $named): bool => $named->handle->value !== RelationDefinition::ENTRY,
+        ));
+
+        $id = $entry instanceof TextValue ? self::entry($entry) : null;
+        $filterable = array_find($field->relationMeta(), static fn (FieldDefinition $attribute): bool => $attribute->filterable);
+        $filtered = $filterable instanceof FieldDefinition ? $item->fields->get($filterable->handle) : null;
+
+        return $id instanceof EntryId
+            ? new RelationTarget($id, new FieldMap(...$attributes), $filtered instanceof FieldValue ? AttributeFilter::textOf($filtered) : null)
+            : null;
     }
 
     private static function entry(TextValue $value): ?EntryId

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\RelationDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
@@ -228,7 +229,14 @@ final readonly class TableChanges
 
     private static function column(FieldDescriptor $field, ColumnDescriptor $column, int $step): LockedColumn
     {
-        return new LockedColumn($column->name, $column->type, $column->notNull, $column->checks, $field->filterable || $field->sortable, $step, $column->references);
+        $indexes = array_values(array_map(static fn (FieldDescriptor $attribute): string => $attribute->handle->value, array_filter($field->relationMeta(), static fn (FieldDescriptor $attribute): bool => $attribute->filterable)));
+        sort($indexes, SORT_STRING);
+
+        // A filterable relation is filtered through the kernel's relations table (PRD 5.11), not
+        // through an index on its column.
+        $indexed = ($field->filterable && ! $field->relation instanceof RelationDescriptor) || $field->sortable;
+
+        return new LockedColumn($column->name, $column->type, $column->notNull, $column->checks, $indexed, $step, $column->references, $indexes);
     }
 
     private static function describe(LockedColumn $column): string
@@ -240,6 +248,6 @@ final readonly class TableChanges
             $column->checks === [] ? 'no checks' : 'the checks '.implode(', ', $column->checks),
             $column->indexed ? 'an index' : 'no index',
             $column->references === null ? '' : ' and a foreign key to '.$column->references,
-        );
+        ).($column->relationIndexes === [] ? '' : ', with partial indexes on the relations of the attributes '.implode(', ', $column->relationIndexes));
     }
 }

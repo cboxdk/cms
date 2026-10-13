@@ -15,6 +15,7 @@ export type TypeHandle =
 export interface TypeFields {
   'app:fixture_article': {
     fixture_body: 'rich_text';
+    fixture_byline: 'relation';
     fixture_embargo: 'group';
     fixture_featured: 'boolean';
     fixture_published_on: 'date';

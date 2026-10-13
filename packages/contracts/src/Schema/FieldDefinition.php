@@ -35,11 +35,21 @@ use Cbox\Cms\Contracts\Identity\ClassificationAccess;
  *   when it is false. A type with `localization: none` has only the shared variant, so none of its
  *   fields is translatable. `fallback` is how a translatable field falls back when the reader's
  *   language has no value for it (PRD 10.3): with its variant, or on its own.
+ * - `relation` is what a field of the core type `relation` holds beside its targets (PRD 5.11),
+ *   null for every other field: whether its targets carry attributes, so its value takes the form
+ *   of a group of the target's entry and the attributes (valueType() is `group`, and `fields` are
+ *   those nested fields), and the owner's field a filterable relation's edges are sorted by.
  */
 #[Experimental]
 final readonly class FieldDefinition
 {
     private const string FIELD_TYPE = '/\A(?:[a-z][a-z0-9]{0,19}:)?[a-z][a-z0-9]*(?:_[a-z0-9]+)*\z/';
+
+    /** The core field type of a relation (PRD 5.11). */
+    public const string RELATION = 'relation';
+
+    /** The core field type whose form a relation with attributes takes. */
+    public const string GROUP = 'group';
 
     /** @var list<FieldDefinition> sorted by handle */
     public array $fields;
@@ -49,6 +59,7 @@ final readonly class FieldDefinition
      * @param  ?FieldBase  $base  the core field type an addon's field type takes the form of; null for a core field type
      * @param  bool  $translatable  whether a language's variant holds the field, in a type with localization variants
      * @param  FieldFallback  $fallback  how a translatable field falls back; Variant for every other field
+     * @param  ?RelationDefinition  $relation  what a relation holds beside its targets; null for every other field
      */
     public function __construct(
         public ?FieldNamespace $namespace,
@@ -65,6 +76,7 @@ final readonly class FieldDefinition
         public ?FieldBase $base = null,
         public bool $translatable = false,
         public FieldFallback $fallback = FieldFallback::Variant,
+        public ?RelationDefinition $relation = null,
     ) {
         if (preg_match(self::FIELD_TYPE, $fieldType) !== 1) {
             throw InvalidTypeDefinition::fieldType($fieldType);
@@ -72,6 +84,10 @@ final readonly class FieldDefinition
 
         if (str_contains($fieldType, ':') !== $base instanceof FieldBase) {
             throw InvalidTypeDefinition::fieldBase($fieldType);
+        }
+
+        if ($relation instanceof RelationDefinition && $fieldType !== self::RELATION) {
+            throw InvalidTypeDefinition::relation($fieldType);
         }
 
         if ($agents && ClassificationAccess::Confidential->rank() < $classification->rank()) {
@@ -135,11 +151,40 @@ final readonly class FieldDefinition
 
     /**
      * The core field type whose form the field's value takes: the field type itself for a core
-     * field type, and its base for an addon's.
+     * field type, `group` for a relation whose targets carry attributes, and its base for an
+     * addon's.
      */
     public function valueType(): string
     {
+        if ($this->relation?->meta === true) {
+            return self::GROUP;
+        }
+
         return $this->base instanceof FieldBase ? $this->base->value : $this->fieldType;
+    }
+
+    /**
+     * Whether the field holds relations to entries (PRD 5.11): a field of the core type relation,
+     * with or without attributes on its targets.
+     */
+    public function isRelation(): bool
+    {
+        return $this->fieldType === self::RELATION;
+    }
+
+    /**
+     * The attributes each target of a relation carries, its nested fields but the entry; empty
+     * for a relation without attributes and for every other field.
+     *
+     * @return list<FieldDefinition>
+     */
+    public function relationMeta(): array
+    {
+        if ($this->relation?->meta !== true) {
+            return [];
+        }
+
+        return array_values(array_filter($this->fields, static fn (self $field): bool => $field->handle->value !== RelationDefinition::ENTRY));
     }
 
     /**

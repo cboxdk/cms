@@ -28,12 +28,14 @@ use Override;
 final readonly class AppFixtureArticle implements AppFixtureArticleFixtureaddonExtension, AppFixtureArticleRecord
 {
     /**
+     * @param  list<FixtureBylineItem>|null  $fixtureByline
      * @param  list<EntryId>|null  $fixtureRelated
      * @param  list<FixtureSourcesItem>|null  $fixtureSources
      * @param  list<FixtureTopicsChoice>|null  $fixtureTopics
      */
     public function __construct(
         public ?ListValue $fixtureBody,
+        public ?array $fixtureByline,
         public ?FixtureEmbargoGroup $fixtureEmbargo,
         public bool $fixtureFeatured,
         public ?DateTimeImmutable $fixturePublishedOn,
@@ -52,6 +54,7 @@ final readonly class AppFixtureArticle implements AppFixtureArticleFixtureaddonE
 
         return new self(
             fixtureBody: $fields->listOrNull('fixture_body'),
+            fixtureByline: FixtureBylineItem::fromListOrNull($fields->groupsOrNull('fixture_byline')),
             fixtureEmbargo: FixtureEmbargoGroup::fromFieldsOrNull($fields->groupOrNull('fixture_embargo')),
             fixtureFeatured: $fields->boolean('fixture_featured'),
             fixturePublishedOn: $fields->dateOrNull('fixture_published_on'),
@@ -73,6 +76,7 @@ final readonly class AppFixtureArticle implements AppFixtureArticleFixtureaddonE
         return new FieldValues(
             new FieldMap(
                 new NamedValue(new FieldHandle('fixture_body'), FieldWriter::list($this->fixtureBody)),
+                new NamedValue(new FieldHandle('fixture_byline'), FieldWriter::groups($this->fixtureByline === null ? null : FixtureBylineItem::toFieldMaps($this->fixtureByline))),
                 new NamedValue(new FieldHandle('fixture_embargo'), FieldWriter::group($this->fixtureEmbargo?->toFieldMap())),
                 new NamedValue(new FieldHandle('fixture_featured'), FieldWriter::boolean($this->fixtureFeatured)),
                 new NamedValue(new FieldHandle('fixture_published_on'), FieldWriter::date($this->fixturePublishedOn)),

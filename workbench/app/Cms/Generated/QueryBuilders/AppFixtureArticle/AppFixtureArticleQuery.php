@@ -6,14 +6,19 @@ namespace Workbench\App\Cms\Generated\QueryBuilders\AppFixtureArticle;
 
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\BooleanValue;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldValue;
+use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Contracts\TypeTables\AttributeFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\EntryRecord;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
 use Cbox\Cms\Contracts\TypeTables\RecordPage;
+use Cbox\Cms\Contracts\TypeTables\RelationFilter;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
@@ -21,6 +26,7 @@ use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Contracts\TypeTables\TypeTableRow;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleRecord;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleRecordFactory;
+use Workbench\App\Cms\Generated\Records\AppFixtureArticle\FixtureBylineFixtureRoleChoice;
 
 /**
  * The typed query builder of app:fixture_article (PRD 8.8, 11.12): filters on its filterable
@@ -43,6 +49,7 @@ final readonly class AppFixtureArticleQuery
     /**
      * @param  list<ColumnFilter>  $filters
      * @param  list<ColumnOrder>  $order
+     * @param  list<RelationFilter>  $relations
      */
     public function __construct(
         private TypeTableReader $reader,
@@ -51,6 +58,7 @@ final readonly class AppFixtureArticleQuery
         private array $order = [],
         private ?TypeTableCursor $after = null,
         private int $limit = TypeTableQuery::DEFAULT_LIMIT,
+        private array $relations = [],
     ) {}
 
     /**
@@ -59,7 +67,7 @@ final readonly class AppFixtureArticleQuery
      */
     public function where(AppFixtureArticleFilterField $field, FilterOperator $operator, FieldValue ...$values): self
     {
-        return new self($this->reader, $this->records, [...$this->filters, new ColumnFilter($field->value, $operator, ...$values)], $this->order, $this->after, $this->limit);
+        return new self($this->reader, $this->records, [...$this->filters, new ColumnFilter($field->value, $operator, ...$values)], $this->order, $this->after, $this->limit, $this->relations);
     }
 
     /**
@@ -71,11 +79,59 @@ final readonly class AppFixtureArticleQuery
     }
 
     /**
+     * Byline: Who the article credits, each an entry with the role it had.
+     *
+     * Keeps the records whose released relation points to the target, through the kernel's
+     * relations table, on an edge with the attributes given.
+     */
+    public function whereFixtureByline(EntryId $target, ?FixtureBylineFixtureRoleChoice $fixtureRole = null): self
+    {
+        $attributes = [];
+
+        if ($fixtureRole instanceof FixtureBylineFixtureRoleChoice) {
+            $attributes[] = new AttributeFilter(new FieldHandle('fixture_role'), new TextValue($fixtureRole->value));
+        }
+
+        return new self($this->reader, $this->records, $this->filters, $this->order, $this->after, $this->limit, [...$this->relations, new RelationFilter('fixture_byline', $target, ...$attributes)]);
+    }
+
+    /**
+     * Orders by fixture_published_on, the sort key the kernel writes onto the released edges of
+     * fixture_byline: after whereFixtureByline(), the newest sources of the target first, read
+     * from the index on the edges.
+     */
+    public function orderByFixtureByline(SortDirection $direction = SortDirection::Descending): self
+    {
+        return $this->orderBy(AppFixtureArticleSortField::FixturePublishedOn, $direction);
+    }
+
+    /**
+     * Related articles: The other articles the article points its readers to.
+     *
+     * Keeps the records whose released relation points to the target, through the kernel's
+     * relations table.
+     */
+    public function whereFixtureRelated(EntryId $target): self
+    {
+        return new self($this->reader, $this->records, $this->filters, $this->order, $this->after, $this->limit, [...$this->relations, new RelationFilter('fixture_related', $target)]);
+    }
+
+    /**
+     * Orders by fixture_published_on, the sort key the kernel writes onto the released edges of
+     * fixture_related: after whereFixtureRelated(), the newest sources of the target first,
+     * read from the index on the edges.
+     */
+    public function orderByFixtureRelated(SortDirection $direction = SortDirection::Descending): self
+    {
+        return $this->orderBy(AppFixtureArticleSortField::FixturePublishedOn, $direction);
+    }
+
+    /**
      * Sorts by the field after the keys before it. Null sorts as the greatest value.
      */
     public function orderBy(AppFixtureArticleSortField $field, SortDirection $direction = SortDirection::Ascending): self
     {
-        return new self($this->reader, $this->records, $this->filters, [...$this->order, new ColumnOrder($field->value, $direction)], $this->after, $this->limit);
+        return new self($this->reader, $this->records, $this->filters, [...$this->order, new ColumnOrder($field->value, $direction)], $this->after, $this->limit, $this->relations);
     }
 
     /**
@@ -83,7 +139,7 @@ final readonly class AppFixtureArticleQuery
      */
     public function after(TypeTableCursor $cursor): self
     {
-        return new self($this->reader, $this->records, $this->filters, $this->order, $cursor, $this->limit);
+        return new self($this->reader, $this->records, $this->filters, $this->order, $cursor, $this->limit, $this->relations);
     }
 
     /**
@@ -91,7 +147,7 @@ final readonly class AppFixtureArticleQuery
      */
     public function limit(int $limit): self
     {
-        return new self($this->reader, $this->records, $this->filters, $this->order, $this->after, $limit);
+        return new self($this->reader, $this->records, $this->filters, $this->order, $this->after, $limit, $this->relations);
     }
 
     /**
@@ -101,7 +157,7 @@ final readonly class AppFixtureArticleQuery
      */
     public function page(AccessContext $access): RecordPage
     {
-        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit), $access);
+        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit, $this->relations), $access);
 
         return new RecordPage(array_map(
             fn (TypeTableRow $row): EntryRecord => new EntryRecord($row->entry, $this->records->fromFieldValues($row->fields)),

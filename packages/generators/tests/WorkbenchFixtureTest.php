@@ -94,6 +94,7 @@ it('holds only blueprint v1 files, which the YAML source reads without problems'
             ['fixture_topics', SelectOptions::class, Classification::Public, true],
             ['fixture_sources', GroupOptions::class, Classification::Internal, true],
             ['fixture_related', RelationOptions::class, Classification::Public, true],
+            ['fixture_byline', RelationOptions::class, Classification::Public, true],
             ['fixture_embargo', GroupOptions::class, Classification::Confidential, false],
         ]);
 

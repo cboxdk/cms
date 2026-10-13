@@ -193,7 +193,7 @@ A conditional field is never NOT NULL, because a hidden field holds no value, an
 | `select` | a choice from a fixed list | `options`, a list of 1 to 500 items with `value` (a handle) and `label`, is required; `multiple`; `min_items` and `max_items` only with `multiple: true` |
 | `rich_text` | Portable Text (PRD 11.10) | `styles`, `marks`, `lists`, `links`: `url` |
 | `group` | nested fields, once or repeated | `fields` is required; `repeat` with `min_items` (at most 500) and `max_items` (default 500, at most 500), so a repeated group holds at most 500 items (PRD 11.6) |
-| `relation` | a reference to another entry, or to several (PRD 5.11) | `types`, a list of 1 to 50 type names `<owner>:<handle>` that a target may have, is required; `multiple`; `max_items` (default 1,000, at most 1,000) only with `multiple: true`, so a relation field holds at most 1,000 targets (PRD 11.6) |
+| `relation` | a reference to another entry, or to several (PRD 5.11) | `types`, a list of 1 to 50 type names `<owner>:<handle>` that a target may have, is required; `multiple`; `max_items` (default 1,000, at most 1,000) only with `multiple: true`, so a relation field holds at most 1,000 targets (PRD 11.6); `meta`, the attributes each target carries; `sort_by` with `filterable: true`, see [Relations](#relations) |
 
 A choice that the field's type does not have is refused.
 
@@ -202,6 +202,12 @@ A choice that the field's type does not have is refused.
 A `relation` names entries by their ids. With `multiple: false`, the default, it names one entry; with `multiple: true` a list of entries, each once, in the order the writer gives them. `types` lists the types a target may have, each as its name in code, `<owner>:<handle>`, such as `app:article` or `shop:product`: a type of the same owner, of another owner, or the type itself. `cms:generate` refuses a name that no blueprint file below the schema roots defines with `generate_unknown_relation_type`. The article in [Examples](#examples) has a relation to several articles, `related`, and one to one article, `follows`.
 
 When a command writes a revision, the kernel validates each target (PRD 6.2 phase 5): an id that is not a UUIDv7 is `validation_wrong_type` and an id named twice in one field is `validation_duplicate_item`, as for any value. Then every target must be an entry that exists and that the writer can read, or `validation_relation_target_missing`, of one of the field's `types`, or `validation_relation_target_type`, both at the field's path, such as `fields.related`. An entry the same command creates counts, so one changeset may create entries that name each other. The targets of a command are read in one statement, whatever their number. A relation inside a group is checked the same way. The kernel stores each target as an edge of the variant in `relations` too, with a foreign key to the target; see [Entry commands](entry-commands.md#what-the-kernel-stores). `cms:seed-scale` gives a relation targets among the entries it seeded before; see [Seeding](../developers/seeding.md).
+
+**Attributes of the targets.** A byline is not just a reference to a person but also a role. `meta` declares the attributes each target carries, 1 to 20 fields of the core types `text`, `integer`, `decimal`, `boolean`, `date`, `datetime` and `select`, without a classification of their own, `sortable`, `translatable`, `fallback` or `when`; no attribute is called `entry`. A target is then an object of its entry's id under `entry` and the attributes by handle, such as `{"entry": "0199…", "role": "author"}`, and the field takes the form of a group of those nested fields, once or, with `multiple: true`, repeated up to `max_items` times: the attributes are validated like fields, at their paths, such as `fields.byline[1].role` for an option the role does not have, and are kept in the revision with the target. The targets of such a relation need not differ, because one person may have two roles. The kernel keeps each edge's attributes in `relations.meta`. One attribute may be declared `filterable`, on a filterable relation and of a single value: each edge keeps its text as its filter key, it gets a partial index on the relations table, which the type table's migration creates, and the query builder's filter of the relation takes a value of it.
+
+**Sort key.** A relation declared `filterable` names `sort_by`, a sortable top-level field of the type's owner that the same variant holds, translatable as the relation is; only a filterable relation names one, and `cms:generate` refuses another field with `generate_relation_sort_by_invalid`. When the kernel releases a variant, it writes the field's value onto each released edge of the relation as its sort key, in the same transaction, and the index on (target, field, sort key) over the released edges makes "the 20 newest stories that credit this person" an index scan of 20 rows, however many stories credit them. The typed query builder of the owner gets `where<Field>()` with the target's `EntryId`, and the filterable attribute's value for a relation that declares one, and `orderBy<Field>()`, the target's reverse listing by the sort key; see [Type tables and query builders](contracts/type-table-reader.md#relation-filters). A relation is never `sortable`.
+
+The story in [Examples](#examples) has a byline whose targets carry a filterable role and a credit, and related stories, both filterable and sorted by the day the story was published.
 
 ## Addon field types
 
@@ -228,6 +234,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | The `scale` of a `decimal` is at most its `precision`. | `generate_scale_above_precision` |
 | A field type `<namespace>:<handle>` is one that a contributor has registered (PRD 13.3): an addon whose manifest lists it and that `schema.php` holds. | `generate_unknown_field_type` |
 | Every type a `relation` field's `types` names, `<owner>:<handle>`, is a type a blueprint file below the schema roots defines. It is checked only when every file was read. | `generate_unknown_relation_type` |
+| A filterable relation's `sort_by` names a sortable top-level field of the type's owner that the same variant holds: a translatable relation a translatable field, a shared one a shared field, because the release writes the sort key from the variant's own revision. For an extension's relation, the type is the one it extends. | `generate_relation_sort_by_invalid` |
 | The types of one owner give different PHP enum cases, the owner and the handle in TitleCase: `item_2` and `item2` both give `AppItem2`, so an owner cannot have both. A type whose case would read `class` in any letter case, such as the handle `lass` of an owner `c`, is refused, because PHP reserves it. | `generate_invalid_case_name` |
 | The fields, options and extender namespaces of one type give different names in the type's generated PHP records, compared without case as PHP compares class names: a field's property is its handle in camelCase, so `size_1` and `size1` both give `$size1`; the enum of a select field, the class of a group and of an item of a repeated group take the handle in TitleCase with `Choice`, `Group` or `Item`, below the group's name for a nested field and the namespace's for an extension field; and an option's case is its value in TitleCase. A field `this` and an option `class` are refused, because PHP reserves them. The records' DTOs also give different classes: the group `b_v1` of the type `a` and the type `a_v1_b` both give the class `AppAV1BV1`. See [Records and JSON codecs](codecs.md). | `generate_name_collision` |
 | `translatable` and `fallback` belong to the fields of a type with `localization: variants`, its own and those its extensions add; a type with `localization: none` has only the shared variant, which holds every field (PRD 10.1). | `generate_translatable_without_variants` |
@@ -239,7 +246,7 @@ JSON Schema checks one file at a time and cannot compare values with each other.
 | The tabs of a layout have different handles, and so do the sections of one tab and the sections of the sidebar, because a fragment joins a tab or a section by its handle. | `generate_layout_duplicate_handle` |
 | A `default` is of the kind the field's type takes, see [Form defaults](#form-defaults): a `select` default is one of its options, or a list of them, each once, with `multiple: true`; `rich_text`, `group` and `relation` take none. | `generate_default_wrong_kind` |
 | The `ui.summary` of a repeated group names, in braces, only fields the group has. | `generate_summary_field_unknown` |
-| A field declared `filterable` or `sortable` has an order the typed query builder can compare: a `select` field that allows several options with `multiple: true` has none, so it is neither. The blueprint schema already refuses both flags on `long_text`, `rich_text`, `group` and `relation`. See [Type tables and query builders](contracts/type-table-reader.md). | `generate_field_not_queryable` |
+| A field declared `filterable` or `sortable` has an order the typed query builder can compare: a `select` field that allows several options with `multiple: true` has none, so it is neither. The blueprint schema already refuses both flags on `long_text`, `rich_text` and `group`, and `sortable` on `relation`, which is filtered through its edges instead. See [Type tables and query builders](contracts/type-table-reader.md). | `generate_field_not_queryable` |
 | A type's table name, `<owner>__<handle>`, has at most 54 bytes, so the names of its row level security policies, `<table>_actor` and `<table>_released`, fit in Postgres' 63: an owner of `app` leaves 49 bytes for the handle. | `generate_table_name_too_long` |
 | A schema lock in the migrations directory, `<table>.lock`, is exactly what `cms:generate` wrote, and its file is named after its table. | `generate_lock_invalid` |
 | Until schema evolution comes (B3), a type table only grows. A type whose table has a schema lock stays in the schema. | `generate_type_removed` |
@@ -271,7 +278,7 @@ Once the rules hold, `cms:generate` compiles every type, with the fields every e
 | `select` | `text`, one of the values, or `text[]` of them with `multiple: true` | the values as literal types, or a list of them | the values as a union, or an array of them |
 | `rich_text` | `jsonb`, a list of Portable Text blocks | a list of blocks | an array of blocks |
 | `group` | `jsonb`, an object, or a list of at most `max_items` objects with `repeat` | an array shape of its fields, or a list of them | an object type of its fields, or an array of them |
-| `relation` | `uuid` with a foreign key to `entries` ON DELETE RESTRICT and an index, or with `multiple: true` `jsonb`, a list of at most `max_items` ids | `EntryId`, or a list of them | `string`, or an array of them |
+| `relation` | `uuid` with a foreign key to `entries` ON DELETE RESTRICT and an index, or with `multiple: true` `jsonb`, a list of at most `max_items` ids; with `meta`, the `jsonb` of its group form | `EntryId`, or a list of them; with `meta`, an array shape of `entry` and the attributes, or a list of them | `string`, or an array of them; with `meta`, an object type of `entry` and the attributes, or an array of them |
 
 A few rules decide more than the field type does:
 
@@ -279,7 +286,8 @@ A few rules decide more than the field type does:
 - A `confidential` field is encrypted (PRD 12.2): its column is `bytea` holding ciphertext, without checks, whatever its type. The fields inside a confidential group are encrypted with it.
 - A required field of the type's owner is NOT NULL, and its PHP and TypeScript types are not nullable, unless it is conditional, see [Conditional fields](#conditional-fields). An extension field never is, even with `required: true`, because the owner's code creates and revises entries without knowing it; its `required` is enforced when an entry is published (PRD 11.12). Every other field is nullable.
 - A `rich_text` field that leaves out `styles`, `marks`, `lists` or `links` allows every one of that list.
-- A `relation` that holds one entry has a foreign key to `entries`, so an entry another entry names is never deleted (PRD 5.11); a `relation` inside a group, and one that holds several, keep the ids in the `jsonb` they are in. The revision payload holds the ids either way. The relations table that records every target as an edge comes later (PRD 5.11).
+- A `relation` that holds one entry has a foreign key to `entries`, so an entry another entry names is never deleted (PRD 5.11); a `relation` inside a group, one that holds several and one whose targets carry attributes keep the ids in the `jsonb` they are in. The revision payload holds the ids either way, and the kernel records every target as an edge in its relations table, whose foreign key to the target holds for each of them.
+- A relation whose targets carry attributes is written by every generator as the group of its entry and the attributes: its descriptor's base is `group`. Its filterable attribute gets a partial index on `relations`, `<table>__<column>__<attribute>`, which the migration of the step that adds the relation's column creates and its `down()` drops; the schema lock records it with the column, as `relation_indexes`. A filterable relation has no index on its own column, because it is filtered through its edges.
 
 From the descriptors, `cms:generate` writes the type enum and the TypeScript types, and for each type a record DTO, its JSON codec and a TypeScript module with its validator, described on [Records and JSON codecs](codecs.md).
 
@@ -291,7 +299,7 @@ The rules of each field's runtime validator become a validator per type, which c
 
 ## Examples
 
-These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the six files against the schema, as an application's or addon's own tests can.
+These examples are the test fixtures of the schema. `composer docs:check` checks that each block below is byte for byte the file it names, and the test at the end validates the seven files against the schema, as an application's or addon's own tests can.
 
 A type with every core field type:
 
@@ -728,6 +736,74 @@ fields:
         when_hidden: keep
 ```
 
+A type with a byline whose targets carry a role and a credit, and two relations a listing of each target reads newest first, by the day the story was published:
+
+<!-- example-file: packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/byline.yaml -->
+```yaml
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a71
+handle: story
+label: Story
+description: A story with its byline, each credit an entry with its role, listed under every person it credits.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+fields:
+  - handle: headline
+    label: Headline
+    description: The headline of the story.
+    type: text
+    required: true
+    classification: public
+  - handle: published_on
+    label: Published on
+    description: The day the story was published, the order of every listing of it.
+    type: date
+    classification: public
+    sortable: true
+  - handle: byline
+    label: Byline
+    description: The people the story credits, each with the role they had.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 20
+    types: [app:person]
+    filterable: true
+    sort_by: published_on
+    meta:
+      - handle: role
+        label: Role
+        description: What the person did for the story.
+        type: select
+        required: true
+        filterable: true
+        options:
+          - value: author
+            label: Author
+          - value: photo
+            label: Photo
+          - value: contributor
+            label: Contributor
+      - handle: credit
+        label: Credit
+        description: How the credit reads under the story, when it differs from the person's name.
+        type: text
+        max_length: 120
+  - handle: related
+    label: Related stories
+    description: The stories the story points its readers to, listed under each of them, newest first.
+    type: relation
+    classification: public
+    multiple: true
+    types: [app:story]
+    filterable: true
+    sort_by: published_on
+```
+
 <!-- example: examples/Codecs/Blueprint/ValidBlueprintsTest.php -->
 ```php
 <?php
@@ -760,5 +836,6 @@ it('accepts the blueprint file', function (string $file): void {
     'the type notice with localization variants' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml'],
     'the type event with labels per locale, a layout, ui hints and defaults' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml'],
     'the type link_card with conditional fields' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/conditional.yaml'],
+    'the type story with a byline whose targets carry a role, and relations sorted by a day' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/byline.yaml'],
 ]);
 ```

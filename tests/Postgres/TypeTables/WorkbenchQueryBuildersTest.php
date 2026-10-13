@@ -39,6 +39,8 @@ use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticle;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleExt;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleFixtureaddonFields;
 use Workbench\App\Cms\Generated\Records\AppFixtureArticle\AppFixtureArticleRecord;
+use Workbench\App\Cms\Generated\Records\AppFixtureArticle\FixtureBylineFixtureRoleChoice;
+use Workbench\App\Cms\Generated\Records\AppFixtureArticle\FixtureBylineItem;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurement;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementRecord;
 use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\AppFixtureMeasurementRecordFactory;
@@ -48,8 +50,9 @@ use Workbench\App\Cms\Generated\Records\AppFixtureMeasurement\FixtureScaleChoice
  * The workbench's generated query builders on the real type tables (PRD 5.10, 8.8, 11.12,
  * GUARDRAILS 4.1): as the app role, with the actor context set in the read transaction, they
  * filter, sort and paginate with a keyset through every page, return only the rows the actor's two
- * regions reach, hydrate each row through the record factory into the owner's interface, and a page
- * of 20 costs the same queries whether 20 or 200 rows match.
+ * regions reach, hydrate each row through the record factory into the owner's interface, filter
+ * by a relation's target and the role of its targets and list a target's sources by the sort key
+ * on its edges (PRD 5.11), and a page of 20 costs the same queries whether 20 or 200 rows match.
  */
 
 const ROOT = '0192a0c0-0000-7000-8000-000000000a01';
@@ -242,6 +245,7 @@ it('pages the articles newest first with the ones without a day first, through t
         node(ROOT, $number % 2 === 0 ? NORTH : SOUTH),
         new AppFixtureArticle(
             fixtureBody: null,
+            fixtureByline: null,
             fixtureEmbargo: null,
             fixtureFeatured: $number % 4 === 0,
             fixturePublishedOn: $number % 7 === 0 ? null : new DateTimeImmutable(sprintf('2026-01-%02dT00:00:00Z', 1 + intdiv($number, 2))),
@@ -305,4 +309,67 @@ it('costs the same queries for a page of 20 whether 20 or 200 rows match (GUARDR
 
     expect($twenty)->toBe(2)
         ->and($twoHundred)->toBe($twenty);
+});
+
+/**
+ * The articles' numbers newest first by their fixture_published_on, which the numbers 401 to 440
+ * of the relation test give, those without a day first, then by entry, both descending.
+ *
+ * @param  list<int>  $numbers
+ * @return list<int>
+ */
+function newestArticles(array $numbers): array
+{
+    usort($numbers, static fn (int $a, int $b): int => [$b % 5 === 0 ? 99 : 1 + $b % 28, $b] <=> [$a % 5 === 0 ? 99 : 1 + $a % 28, $a]);
+
+    return $numbers;
+}
+
+it('filters the articles by a relation\'s target and its role, and lists a target\'s sources newest first by the sort key on its edges', function (): void {
+    // The articles 401 to 440 relate to article 401 or 402 in fixture_related, and credit 401 in
+    // fixture_byline as its author or, every third one, as its photographer.
+    PostgresTypeTables::seed(workbenchType('app:fixture_article'), ...array_map(static fn (int $number): TypeTableSeed => new TypeTableSeed(
+        entryId($number),
+        node(ROOT, $number % 2 === 0 ? NORTH : SOUTH),
+        new AppFixtureArticle(
+            fixtureBody: null,
+            fixtureByline: $number === 401 ? null : [new FixtureBylineItem(entryId(401), null, $number % 3 === 0 ? FixtureBylineFixtureRoleChoice::FixturePhoto : FixtureBylineFixtureRoleChoice::FixtureAuthor)],
+            fixtureEmbargo: null,
+            fixtureFeatured: false,
+            fixturePublishedOn: $number % 5 === 0 ? null : new DateTimeImmutable(sprintf('2026-02-%02dT00:00:00Z', 1 + $number % 28)),
+            fixtureReadingMinutes: null,
+            fixtureRelated: $number <= 402 ? null : [entryId(401 + $number % 2)],
+            fixtureSlug: null,
+            fixtureSources: null,
+            fixtureTitle: 'Article '.$number,
+            fixtureTopics: null,
+            ext: new AppFixtureArticleExt(new AppFixtureArticleFixtureaddonFields(fixtureSlug: null)),
+        )->toFieldValues(),
+    ), range(401, 440)));
+    /** @return list<int> */
+    $numbers = static function (AppFixtureArticleQuery $query): array {
+        $numbers = [];
+        $cursor = null;
+
+        do {
+            $page = inReadTransaction(static fn (AccessContext $access): RecordPage => ($cursor instanceof TypeTableCursor ? $query->after($cursor) : $query)->page($access));
+
+            foreach ($page->records as $record) {
+                expect($record->record)->toBeInstanceOf(AppFixtureArticleRecord::class);
+                $numbers[] = (int) substr($record->entry->toString(), -12);
+            }
+
+            $cursor = $page->next;
+        } while ($cursor instanceof TypeTableCursor);
+
+        return $numbers;
+    };
+    $relatedTo401 = array_values(array_filter(range(403, 440), static fn (int $number): bool => $number % 2 === 0));
+    $photographed = array_values(array_filter(range(402, 440), static fn (int $number): bool => $number % 3 === 0));
+
+    expect($numbers(app(AppFixtureArticleQuery::class)->whereFixtureRelated(entryId(401))->limit(7)))->toBe($relatedTo401)
+        ->and($numbers(app(AppFixtureArticleQuery::class)->whereFixtureRelated(entryId(401))->orderByFixtureRelated()->limit(7)))->toBe(newestArticles($relatedTo401))
+        ->and($numbers(app(AppFixtureArticleQuery::class)->whereFixtureByline(entryId(401), FixtureBylineFixtureRoleChoice::FixturePhoto)->orderByFixtureByline()->limit(4)))->toBe(newestArticles($photographed))
+        ->and($numbers(app(AppFixtureArticleQuery::class)->whereFixtureByline(entryId(401))->whereFixtureFeatured(FilterOperator::Eq, false)->limit(50)))->toBe(range(402, 440))
+        ->and($numbers(app(AppFixtureArticleQuery::class)->whereFixtureByline(entryId(402))))->toBe([]);
 });

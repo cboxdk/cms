@@ -49,6 +49,23 @@ final class InvalidTypeDefinition extends InvalidArgumentException
         ));
     }
 
+    public static function relation(string $fieldType): self
+    {
+        return new self(sprintf(
+            'The field type "%s" has a relation definition, which only a field of the core type relation has.',
+            self::shown($fieldType),
+        ));
+    }
+
+    public static function sortBy(string $address, string $handle): self
+    {
+        return new self(sprintf(
+            'The relation "%s" sorts its edges by "%s", which is no sortable top-level field of the owner held by the same variant.',
+            self::shown($address),
+            self::shown($handle),
+        ));
+    }
+
     public static function fieldType(string $value): self
     {
         return new self(sprintf(

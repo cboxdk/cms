@@ -18,6 +18,7 @@ use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
 use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\RelationDefinition;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
@@ -227,4 +228,37 @@ it('reads a value in the form of the field type, or of its base for an addon\'s 
         ->toThrow(InvalidTypeDefinition::class, 'The field type "reviews:stars" has no base.')
         ->and(fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, false, false, false, column('title'), base: FieldBase::Text))
         ->toThrow(InvalidTypeDefinition::class, 'The field type "text" has a base.');
+});
+
+it('reads a relation whose targets carry attributes in the form of a group, and holds a relation\'s sort_by to a sortable field of the owner held by its variant (PRD 5.11)', function (): void {
+    $nested = static fn (string $handle, string $fieldType, bool $filterable = false): FieldDefinition => new FieldDefinition(null, new FieldHandle($handle), $fieldType, ClassificationAccess::Public, true, false, false, $filterable, false, null);
+    $byline = static fn (string $sortBy, bool $translatable = false): FieldDefinition => new FieldDefinition(
+        null,
+        new FieldHandle('byline'),
+        'relation',
+        ClassificationAccess::Public,
+        true,
+        false,
+        false,
+        true,
+        false,
+        new ColumnDefinition('byline', 'jsonb', false, []),
+        [$nested('entry', 'relation'), $nested('role', 'select', filterable: true), $nested('credit', 'text')],
+        translatable: $translatable,
+        relation: new RelationDefinition(meta: true, sortBy: new FieldHandle($sortBy)),
+    );
+    $day = new FieldDefinition(null, new FieldHandle('published_on'), 'date', ClassificationAccess::Public, true, false, false, false, true, column('published_on'));
+    $story = type([$byline('published_on'), $day]);
+    $relation = $story->fields[0];
+
+    expect($relation->valueType())->toBe('group')
+        ->and($relation->isRelation())->toBeTrue()
+        ->and(array_map(static fn (FieldDefinition $field): string => $field->handle->value, $relation->relationMeta()))->toBe(['credit', 'role'])
+        ->and($story->sortKeyOf($relation))->toBe($day)
+        ->and($story->sortKeyOf($day))->toBeNull()
+        ->and($day->isRelation())->toBeFalse()
+        ->and($day->relationMeta())->toBe([])
+        ->and(fn (): TypeDefinition => type([$byline('printed_on'), $day]))->toThrow(InvalidTypeDefinition::class, 'The relation "byline" sorts its edges by "printed_on", which is no sortable top-level field of the owner held by the same variant.')
+        ->and(fn (): TypeDefinition => type([$byline('published_on'), new FieldDefinition(null, new FieldHandle('published_on'), 'date', ClassificationAccess::Public, true, false, false, false, false, column('published_on'))]))->toThrow(InvalidTypeDefinition::class, 'which is no sortable top-level field')
+        ->and(fn (): FieldDefinition => new FieldDefinition(null, new FieldHandle('title'), 'text', ClassificationAccess::Public, true, false, false, false, false, column('title'), relation: new RelationDefinition))->toThrow(InvalidTypeDefinition::class, 'The field type "text" has a relation definition, which only a field of the core type relation has.');
 });

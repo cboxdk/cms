@@ -13,7 +13,9 @@
 # and English, the layout of two tabs and a sidebar, the ui hints and the form-only defaults.
 # The fixture addon's extension has no layout fragment, so its field lands in the tab extensions.
 # fixture_related, up to 200 other articles, is a relation (PRD 5.11, B2-T112), whose edges the
-# entry commands write in the draft stage and, once released, the released stage.
+# entry commands write in the draft stage and, once released, the released stage. It is
+# filterable, so its released edges carry fixture_published_on as their sort key (B2-T75), and
+# fixture_byline credits entries each with a role, an attribute of the target with a partial index.
 blueprint: 1
 kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
@@ -134,6 +136,41 @@ fields:
     multiple: true
     max_items: 200
     types: [app:fixture_article]
+    filterable: true
+    sort_by: fixture_published_on
+  - handle: fixture_byline
+    label:
+      en: Byline
+      da: Byline
+    description: Who the article credits, each an entry with the role it had.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 20
+    types: [app:fixture_article]
+    filterable: true
+    sort_by: fixture_published_on
+    meta:
+      - handle: fixture_role
+        label:
+          en: Role
+          da: Rolle
+        description: What the credited entry did for the article.
+        type: select
+        required: true
+        filterable: true
+        options:
+          - value: fixture_author
+            label: Author
+          - value: fixture_photo
+            label: Photo
+          - value: fixture_contributor
+            label: Contributor
+      - handle: fixture_credit_note
+        label: Credit note
+        description: How the credit reads under the article, when it differs from the entry's title.
+        type: text
+        max_length: 120
   - handle: fixture_embargo
     label: Embargo
     type: group
@@ -173,6 +210,7 @@ layout:
           fields:
             - field: fixture_sources
             - field: fixture_related
+            - field: fixture_byline
     - handle: fixture_restrictions
       label:
         en: Restrictions

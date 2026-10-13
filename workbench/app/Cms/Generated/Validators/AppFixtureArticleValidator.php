@@ -27,6 +27,10 @@ use Override;
  *
  * Fields, as the input holds them:
  *   fixture_body: rich_text, optional
+ *   fixture_byline: relation, optional
+ *   fixture_byline[].entry: relation, required
+ *   fixture_byline[].fixture_credit_note: text, optional
+ *   fixture_byline[].fixture_role: select, required
  *   fixture_embargo: group, optional
  *   fixture_embargo.fixture_embargo_reason: long_text, optional
  *   fixture_embargo.fixture_embargo_until: datetime, required
@@ -64,6 +68,40 @@ final readonly class AppFixtureArticleValidator implements TypeValidator
                         new Rule(RuleName::Marks, ['strong', 'em', 'underline', 'strike', 'code', 'sub', 'sup']),
                         new Rule(RuleName::Lists, ['bullet', 'number']),
                         new Rule(RuleName::Links, ['url']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_byline'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::List),
+                        new Rule(RuleName::MaxItems, ['20']),
+                    ],
+                    [
+                        new FieldRules(
+                            new FieldHandle('entry'),
+                            Presence::Required,
+                            [
+                                new Rule(RuleName::Relation),
+                                new Rule(RuleName::Targets, ['app:fixture_article']),
+                            ],
+                        ),
+                        new FieldRules(
+                            new FieldHandle('fixture_credit_note'),
+                            Presence::Optional,
+                            [
+                                new Rule(RuleName::String),
+                                new Rule(RuleName::MaxLength, ['120']),
+                            ],
+                        ),
+                        new FieldRules(
+                            new FieldHandle('fixture_role'),
+                            Presence::Required,
+                            [
+                                new Rule(RuleName::String),
+                                new Rule(RuleName::In, ['fixture_author', 'fixture_photo', 'fixture_contributor']),
+                            ],
+                        ),
                     ],
                 ),
                 new FieldRules(

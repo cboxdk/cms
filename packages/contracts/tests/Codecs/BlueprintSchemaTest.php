@@ -177,7 +177,13 @@ function blueprintInvalidCases(): array
         'a relation without types' => ['relation-without-types.yaml', '/fields/0', '(types)'],
         'a relation with max_items above 1000, the most relations a field holds' => ['relation-max-items-above-1000.yaml', '/fields/0/max_items', 'lower than or equal to 1000'],
         'max_items on a relation that holds one entry' => ['relation-max-items-to-one.yaml', '/fields/0', 'must not match schema'],
-        'a filterable relation' => ['relation-filterable.yaml', '/fields/0', 'must not match schema'],
+        'a filterable relation without sort_by' => ['relation-filterable.yaml', '/fields/0', 'sort_by'],
+        'a sortable relation' => ['relation-sortable.yaml', '/fields/1', 'must not match schema'],
+        'a sort_by on a relation that is not filterable' => ['relation-sort-by-not-filterable.yaml', '/fields/1', 'must not match schema'],
+        'an attribute of a relation\'s targets named entry, the handle of the target' => ['relation-meta-entry.yaml', '/fields/1/meta/0/handle', 'must not match schema'],
+        'two filterable attributes of a relation\'s targets' => ['relation-meta-two-filterable.yaml', '/fields/1/meta', 'must not match schema'],
+        'a group as an attribute of a relation\'s targets' => ['relation-meta-group.yaml', '/fields/1/meta/0/type', 'enum'],
+        'a filterable attribute on a relation that is not filterable' => ['relation-meta-filterable-unfilterable-relation.yaml', '/fields/1/meta/0', 'must not match schema'],
         'a confidential relation, whose foreign key cannot hold ciphertext' => ['relation-confidential.yaml', '/fields/0/classification', 'enum'],
         'a relation type that is not <owner>:<handle>' => ['relation-types-not-names.yaml', '/fields/0/types/0', 'should match pattern'],
         'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type', 'must not match schema'],
@@ -216,6 +222,7 @@ it('accepts the valid fixtures', function (string $fixture): void {
     'a type with localization variants, translatable fields and a field fallback' => ['valid/localized.yaml'],
     'a type with labels per locale, a layout, ui hints and defaults' => ['valid/layout.yaml'],
     'a type with conditional fields, a nested one among them' => ['valid/conditional.yaml'],
+    'a type with a byline whose targets carry a role, and filterable relations with a sort key' => ['valid/byline.yaml'],
 ]);
 
 it('covers every core field type of the schema in the valid article', function (): void {
@@ -347,6 +354,7 @@ it('embeds each valid fixture on the reference page, byte for byte', function ()
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml',
         'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/conditional.yaml',
+        'packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/byline.yaml',
     ]);
 
     foreach ($examples as $path => $body) {

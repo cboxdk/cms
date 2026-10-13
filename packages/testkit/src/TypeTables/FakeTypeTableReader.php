@@ -10,11 +10,14 @@ use Cbox\Cms\Contracts\Fields\DateTimeValue;
 use Cbox\Cms\Contracts\Fields\DateValue;
 use Cbox\Cms\Contracts\Fields\DecimalValue;
 use Cbox\Cms\Contracts\Fields\ExtensionFields;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
+use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
@@ -23,6 +26,7 @@ use Cbox\Cms\Contracts\Identity\ActorPrincipal;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Schema\ColumnDefinition;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
+use Cbox\Cms\Contracts\Schema\RelationDefinition;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\TypeTables\ColumnFilter;
@@ -30,6 +34,7 @@ use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\CursorKey;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
 use Cbox\Cms\Contracts\TypeTables\InvalidTypeTableQuery;
+use Cbox\Cms\Contracts\TypeTables\RelationFilter;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Contracts\TypeTables\TypeTablePage;
@@ -97,7 +102,7 @@ final readonly class FakeTypeTableReader implements TypeTableReader
 
         $rows = array_values(array_filter(
             $this->rows[$type->name->value] ?? [],
-            fn (TypeTableSeed $row): bool => $row->variant()->equals($query->variant) && $this->reaches($row, $actor, $access) && $this->matches($type, $row, $query->filters),
+            fn (TypeTableSeed $row): bool => $row->variant()->equals($query->variant) && $this->reaches($row, $actor, $access) && $this->matches($type, $row, $query->filters) && $this->related($type, $row, $query->relations),
         ));
         usort($rows, static fn (TypeTableSeed $a, TypeTableSeed $b): int => self::compare($query->order, self::keys($type, $a, $query->order), $a->entry->toString(), self::keys($type, $b, $query->order), $b->entry->toString()));
 
@@ -158,6 +163,56 @@ final readonly class FakeTypeTableReader implements TypeTableReader
             };
 
             if (! $matched) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    /**
+     * Whether the row's relations point to each filter's target, on an edge with the attribute
+     * filters' values for a relation whose targets carry attributes (PRD 5.11). The row's fields
+     * hold the relation as the released edges do, so the order by its sort_by field is the order
+     * by the edges' sort key.
+     *
+     * @param  list<RelationFilter>  $relations
+     */
+    private function related(TypeDefinition $type, TypeTableSeed $row, array $relations): bool
+    {
+        foreach ($relations as $relation) {
+            $field = TypeTableQuery::fieldOf($type, $relation->column);
+            $value = self::held($field, $row->fields);
+            $items = $value instanceof ListValue ? $value->items : ($value instanceof FieldValue ? [$value] : []);
+
+            if (! array_any($items, static fn (FieldValue $item): bool => self::points($field, $item, $relation))) {
+                return false;
+            }
+        }
+
+        return true;
+    }
+
+    private static function points(FieldDefinition $field, FieldValue $item, RelationFilter $relation): bool
+    {
+        if ($field->relation?->meta !== true) {
+            return $item instanceof TextValue && strtolower($item->value) === $relation->target->toString();
+        }
+
+        if (! $item instanceof GroupValue) {
+            return false;
+        }
+
+        $entry = $item->fields->get(new FieldHandle(RelationDefinition::ENTRY));
+
+        if (! $entry instanceof TextValue || strtolower($entry->value) !== $relation->target->toString()) {
+            return false;
+        }
+
+        foreach ($relation->attributes as $attribute) {
+            $held = $item->fields->get($attribute->attribute);
+
+            if (! $held instanceof FieldValue || $held instanceof NullValue || self::compareValues($attribute->attribute->value, $held, $attribute->value) !== 0) {
                 return false;
             }
         }

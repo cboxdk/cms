@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Validation\FieldReference;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\RelationDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
@@ -24,8 +25,11 @@ use Cbox\Cms\Generators\Schema\Domain\ColumnName;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ConditionReference;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldCondition;
+use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\ShapedOptions;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\GroupFieldType;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 
 /**
@@ -48,6 +52,8 @@ use Cbox\Cms\Generators\Schema\Domain\Owner;
  *   translatable and fallback, is required within the group when its blueprint says so, and the
  *   nested fields are sorted by handle, so the descriptor does not depend on their order in the
  *   file.
+ * - A relation whose targets carry attributes (PRD 5.11) takes the form of a group: its base is
+ *   `group`, and its nested fields are `entry` and the attributes.
  * - The presentation keys (gap G2) are carried as the blueprint gives them, and the form's layout
  *   is composed from the type's and its extensions' (LayoutCompiler); the canonical JSON leaves
  *   them out.
@@ -187,7 +193,7 @@ final readonly class DescriptorCompiler
             $value->choices,
             $nested,
             $field->location,
-            $field->options instanceof ShapedOptions ? $field->options->base->typeName() : null,
+            self::base($field),
             $translatable,
             $fallback,
             $field->labels,
@@ -196,7 +202,21 @@ final readonly class DescriptorCompiler
             $field->default,
             $field->when instanceof FieldCondition ? self::condition($field->when, $depth) : null,
             $field->whenHidden,
+            $field->options instanceof RelationOptions ? new RelationDescriptor($field->options->carriesMeta(), $field->options->sortBy) : null,
         );
+    }
+
+    /**
+     * The core field type whose form the value takes when it is not the field type itself: an
+     * addon's field type's base, and `group` for a relation whose targets carry attributes.
+     */
+    private static function base(FieldBlueprint $field): ?string
+    {
+        return match (true) {
+            $field->options instanceof ShapedOptions => $field->options->base->typeName(),
+            $field->options instanceof RelationOptions && $field->options->group() instanceof GroupOptions => GroupFieldType::NAME,
+            default => null,
+        };
     }
 
     /**

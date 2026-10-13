@@ -39,15 +39,18 @@ use Cbox\Cms\Contracts\Schema\ExtensionVersion;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\RelationDefinition;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Contracts\TypeTables\AttributeFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\CursorKey;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
 use Cbox\Cms\Contracts\TypeTables\InvalidTypeTableQuery;
+use Cbox\Cms\Contracts\TypeTables\RelationFilter;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
@@ -77,7 +80,8 @@ use PHPUnit\Framework\Attributes\Test;
  *     }
  *
  * The suite's type, suiteType(), has a field of every core field type, an encrypted field and an
- * extension field. Its rows lie in a small tree, where ALICE's regions reach NORTH, SOUTH without
+ * extension field; its relations `links` and `refs`, whose targets carry a filterable `role`, are
+ * filterable and sorted by `rank`. Its rows lie in a small tree, where ALICE's regions reach NORTH, SOUTH without
  * CITY, and PARK inside CITY, and she owns one row in WEST; BOB has no region and owns another row
  * in WEST. The cases hold the reader to the access predicate, the fields it gives, every filter
  * operator, the order with null as the greatest value, keyset pagination through every page, and
@@ -155,6 +159,12 @@ trait TypeTableReaderContract
                     $nested('seen_at', 'datetime'),
                 ]),
                 new FieldDefinition(null, new FieldHandle('secret'), 'text', ClassificationAccess::Confidential, false, true, false, false, false, new ColumnDefinition('secret', 'bytea', false, [])),
+                new FieldDefinition(null, new FieldHandle('links'), 'relation', ClassificationAccess::Public, true, false, false, true, false, new ColumnDefinition('links', 'jsonb', false, []), relation: new RelationDefinition(sortBy: new FieldHandle('rank'))),
+                new FieldDefinition(null, new FieldHandle('refs'), 'relation', ClassificationAccess::Public, true, false, false, true, false, new ColumnDefinition('refs', 'jsonb', false, []), [
+                    $nested('entry', 'relation'),
+                    new FieldDefinition(null, new FieldHandle('role'), 'select', ClassificationAccess::Public, true, false, true, true, false, null),
+                    $nested('note', 'text'),
+                ], relation: new RelationDefinition(meta: true, sortBy: new FieldHandle('rank'))),
                 $field('code', 'text', 'text', filterable: true, sortable: true, namespace: 'acme', agents: false),
             ],
         );
@@ -341,6 +351,61 @@ trait TypeTableReaderContract
     }
 
     #[Test]
+    public function it_filters_on_a_relation_by_its_target_and_the_attribute_of_its_targets(): void
+    {
+        $reader = $this->suiteReader();
+        $e02 = EntryId::fromString(self::suiteEntries()[1]);
+        $e03 = EntryId::fromString(self::suiteEntries()[2]);
+
+        Assert::assertSame(['e01', 'e07', 'e10'], self::suiteNames($reader->page(self::suiteQuery(relations: [new RelationFilter('links', $e02)]), self::suiteAlice())->rows));
+        Assert::assertSame(['e01'], self::suiteNames($reader->page(self::suiteQuery(relations: [new RelationFilter('links', $e03)]), self::suiteAlice())->rows));
+        Assert::assertSame(['e01', 'e03', 'e06', 'e09'], self::suiteNames($reader->page(self::suiteQuery(relations: [new RelationFilter('refs', $e02)]), self::suiteAlice())->rows), 'each row once, e06 with two edges to the target');
+        Assert::assertSame(['e01', 'e06', 'e09'], self::suiteNames($reader->page(self::suiteQuery(relations: [new RelationFilter('refs', $e02, new AttributeFilter(new FieldHandle('role'), new TextValue('lead')))]), self::suiteAlice())->rows));
+        Assert::assertSame(['e01'], self::suiteNames($reader->page(self::suiteQuery(relations: [new RelationFilter('links', $e02), new RelationFilter('refs', $e03)]), self::suiteAlice())->rows), 'every relation filter must match');
+        Assert::assertSame(['e09'], self::suiteNames($reader->page(self::suiteQuery(filters: [new ColumnFilter('rank', FilterOperator::Gt, new IntegerValue(5))], relations: [new RelationFilter('refs', $e02)]), self::suiteAlice())->rows));
+    }
+
+    #[Test]
+    public function it_lists_the_sources_of_a_target_by_the_relations_sort_key_through_every_page(): void
+    {
+        $reader = $this->suiteReader();
+        $e02 = EntryId::fromString(self::suiteEntries()[1]);
+        $cases = [
+            'descending, nulls first, each row once' => [[new RelationFilter('refs', $e02)], SortDirection::Descending, ['e09', 'e06', 'e01', 'e03']],
+            'on the attribute' => [[new RelationFilter('refs', $e02, new AttributeFilter(new FieldHandle('role'), new TextValue('lead')))], SortDirection::Descending, ['e09', 'e06', 'e01']],
+            'ascending, nulls last' => [[new RelationFilter('links', $e02)], SortDirection::Ascending, ['e01', 'e10', 'e07']],
+            'descending, nulls first' => [[new RelationFilter('links', $e02)], SortDirection::Descending, ['e07', 'e10', 'e01']],
+        ];
+
+        foreach ($cases as $name => [$relations, $direction, $expected]) {
+            Assert::assertSame($expected, self::suiteNames($reader->page(self::suiteQuery(order: [new ColumnOrder('rank', $direction)], relations: $relations), self::suiteAlice())->rows), $name);
+
+            $names = [];
+            $after = null;
+            $pages = 0;
+
+            do {
+                $page = $reader->page(self::suiteQuery(order: [new ColumnOrder('rank', $direction)], after: $after, limit: 1, relations: $relations), self::suiteAlice());
+                $names = [...$names, ...self::suiteNames($page->rows)];
+                $after = $page->next;
+                $pages++;
+            } while ($after instanceof TypeTableCursor && $pages <= count($expected));
+
+            Assert::assertSame($expected, $names, $name.', one a page');
+        }
+    }
+
+    #[Test]
+    public function it_refuses_a_relation_filter_on_a_field_that_is_no_filterable_relation_or_an_attribute_that_is_not_filterable(): void
+    {
+        $e02 = EntryId::fromString(self::suiteEntries()[1]);
+
+        $this->assertSuiteRefused(self::suiteQuery(relations: [new RelationFilter('label', $e02)]), 'The field of suite:item in the column label is not filterable: its blueprint does not declare it filterable, so it has no index.');
+        $this->assertSuiteRefused(self::suiteQuery(filters: [new ColumnFilter('links', FilterOperator::IsNull)]), 'The field of suite:item in the column links is not filterable: its blueprint does not declare it filterable, so it has no index.');
+        $this->assertSuiteRefused(self::suiteQuery(relations: [new RelationFilter('refs', $e02, new AttributeFilter(new FieldHandle('note'), new TextValue('first')))]), 'The relation "refs" of the type suite:item has no filterable attribute "note" on its targets.');
+    }
+
+    #[Test]
     public function it_leaves_out_every_field_above_the_contexts_classification_access(): void
     {
         $reader = $this->suiteReader();
@@ -441,10 +506,11 @@ trait TypeTableReaderContract
     /**
      * @param  list<ColumnFilter>  $filters
      * @param  list<ColumnOrder>  $order
+     * @param  list<RelationFilter>  $relations
      */
-    private static function suiteQuery(array $filters = [], array $order = [], ?TypeTableCursor $after = null, int $limit = TypeTableQuery::MAX_LIMIT): TypeTableQuery
+    private static function suiteQuery(array $filters = [], array $order = [], ?TypeTableCursor $after = null, int $limit = TypeTableQuery::MAX_LIMIT, array $relations = []): TypeTableQuery
     {
-        return new TypeTableQuery(new TypeName(self::SUITE_TYPE), VariantKey::shared(), $filters, $order, $after, $limit);
+        return new TypeTableQuery(new TypeName(self::SUITE_TYPE), VariantKey::shared(), $filters, $order, $after, $limit, $relations);
     }
 
     private static function suiteAlice(): AccessContext
@@ -533,6 +599,13 @@ trait TypeTableReaderContract
             new NamedValue(new FieldHandle('secret'), new NullValue),
         ];
         [$e01, $e02, $e03, $e04, $e05, $e06, $e07, $e08, $e09, $e10] = array_map(EntryId::fromString(...), self::suiteEntries());
+        $links = static fn (EntryId ...$targets): NamedValue => new NamedValue(new FieldHandle('links'), new ListValue(...array_map(static fn (EntryId $target): TextValue => new TextValue($target->toString()), $targets)));
+        $refs = static fn (GroupValue ...$credits): NamedValue => new NamedValue(new FieldHandle('refs'), new ListValue(...$credits));
+        $credit = static fn (EntryId $entry, string $role, string $note = 'none'): GroupValue => new GroupValue(new FieldMap(
+            new NamedValue(new FieldHandle('entry'), new TextValue($entry->toString())),
+            new NamedValue(new FieldHandle('note'), new TextValue($note)),
+            new NamedValue(new FieldHandle('role'), new TextValue($role)),
+        ));
         $north = self::suitePath(self::ROOT, self::NORTH);
         $south = self::suitePath(self::ROOT, self::SOUTH);
         $city = self::suitePath(self::ROOT, self::SOUTH, self::CITY);
@@ -540,16 +613,16 @@ trait TypeTableReaderContract
         $west = self::suitePath(self::ROOT, self::WEST);
 
         return [
-            new TypeTableSeed($e01, $north, $row('delta', 3, '10.5', '2026-01-03', '2026-03-10T10:00:00Z', true, 'x', ...$rich)),
+            new TypeTableSeed($e01, $north, $row('delta', 3, '10.5', '2026-01-03', '2026-03-10T10:00:00Z', true, 'x', ...[...$rich, $links($e02, $e03), $refs($credit($e02, 'lead'), $credit($e03, 'support'))])),
             new TypeTableSeed($e02, $south, $row('alpha', null, '2', null, null, false, 'y')),
-            new TypeTableSeed($e03, $park, $row('charlie', 1, '-4.25', '2026-01-01', '2026-03-10T12:00:00.5Z', true, null)),
-            new TypeTableSeed($e04, $city, $row('bravo', 2, '3', '2026-01-04', null, true, 'x')),
+            new TypeTableSeed($e03, $park, $row('charlie', 1, '-4.25', '2026-01-01', '2026-03-10T12:00:00.5Z', true, null, $refs($credit($e02, 'support')))),
+            new TypeTableSeed($e04, $city, $row('bravo', 2, '3', '2026-01-04', null, true, 'x', $refs($credit($e02, 'lead')))),
             new TypeTableSeed($e05, $west, $row('echo', 5, null, null, null, false, null), ActorId::fromString(self::BOB)),
-            new TypeTableSeed($e06, $north, $row('foxtrot', 3, '10.50', '2026-01-03', '2026-03-11T00:00:00Z', null, 'x')),
-            new TypeTableSeed($e07, $south, $row('golf', null, null, '2026-01-02', null, true, 'z')),
-            new TypeTableSeed($e08, self::suitePath(self::ROOT), $row('hotel', 8, '8', null, null, true, 'x')),
-            new TypeTableSeed($e09, $park, $row('india', 7, '100', null, '2026-03-09T23:59:59Z', false, 'y', new NamedValue(new FieldHandle('notes'), new ListValue($note('first', '0'), $note('second', '-2.75'))))),
-            new TypeTableSeed($e10, $west, $row('juliet', 4, null, null, null, null, null), ActorId::fromString(self::ALICE)),
+            new TypeTableSeed($e06, $north, $row('foxtrot', 3, '10.50', '2026-01-03', '2026-03-11T00:00:00Z', null, 'x', $refs($credit($e02, 'lead', 'first'), $credit($e02, 'support', 'again')))),
+            new TypeTableSeed($e07, $south, $row('golf', null, null, '2026-01-02', null, true, 'z', $links($e02))),
+            new TypeTableSeed($e08, self::suitePath(self::ROOT), $row('hotel', 8, '8', null, null, true, 'x', $links($e02))),
+            new TypeTableSeed($e09, $park, $row('india', 7, '100', null, '2026-03-09T23:59:59Z', false, 'y', new NamedValue(new FieldHandle('notes'), new ListValue($note('first', '0'), $note('second', '-2.75'))), $refs($credit($e02, 'lead')))),
+            new TypeTableSeed($e10, $west, $row('juliet', 4, null, null, null, null, null, $links($e02)), ActorId::fromString(self::ALICE)),
         ];
     }
 
@@ -561,7 +634,7 @@ trait TypeTableReaderContract
     {
         $own = [];
 
-        foreach (['at', 'body', 'day', 'flag', 'label', 'notes', 'price', 'rank', 'tags'] as $handle) {
+        foreach (['at', 'body', 'day', 'flag', 'label', 'links', 'notes', 'price', 'rank', 'refs', 'tags'] as $handle) {
             $own[] = new NamedValue(new FieldHandle($handle), $fields->own->get(new FieldHandle($handle)) ?? new NullValue);
         }
 

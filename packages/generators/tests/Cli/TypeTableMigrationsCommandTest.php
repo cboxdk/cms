@@ -24,8 +24,8 @@ const WORKBENCH_ARTICLE = 'workbench/schema/fixture_article.yaml';
 /** The fixture addon's extension of the article, which the article's lock holds a column of. */
 const WORKBENCH_ARTICLE_EXTENSION = 'workbench/addons/fixtureaddon/schema/fixture_article.yaml';
 
-/** The article's committed migrations: its creation, the addon's column and version 2's field. */
-const WORKBENCH_ARTICLE_MIGRATIONS = ['app__fixture_article.lock', 'app__fixture_article_0001_create.php', 'app__fixture_article_0002_add_columns.php', 'app__fixture_article_0003_add_columns.php', 'app__fixture_article_0004_add_columns.php'];
+/** The article's committed migrations: its creation, the addon's column, version 2's field and the relations' steps. */
+const WORKBENCH_ARTICLE_MIGRATIONS = ['app__fixture_article.lock', 'app__fixture_article_0001_create.php', 'app__fixture_article_0002_add_columns.php', 'app__fixture_article_0003_add_columns.php', 'app__fixture_article_0004_add_columns.php', 'app__fixture_article_0005_add_columns.php'];
 
 const WORKBENCH_MIGRATIONS = 'workbench/database/migrations/cms';
 
@@ -138,14 +138,14 @@ it('writes one ADD COLUMN migration when an optional field is added to a copy of
 
     [$status, $output] = generateArticle();
     $after = migrationHashes($root);
-    $migration = (string) file_get_contents($root.'/database/migrations/cms/app__fixture_article_0005_add_columns.php');
+    $migration = (string) file_get_contents($root.'/database/migrations/cms/app__fixture_article_0006_add_columns.php');
 
     expect($status)->toBe(0, $output)
-        ->and(array_keys($after))->toBe([...WORKBENCH_ARTICLE_MIGRATIONS, 'app__fixture_article_0005_add_columns.php'])
-        ->and(array_diff_key($after, ['app__fixture_article.lock' => true, 'app__fixture_article_0005_add_columns.php' => true]))->toBe(array_diff_key($before, ['app__fixture_article.lock' => true]))
+        ->and(array_keys($after))->toBe([...WORKBENCH_ARTICLE_MIGRATIONS, 'app__fixture_article_0006_add_columns.php'])
+        ->and(array_diff_key($after, ['app__fixture_article.lock' => true, 'app__fixture_article_0006_add_columns.php' => true]))->toBe(array_diff_key($before, ['app__fixture_article.lock' => true]))
         ->and($after['app__fixture_article.lock'])->not->toBe($before['app__fixture_article.lock'])
         ->and($output)->toContain('written: database/migrations/cms/app__fixture_article.lock')
-        ->and($output)->toContain('written: database/migrations/cms/app__fixture_article_0005_add_columns.php')
+        ->and($output)->toContain('written: database/migrations/cms/app__fixture_article_0006_add_columns.php')
         ->and(substr_count($migration, 'add column if not exists'))->toBe(1)
         ->and($migration)->toContain("alter table \"app__fixture_article\"\n                    add column if not exists \"fixture_summary\" text\n                        check (char_length(\"fixture_summary\") <= 255)\n")
         ->and($migration)->not->toContain('create index');

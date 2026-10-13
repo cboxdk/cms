@@ -114,6 +114,7 @@ export type ErrorCode =
   | 'generate_panel_contribution_mismatch'
   | 'generate_panel_point_unknown'
   | 'generate_registry_unreadable'
+  | 'generate_relation_sort_by_invalid'
   | 'generate_required_field_added'
   | 'generate_scale_above_precision'
   | 'generate_schema_invalid'
@@ -456,6 +457,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'generate_panel_contribution_mismatch',
           'generate_panel_point_unknown',
           'generate_registry_unreadable',
+          'generate_relation_sort_by_invalid',
           'generate_required_field_added',
           'generate_scale_above_precision',
           'generate_schema_invalid',
@@ -762,6 +764,7 @@ const problemV1Rule: ObjectRule = {
           'generate_panel_contribution_mismatch',
           'generate_panel_point_unknown',
           'generate_registry_unreadable',
+          'generate_relation_sort_by_invalid',
           'generate_required_field_added',
           'generate_scale_above_precision',
           'generate_schema_invalid',

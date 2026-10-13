@@ -16,7 +16,7 @@ The kernel knows no content types (GUARDRAILS 2.4). A type is one blueprint file
 - **capabilities**: `history` (`full`, `audit-only` or `none`), `stages` (`draft-release` or `none`), `localization` (`none` or `variants`) and `routable`. An entry of a type with stages `none` has no release and is public once it is placed and published. A type with stages `draft-release` is released with `variant.release`, which the kernel allows only with history `full` and otherwise rejects as `type_not_releasable`.
 - **localization**: with `none`, the one shared variant holds every field. With `variants` (PRD 10.1), every language is a variant of the entry with its own revisions and release, and each field says which variant holds it with `translatable: true` (the language's) or `false` (the shared one, the default); a translatable field may add `fallback: field` to fall back on its own along the site's chain instead of with its whole variant. Both keys belong to a `variants` type only, and `fallback: field` to a translatable field only; `cms:generate` refuses anything else with `generate_translatable_without_variants` and `generate_fallback_without_translatable`. The type table of a `variants` type holds one row per language with the shared fields in each (PRD 11.6), so its query builder takes `locale()`, and the entry commands of version 1 refuse such a type until version 2 writes the languages' variants. The workbench's `fixture_notice` is one.
 - **fields**: each with its handle, core field type, `required`, `classification` and the options of its type, as [blueprint schema v1](../addons/blueprint-v1.md) lists them.
-- **relations**, optional (PRD 5.11): a field of type `relation` names other entries by id, with `types`, the type names `<owner>:<handle>` a target may have, such as `[app:fixture_article]`; `multiple: true` for a list of up to `max_items` (at most 1,000) entries, each once. A relation is `public` or `internal` and never `filterable`, `sortable` or given a `default`. A to-one relation is a `uuid` column with a foreign key to `entries` ON DELETE RESTRICT and an index, which the migration adds; a multiple relation is a `jsonb` list of ids. `cms:generate` refuses a type name no blueprint defines with `generate_unknown_relation_type`, and a command refuses a target that does not exist or that the writer cannot read with `validation_relation_target_missing`, and one of another type with `validation_relation_target_type`, at the field's path. In a record a relation is an `EntryId`, or a list of them. The workbench's `fixture_measurement` has one of each, `fixture_corrects` and `fixture_cited_in`, and one inside its group `fixture_sensor`.
+- **relations**, optional (PRD 5.11): a field of type `relation` names other entries by id, with `types`, the type names `<owner>:<handle>` a target may have, such as `[app:fixture_article]`; `multiple: true` for a list of up to `max_items` (at most 1,000) entries, each once. A relation is `public` or `internal` and never `sortable` or given a `default`. `meta` gives each target attributes, such as a role select, validated like fields at `fields.<handle>[<n>].<attribute>`, with at most one of them `filterable`; a top-level relation may be `filterable` with `sort_by`, a sortable field of the owner, which gives the owner's query builder `where<Field>(EntryId)` and `orderBy<Field>()`, the target's newest sources by the sort key the release writes onto the relation's edges, and a filterable attribute a partial index on `relations` in the migration of the step that adds the relation. The workbench's `fixture_article` has `fixture_byline`, whose targets carry a filterable `fixture_role`, and a filterable `fixture_related`, both sorted by `fixture_published_on`; see [the blueprint reference](../addons/blueprint-v1.md#relations). A to-one relation is a `uuid` column with a foreign key to `entries` ON DELETE RESTRICT and an index, which the migration adds; a multiple relation is a `jsonb` list of ids. `cms:generate` refuses a type name no blueprint defines with `generate_unknown_relation_type`, and a command refuses a target that does not exist or that the writer cannot read with `validation_relation_target_missing`, and one of another type with `validation_relation_target_type`, at the field's path. In a record a relation is an `EntryId`, or a list of them. The workbench's `fixture_measurement` has one of each, `fixture_corrects` and `fixture_cited_in`, and one inside its group `fixture_sensor`.
 - **conditions**, optional (gap G3): a field shown only for some values of others has a `when`, such as `{ field: fixture_kind, eq: fixture_external }`, `in`, `neq`, `"null": true` (quoted in YAML), `not_null: true`, or `all` and `any` of conditions, over its siblings and with `../` the siblings of the groups it is in, and a `when_hidden` of `clear` or `keep`, which every conditional field needs. A hidden field is never required, and with `clear` holds no value; a conditional field's column is nullable. `cms:generate` refuses a reference it cannot reach, a circle, another owner's namespace, a field classified above the conditional field, a field of another variant and a comparison of the wrong kind, each with its own code: `generate_when_unknown_field`, `generate_when_cycle`, `generate_when_foreign_namespace`, `generate_when_classification_above`, `generate_when_other_variant` and `generate_when_value_wrong_kind`. See [Conditional fields](../addons/blueprint-v1.md#conditional-fields). The items of the workbench's `fixture_measurement` series have three conditional fields.
 - **presentation**, optional and form only (gap G2): a `label` and `description` as one text or a map of locale to text, such as `{ en: Title, da: Titel }`; a `layout` of tabs and a sidebar that places every top-level field exactly once, each with a width preset; per field a `ui` with `instructions`, an `input_hint`, `read_only`, `hidden`, the `display` of a select and the `summary` template of a repeated group; and a `default` of the field's kind, or the tokens `today` and `now`. They reach only the editor descriptor the panel's forms render the type from: no record, codec, validator or column changes, so a change of them is no new version and needs no migration. `cms:generate` refuses a layout that leaves a field out or places one twice, an unknown width and a default of the wrong kind with `generate_layout_field_omitted`, `generate_layout_field_repeated`, `generate_layout_width_unknown` and `generate_default_wrong_kind`. The workbench's `fixture_article` declares two tabs and a sidebar with Danish and English labels.
 
@@ -57,6 +57,7 @@ A later change to the type is a new `version` of the same file. Until schema evo
 - `tests/Arch/ContentTypesTest.php` fails for a handle without the `fixture_` prefix, or when the kernel's source names one.
 - A test below `packages/` that fails because a type was added reads the workbench by name. That test is the bug: fix it to read the types from the schema or the `TypeCatalog`, as M1-T50 did, in a commit of its own, and record it in `CHECKS-LOG.md`.
 - A type with conditional fields: a test feeds input in which each conditional field is shown and hidden through the generated validator and the record's codec and TypeScript validator, as `tests/Feature/Validation/WorkbenchValidatorsTest.php` and `tests/Codecs/TypeScriptValidatorsTest.php` do for `fixture_measurement`, and the seeder's values pass, which `packages/core/tests/Seeding/FieldValueGeneratorTest.php` checks for every type of the workbench.
+- A type with relation attributes or a filterable relation: `packages/core/tests/Postgres/RelationAttributesTest.php` refuses an attribute's wrong value at its path and reads the edges' indexes with EXPLAIN, and `tests/Postgres/TypeTables/WorkbenchQueryBuildersTest.php` runs the generated relation filters.
 - A type with a relation: `tests/Postgres/ForeignKeyIndexTest.php` finds the index of a to-one relation's foreign key, and `tests/Codecs/WorkbenchRecordCodecsTest.php` and `tests/Codecs/TypeScriptValidatorsTest.php` hold its record to its ids; `packages/core/tests/Postgres/SeedScaleTest.php` seeds it with targets among the entries seeded before.
 - `composer check:generated` (gate 6) and `composer check` (gates 1 to 6) pass.
 
@@ -227,7 +228,9 @@ The workbench's first type, `app:fixture_article`, carries the presentation keys
 # and English, the layout of two tabs and a sidebar, the ui hints and the form-only defaults.
 # The fixture addon's extension has no layout fragment, so its field lands in the tab extensions.
 # fixture_related, up to 200 other articles, is a relation (PRD 5.11, B2-T112), whose edges the
-# entry commands write in the draft stage and, once released, the released stage.
+# entry commands write in the draft stage and, once released, the released stage. It is
+# filterable, so its released edges carry fixture_published_on as their sort key (B2-T75), and
+# fixture_byline credits entries each with a role, an attribute of the target with a partial index.
 blueprint: 1
 kind: type
 type_id: 01a0df3e-8cef-7e9f-8daf-9faa60f1faa6
@@ -348,6 +351,41 @@ fields:
     multiple: true
     max_items: 200
     types: [app:fixture_article]
+    filterable: true
+    sort_by: fixture_published_on
+  - handle: fixture_byline
+    label:
+      en: Byline
+      da: Byline
+    description: Who the article credits, each an entry with the role it had.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 20
+    types: [app:fixture_article]
+    filterable: true
+    sort_by: fixture_published_on
+    meta:
+      - handle: fixture_role
+        label:
+          en: Role
+          da: Rolle
+        description: What the credited entry did for the article.
+        type: select
+        required: true
+        filterable: true
+        options:
+          - value: fixture_author
+            label: Author
+          - value: fixture_photo
+            label: Photo
+          - value: fixture_contributor
+            label: Contributor
+      - handle: fixture_credit_note
+        label: Credit note
+        description: How the credit reads under the article, when it differs from the entry's title.
+        type: text
+        max_length: 120
   - handle: fixture_embargo
     label: Embargo
     type: group
@@ -387,6 +425,7 @@ layout:
           fields:
             - field: fixture_sources
             - field: fixture_related
+            - field: fixture_byline
     - handle: fixture_restrictions
       label:
         en: Restrictions
@@ -751,6 +790,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1Ext.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1ExtFixtureaddon.php',
+        'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureByline.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureEmbargo.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureArticleV1FixtureSources.php',
         'workbench/app/Cms/Generated/Domain/Dto/AppFixtureEventV1.php',
@@ -786,6 +826,8 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleFixtureaddonFields.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecord.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/AppFixtureArticleRecordFactory.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureBylineFixtureRoleChoice.php',
+        'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureBylineItem.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureEmbargoGroup.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureSourcesItem.php',
         'workbench/app/Cms/Generated/Records/AppFixtureArticle/FixtureTopicsChoice.php',
@@ -821,6 +863,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/database/migrations/cms/app__fixture_article_0002_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_article_0003_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_article_0004_add_columns.php',
+        'workbench/database/migrations/cms/app__fixture_article_0005_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_event.lock',
         'workbench/database/migrations/cms/app__fixture_event_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_measurement.lock',

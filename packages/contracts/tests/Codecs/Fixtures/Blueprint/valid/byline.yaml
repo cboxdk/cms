@@ -1,0 +1,62 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a71
+handle: story
+label: Story
+description: A story with its byline, each credit an entry with its role, listed under every person it credits.
+version: 1
+capabilities:
+  history: full
+  stages: draft-release
+  localization: none
+fields:
+  - handle: headline
+    label: Headline
+    description: The headline of the story.
+    type: text
+    required: true
+    classification: public
+  - handle: published_on
+    label: Published on
+    description: The day the story was published, the order of every listing of it.
+    type: date
+    classification: public
+    sortable: true
+  - handle: byline
+    label: Byline
+    description: The people the story credits, each with the role they had.
+    type: relation
+    classification: public
+    multiple: true
+    max_items: 20
+    types: [app:person]
+    filterable: true
+    sort_by: published_on
+    meta:
+      - handle: role
+        label: Role
+        description: What the person did for the story.
+        type: select
+        required: true
+        filterable: true
+        options:
+          - value: author
+            label: Author
+          - value: photo
+            label: Photo
+          - value: contributor
+            label: Contributor
+      - handle: credit
+        label: Credit
+        description: How the credit reads under the story, when it differs from the person's name.
+        type: text
+        max_length: 120
+  - handle: related
+    label: Related stories
+    description: The stories the story points its readers to, listed under each of them, newest first.
+    type: relation
+    classification: public
+    multiple: true
+    types: [app:story]
+    filterable: true
+    sort_by: published_on

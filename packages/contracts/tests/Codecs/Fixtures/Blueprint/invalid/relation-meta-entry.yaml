@@ -1,0 +1,31 @@
+blueprint: 1
+kind: type
+type_id: 0192a3b4-c5d6-7e8f-9a0b-1c2d3e4f5a6b
+handle: note
+label: Note
+version: 1
+capabilities:
+  history: full
+  stages: none
+  localization: none
+fields:
+  - handle: published_on
+    label: Published on
+    description: The day the note was published.
+    type: date
+    classification: public
+    sortable: true
+  - handle: byline
+    label: Byline
+    description: Who wrote the note, with the role each had.
+    type: relation
+    classification: public
+    multiple: true
+    filterable: true
+    sort_by: published_on
+    types: [app:note]
+    meta:
+      - handle: entry
+        label: Entry
+        description: The entry of the credit.
+        type: text

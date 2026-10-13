@@ -20,6 +20,7 @@ use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\RelationDefinition;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
@@ -31,6 +32,7 @@ use Cbox\Cms\Generators\Codec\Domain\RecordContracts;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\RelationDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Editor\Domain\RelativePath;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ExtensionVersion as ExtenderVersion;
@@ -39,6 +41,7 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationTarget;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
+use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Owner;
 use Override;
 
@@ -147,6 +150,7 @@ final readonly class PhpTypeCatalog implements Generator
                 ExtensionVersion::class,
                 ...($this->hasContributedField($schema) ? [FieldBase::class] : []),
                 FieldDefinition::class,
+                ...($this->hasRelationDefinition($schema) ? [RelationDefinition::class] : []),
                 FieldFallback::class,
                 FieldHandle::class,
                 FieldNamespace::class,
@@ -417,9 +421,10 @@ final readonly class PhpTypeCatalog implements Generator
             $indent.'    sortable: '.$flag($field->sortable).',',
             $indent.'    column: '.$this->column($field->column).',',
             ...($nested === [] ? [] : [$indent.'    fields: [', ...$nested, $indent.'    ],']),
-            ...($field->base === $field->type ? [] : [$indent.'    base: FieldBase::'.FieldBase::from($field->base)->name.',']),
+            ...($this->contributed($field) ? [$indent.'    base: FieldBase::'.FieldBase::from($field->base)->name.','] : []),
             ...($field->translatable ? [$indent.'    translatable: true,'] : []),
             ...($field->fallback->value === FieldFallback::Variant->value ? [] : [$indent.'    fallback: FieldFallback::'.FieldFallback::from($field->fallback->value)->name.',']),
+            ...($this->relationDefinition($field) === null ? [] : [$indent.'    relation: '.$this->relationDefinition($field).',']),
             $indent.'),',
         ];
     }
@@ -437,7 +442,52 @@ final readonly class PhpTypeCatalog implements Generator
      */
     private function anyContributed(array $fields): bool
     {
-        return array_any($fields, fn (FieldDescriptor $field): bool => $field->base !== $field->type || $this->anyContributed($field->fields));
+        return array_any($fields, fn (FieldDescriptor $field): bool => $this->contributed($field) || $this->anyContributed($field->fields));
+    }
+
+    /**
+     * Whether the field is of an addon's field type, `<namespace>:<handle>`, whose definition
+     * names its base; a core field type has none, and a relation with attributes takes the form of
+     * a group through its relation definition instead.
+     */
+    private function contributed(FieldDescriptor $field): bool
+    {
+        return str_contains($field->type, ':');
+    }
+
+    /**
+     * Whether a field of the schema has a relation definition to write.
+     */
+    private function hasRelationDefinition(CompiledSchema $schema): bool
+    {
+        return array_any($schema->types, fn (TypeDescriptor $type): bool => $this->anyRelationDefinition($type->fields));
+    }
+
+    /**
+     * @param  list<FieldDescriptor>  $fields
+     */
+    private function anyRelationDefinition(array $fields): bool
+    {
+        return array_any($fields, fn (FieldDescriptor $field): bool => $this->relationDefinition($field) !== null || $this->anyRelationDefinition($field->fields));
+    }
+
+    /**
+     * The relation definition of a relation whose targets carry attributes or whose edges have a
+     * sort key (PRD 5.11), as PHP; null for every other field, whose definition has none.
+     */
+    private function relationDefinition(FieldDescriptor $field): ?string
+    {
+        $relation = $field->relation;
+
+        if (! $relation instanceof RelationDescriptor || (! $relation->meta && ! $relation->sortBy instanceof Handle)) {
+            return null;
+        }
+
+        return sprintf(
+            'new RelationDefinition(meta: %s, sortBy: %s)',
+            $relation->meta ? 'true' : 'false',
+            $relation->sortBy instanceof Handle ? 'new FieldHandle('.PhpSource::literal($relation->sortBy->value).')' : 'null',
+        );
     }
 
     private function column(?ColumnDescriptor $column): string

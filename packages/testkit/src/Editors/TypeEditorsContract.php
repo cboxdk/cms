@@ -232,7 +232,14 @@ trait TypeEditorsContract
                     Assert::assertNotSame(Presence::RequiredOnRelease, $field->presence, $where);
                 }
 
-                Assert::assertTrue(str_contains($field->fieldType, ':') || $field->fieldType === $field->base->value, $where);
+                // A core field type takes its own form, but a relation whose targets carry attributes takes
+                // the form of a group of its entry and the attributes (PRD 5.11).
+                Assert::assertTrue(
+                    str_contains($field->fieldType, ':')
+                    || $field->fieldType === $field->base->value
+                    || ($field->fieldType === EditorBase::Relation->value && $field->base === EditorBase::Group),
+                    $where,
+                );
             }
         }
     }

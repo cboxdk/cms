@@ -23,6 +23,7 @@ final readonly class AppFixtureArticleV1
      * @param  EntryId  $cmsId  The id of the entry (PRD 5.3).
      * @param  AppFixtureArticleV1Ext  $ext  The fields extensions add, by the namespace of their extender (PRD 11.12).
      * @param  ListValue|Omitted|null  $fixtureBody  Body: The body of the article.
+     * @param  list<AppFixtureArticleV1FixtureByline>|Omitted|null  $fixtureByline  Byline: Who the article credits, each an entry with the role it had.
      * @param  AppFixtureArticleV1FixtureEmbargo|Omitted|null  $fixtureEmbargo  Embargo.
      * @param  bool  $fixtureFeatured  Featured: Whether the article is featured on the front page.
      * @param  DateTimeImmutable|Omitted|null  $fixturePublishedOn  Published on: The day the article was first published.
@@ -37,6 +38,7 @@ final readonly class AppFixtureArticleV1
         public EntryId $cmsId,
         public AppFixtureArticleV1Ext $ext,
         public ListValue|Omitted|null $fixtureBody,
+        public array|Omitted|null $fixtureByline,
         public AppFixtureArticleV1FixtureEmbargo|Omitted|null $fixtureEmbargo,
         public bool $fixtureFeatured,
         public DateTimeImmutable|Omitted|null $fixturePublishedOn,
@@ -58,6 +60,7 @@ final readonly class AppFixtureArticleV1
             cmsId: $this->cmsId,
             ext: $this->ext,
             fixtureBody: $this->fixtureBody,
+            fixtureByline: $this->fixtureByline,
             fixtureEmbargo: $access->allows(ClassificationAccess::Confidential) ? $this->fixtureEmbargo : Omitted::Field,
             fixtureFeatured: $this->fixtureFeatured,
             fixturePublishedOn: $this->fixturePublishedOn,

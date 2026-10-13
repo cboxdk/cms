@@ -16,6 +16,7 @@ use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\EntryRecord;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
 use Cbox\Cms\Contracts\TypeTables\RecordPage;
+use Cbox\Cms\Contracts\TypeTables\RelationFilter;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
@@ -46,6 +47,7 @@ final readonly class ShopProductQuery
     /**
      * @param  list<ColumnFilter>  $filters
      * @param  list<ColumnOrder>  $order
+     * @param  list<RelationFilter>  $relations
      */
     public function __construct(
         private TypeTableReader $reader,
@@ -54,6 +56,7 @@ final readonly class ShopProductQuery
         private array $order = [],
         private ?TypeTableCursor $after = null,
         private int $limit = TypeTableQuery::DEFAULT_LIMIT,
+        private array $relations = [],
     ) {}
 
     /**
@@ -62,7 +65,7 @@ final readonly class ShopProductQuery
      */
     public function where(ShopProductFilterField $field, FilterOperator $operator, FieldValue ...$values): self
     {
-        return new self($this->reader, $this->records, [...$this->filters, new ColumnFilter($field->value, $operator, ...$values)], $this->order, $this->after, $this->limit);
+        return new self($this->reader, $this->records, [...$this->filters, new ColumnFilter($field->value, $operator, ...$values)], $this->order, $this->after, $this->limit, $this->relations);
     }
 
     /**
@@ -102,7 +105,7 @@ final readonly class ShopProductQuery
      */
     public function orderBy(ShopProductSortField $field, SortDirection $direction = SortDirection::Ascending): self
     {
-        return new self($this->reader, $this->records, $this->filters, [...$this->order, new ColumnOrder($field->value, $direction)], $this->after, $this->limit);
+        return new self($this->reader, $this->records, $this->filters, [...$this->order, new ColumnOrder($field->value, $direction)], $this->after, $this->limit, $this->relations);
     }
 
     /**
@@ -110,7 +113,7 @@ final readonly class ShopProductQuery
      */
     public function after(TypeTableCursor $cursor): self
     {
-        return new self($this->reader, $this->records, $this->filters, $this->order, $cursor, $this->limit);
+        return new self($this->reader, $this->records, $this->filters, $this->order, $cursor, $this->limit, $this->relations);
     }
 
     /**
@@ -118,7 +121,7 @@ final readonly class ShopProductQuery
      */
     public function limit(int $limit): self
     {
-        return new self($this->reader, $this->records, $this->filters, $this->order, $this->after, $limit);
+        return new self($this->reader, $this->records, $this->filters, $this->order, $this->after, $limit, $this->relations);
     }
 
     /**
@@ -128,7 +131,7 @@ final readonly class ShopProductQuery
      */
     public function page(AccessContext $access): RecordPage
     {
-        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit), $access);
+        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit, $this->relations), $access);
 
         return new RecordPage(array_map(
             fn (TypeTableRow $row): EntryRecord => new EntryRecord($row->entry, $this->records->fromFieldValues($row->fields)),

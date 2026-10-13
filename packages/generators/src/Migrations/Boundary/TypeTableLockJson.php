@@ -47,6 +47,7 @@ final readonly class TypeTableLockJson
                 'name' => $column->name,
                 'not_null' => $column->notNull,
                 ...($column->references === null ? [] : ['references' => $column->references]),
+                ...($column->relationIndexes === [] ? [] : ['relation_indexes' => $column->relationIndexes]),
                 'step' => $column->step,
                 'type' => $column->type,
             ];
@@ -148,6 +149,12 @@ final readonly class TypeTableLockJson
                 throw self::invalid($file, $at.' has no list of checks.');
             }
 
+            $relationIndexes = $entry['relation_indexes'] ?? [];
+
+            if (! is_array($relationIndexes) || ! array_is_list($relationIndexes) || array_filter($relationIndexes, is_string(...)) !== $relationIndexes) {
+                throw self::invalid($file, $at.' has relation indexes that are not a list of handles.');
+            }
+
             $column = new LockedColumn(
                 self::string($file, $entry, 'name', $at),
                 self::string($file, $entry, 'type', $at),
@@ -156,6 +163,7 @@ final readonly class TypeTableLockJson
                 self::boolean($file, $entry, 'indexed', $at),
                 self::integer($file, $entry, 'step', $at),
                 array_key_exists('references', $entry) ? self::string($file, $entry, 'references', $at) : null,
+                $relationIndexes,
             );
 
             if ($column->step < 1 || $column->step > $steps) {

@@ -196,7 +196,7 @@ final class DeliveryResolveTest extends TestCase
         $response->assertOk();
         self::assertInstanceOf(stdClass::class, $data);
         self::assertSame(
-            ['cms_id', 'ext', 'fixture_body', 'fixture_featured', 'fixture_published_on', 'fixture_reading_minutes', 'fixture_related', 'fixture_slug', 'fixture_title', 'fixture_topics'],
+            ['cms_id', 'ext', 'fixture_body', 'fixture_byline', 'fixture_featured', 'fixture_published_on', 'fixture_reading_minutes', 'fixture_related', 'fixture_slug', 'fixture_title', 'fixture_topics'],
             array_keys(get_object_vars($data)),
         );
         self::assertStringNotContainsString('fixture_embargo', (string) $response->getContent());

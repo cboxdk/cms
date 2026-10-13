@@ -119,6 +119,7 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`generate_panel_contribution_mismatch`](#generate_panel_contribution_mismatch) | 500 | 64 | internal_error | no |
 | [`generate_panel_point_unknown`](#generate_panel_point_unknown) | 500 | 64 | internal_error | no |
 | [`generate_registry_unreadable`](#generate_registry_unreadable) | 500 | 78 | internal_error | no |
+| [`generate_relation_sort_by_invalid`](#generate_relation_sort_by_invalid) | 500 | 65 | internal_error | no |
 | [`generate_required_field_added`](#generate_required_field_added) | 500 | 65 | internal_error | no |
 | [`generate_scale_above_precision`](#generate_scale_above_precision) | 500 | 65 | internal_error | no |
 | [`generate_schema_invalid`](#generate_schema_invalid) | 500 | 65 | internal_error | no |
@@ -1236,6 +1237,15 @@ cms:panel:types reads the addon's contributions from the registry cms:build comp
 
 - HTTP status: 500 Internal Server Error
 - CLI exit code: 78 (EX_CONFIG)
+- MCP: the JSON-RPC error -32603, Internal error
+- Retry: no, the same call gives the same answer until something changes
+
+### generate_relation_sort_by_invalid
+
+A filterable relation field's sort_by names no sortable top-level field of the type's owner that the same variant holds, so the kernel cannot write the sort key of its edges at release. Name a sortable field of the owner, translatable as the relation is, or make that field sortable.
+
+- HTTP status: 500 Internal Server Error
+- CLI exit code: 65 (EX_DATAERR)
 - MCP: the JSON-RPC error -32603, Internal error
 - Retry: no, the same call gives the same answer until something changes
 

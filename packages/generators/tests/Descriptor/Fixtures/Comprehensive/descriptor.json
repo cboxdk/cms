@@ -42,6 +42,10 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": {
+                "meta": false,
+                "sort_by": null
+            },
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -103,6 +107,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -179,6 +184,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -265,6 +271,7 @@
                 "native": "DateTimeImmutable",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -333,6 +340,7 @@
                 "native": "string",
                 "nullable": false
             },
+            "relation": null,
             "required": true,
             "sortable": false,
             "translatable": false,
@@ -405,6 +413,7 @@
                         "native": "string",
                         "nullable": false
                     },
+                    "relation": null,
                     "required": true,
                     "sortable": false,
                     "translatable": false,
@@ -449,6 +458,7 @@
                         "native": "int",
                         "nullable": true
                     },
+                    "relation": null,
                     "required": true,
                     "sortable": false,
                     "translatable": false,
@@ -507,6 +517,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -566,6 +577,7 @@
                 "native": "bool",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -615,6 +627,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -670,6 +683,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": true,
             "sortable": false,
             "translatable": false,
@@ -726,6 +740,7 @@
                 "native": "DateTimeImmutable",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": true,
             "translatable": false,
@@ -788,6 +803,7 @@
                 "native": "string",
                 "nullable": false
             },
+            "relation": null,
             "required": true,
             "sortable": true,
             "translatable": false,
@@ -850,6 +866,7 @@
                 "native": "string",
                 "nullable": false
             },
+            "relation": null,
             "required": true,
             "sortable": true,
             "translatable": false,
@@ -912,6 +929,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -965,6 +983,7 @@
                 "native": "int",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": true,
             "translatable": false,
@@ -1024,6 +1043,10 @@
                 "native": "\\Cbox\\Cms\\Contracts\\Ids\\EntryId",
                 "nullable": true
             },
+            "relation": {
+                "meta": false,
+                "sort_by": null
+            },
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -1079,6 +1102,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -1142,6 +1166,7 @@
                         "native": "string",
                         "nullable": false
                     },
+                    "relation": null,
                     "required": true,
                     "sortable": false,
                     "translatable": false,
@@ -1189,6 +1214,7 @@
                         "native": "string",
                         "nullable": true
                     },
+                    "relation": null,
                     "required": false,
                     "sortable": false,
                     "translatable": false,
@@ -1236,6 +1262,7 @@
                         "native": "string",
                         "nullable": true
                     },
+                    "relation": null,
                     "required": false,
                     "sortable": false,
                     "translatable": false,
@@ -1280,6 +1307,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -1329,6 +1357,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -1412,6 +1441,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -1485,6 +1515,7 @@
                 "native": "int",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,

@@ -24,6 +24,13 @@ interface AppFixtureArticleRecord
     public ?ListValue $fixtureBody { get; }
 
     /**
+     * Byline: Who the article credits, each an entry with the role it had.
+     *
+     * @var list<FixtureBylineItem>|null
+     */
+    public ?array $fixtureByline { get; }
+
+    /**
      * Embargo.
      */
     public ?FixtureEmbargoGroup $fixtureEmbargo { get; }

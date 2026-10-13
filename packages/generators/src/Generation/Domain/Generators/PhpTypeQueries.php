@@ -11,17 +11,21 @@ use Cbox\Cms\Contracts\Fields\BooleanValue;
 use Cbox\Cms\Contracts\Fields\DateTimeValue;
 use Cbox\Cms\Contracts\Fields\DateValue;
 use Cbox\Cms\Contracts\Fields\DecimalValue;
+use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Identity\AccessContext;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Schema\TypeName;
+use Cbox\Cms\Contracts\TypeTables\AttributeFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnFilter;
 use Cbox\Cms\Contracts\TypeTables\ColumnOrder;
 use Cbox\Cms\Contracts\TypeTables\EntryRecord;
 use Cbox\Cms\Contracts\TypeTables\FilterOperator;
 use Cbox\Cms\Contracts\TypeTables\InvalidTypeTableQuery;
 use Cbox\Cms\Contracts\TypeTables\RecordPage;
+use Cbox\Cms\Contracts\TypeTables\RelationFilter;
 use Cbox\Cms\Contracts\TypeTables\SortDirection;
 use Cbox\Cms\Contracts\TypeTables\TypeTableCursor;
 use Cbox\Cms\Contracts\TypeTables\TypeTableQuery;
@@ -29,6 +33,7 @@ use Cbox\Cms\Contracts\TypeTables\TypeTableReader;
 use Cbox\Cms\Contracts\TypeTables\TypeTableRow;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\CompiledSchema;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\RelationDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GeneratedFile;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
@@ -37,7 +42,9 @@ use Cbox\Cms\Generators\Generation\Domain\Dto\PhpClass;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
 use Cbox\Cms\Generators\Generation\Domain\GenerationFailed;
 use Cbox\Cms\Generators\Generation\Domain\Generator;
+use Cbox\Cms\Generators\Schema\Domain\Handle;
 use Cbox\Cms\Generators\Schema\Domain\Localization;
+use Closure;
 use DateTimeImmutable;
 use Override;
 
@@ -53,6 +60,9 @@ use Override;
  *   error, not a query that scans the table.
  * - `<Type>Query`, a final readonly builder: `where()` with a filterable field, an operator and
  *   field values, a typed `where<Field>()` per filterable field, `orderBy()` with a sortable field,
+ *   for a filterable relation (PRD 5.11) `where<Field>()` with the target's EntryId and its
+ *   filterable attributes, and `orderBy<Field>()`, the target's reverse listing by the sort key on
+ *   the relation's edges, newest first by default,
  *   `after()` with the cursor of the page before, `limit()`, and `page()`, which asks the kernel's
  *   TypeTableReader for the page, with the caller's AccessContext, and hydrates each row through
  *   the owner's record factory from the container, so the page holds the owner's interface
@@ -94,7 +104,7 @@ final readonly class PhpTypeQueries implements Generator
         'group' => 'not queryable: the blueprint schema refuses a filterable or sortable group, and so does the generator, with generate_field_not_queryable',
         'integer' => 'int, compared as a number',
         'long_text' => 'string, compared by the column\'s collation; the blueprint schema refuses a filterable or sortable long text',
-        'relation' => 'not queryable: the blueprint schema refuses a filterable or sortable relation, and so does the generator, with generate_field_not_queryable',
+        'relation' => 'EntryId, the target, through the kernel\'s relations table, with the target\'s filterable attributes compared by equality; the blueprint schema refuses a sortable relation, and so does the generator, with generate_field_not_queryable',
         'rich_text' => 'not queryable: the blueprint schema refuses a filterable or sortable rich text, and so does the generator, with generate_field_not_queryable',
         'select' => 'the <Field>Choice case, compared by its value; a filterable or sortable select that allows several options is refused with generate_field_not_queryable',
         'text' => 'string, compared by the column\'s collation',
@@ -146,6 +156,7 @@ final readonly class PhpTypeQueries implements Generator
     {
         $case = PhpTypeHandleEnum::caseName($type);
         $filterable = [];
+        $relations = [];
         $sortable = [];
         $methods = [];
         $typeProblems = [];
@@ -154,6 +165,22 @@ final readonly class PhpTypeQueries implements Generator
             GeneratedLines::fieldType(self::class, self::FIELD_TYPES, $field);
 
             if (! $field->filterable && ! $field->sortable) {
+                continue;
+            }
+
+            if ($field->relation instanceof RelationDescriptor && $field->filterable && ! $field->sortable) {
+                $method = 'where'.PhpSource::studly($field->handle->value);
+                $key = strtolower($method);
+
+                if (isset($methods[$key])) {
+                    $typeProblems[] = $this->collision($type, $field, $method, $methods[$key]);
+
+                    continue;
+                }
+
+                $methods[$key] = $field->handle->value;
+                $relations[] = $field;
+
                 continue;
             }
 
@@ -175,14 +202,7 @@ final readonly class PhpTypeQueries implements Generator
                 $key = strtolower($method);
 
                 if (isset($methods[$key])) {
-                    $typeProblems[] = new GenerationProblem(GenerateErrorCode::NameCollision, sprintf(
-                        '%s: the field %s of %s would get the method %s, which the field %s has already. Choose handles that differ in more than underscores and case.',
-                        $field->location->describe(),
-                        $field->handle->value,
-                        $type->name(),
-                        $method,
-                        $methods[$key],
-                    ));
+                    $typeProblems[] = $this->collision($type, $field, $method, $methods[$key]);
 
                     continue;
                 }
@@ -206,7 +226,7 @@ final readonly class PhpTypeQueries implements Generator
         $directory = $target->phpDirectory.'/'.self::DIRECTORY.'/'.$case;
         $classes = [
             $case.'FilterField' => $this->fieldEnum($case.'FilterField', $filterable, sprintf('The filterable fields of %s, each valued by its column in the type table (PRD 8.8). A filter takes only these, so filtering on a field without an index is a type error.', $type->name())),
-            $case.'Query' => $this->builder($type, $case, $target, $filterable),
+            $case.'Query' => $this->builder($type, $case, $target, $filterable, $relations),
             $case.'SortField' => $this->fieldEnum($case.'SortField', $sortable, sprintf('The sortable fields of %s, each valued by its column in the type table (PRD 8.8). An order takes only these, so sorting on a field without an index is a type error.', $type->name())),
         ];
         $files = [];
@@ -216,6 +236,18 @@ final readonly class PhpTypeQueries implements Generator
         }
 
         return $files;
+    }
+
+    private function collision(TypeDescriptor $type, FieldDescriptor $field, string $method, string $other): GenerationProblem
+    {
+        return new GenerationProblem(GenerateErrorCode::NameCollision, sprintf(
+            '%s: the field %s of %s would get the method %s, which the field %s has already. Choose handles that differ in more than underscores and case.',
+            $field->location->describe(),
+            $field->handle->value,
+            $type->name(),
+            $method,
+            $other,
+        ));
     }
 
     /**
@@ -262,8 +294,9 @@ final readonly class PhpTypeQueries implements Generator
 
     /**
      * @param  list<FieldDescriptor>  $filterable
+     * @param  list<FieldDescriptor>  $relations  the filterable relations
      */
-    private function builder(TypeDescriptor $type, string $case, GenerationTarget $target, array $filterable): PhpClass
+    private function builder(TypeDescriptor $type, string $case, GenerationTarget $target, array $filterable, array $relations): PhpClass
     {
         $records = PhpRecords::namespaceOf($type, $target);
         $imports = [
@@ -274,22 +307,31 @@ final readonly class PhpTypeQueries implements Generator
         ];
         $typed = [];
 
+        $factory = PhpRecords::factoryInterfaceOf($type);
+        $localized = $type->capabilities->localization === Localization::Variants;
+        $with = static fn (string $filters, string $order, string $after, string $limit, string $locale = '$this->locale', string $relations = '$this->relations'): string => sprintf(
+            '        return new self($this->reader, $this->records, %s, %s, %s, %s, %s%s);',
+            $filters,
+            $order,
+            $after,
+            $limit,
+            $relations,
+            $localized ? ', '.$locale : '',
+        );
+
         foreach ($filterable as $field) {
             $filter = $this->typedFilter($case, $field, $records);
             $typed = [...$typed, '', ...$filter->lines];
             $imports = [...$imports, ...$filter->imports];
         }
 
-        $factory = PhpRecords::factoryInterfaceOf($type);
-        $localized = $type->capabilities->localization === Localization::Variants;
-        $with = static fn (string $filters, string $order, string $after, string $limit, string $locale = '$this->locale'): string => sprintf(
-            '        return new self($this->reader, $this->records, %s, %s, %s, %s%s);',
-            $filters,
-            $order,
-            $after,
-            $limit,
-            $localized ? ', '.$locale : '',
-        );
+        foreach ($relations as $field) {
+            $filter = $this->relationFilter($case, $field, $records, $with);
+            $typed = [...$typed, '', ...$filter->lines];
+            $imports = [...$imports, ...$filter->imports];
+        }
+
+        $imports[] = RelationFilter::class;
 
         if ($localized) {
             $imports = [...$imports, Locale::class, InvalidTypeTableQuery::class];
@@ -308,6 +350,7 @@ final readonly class PhpTypeQueries implements Generator
             '    /**',
             '     * @param  list<ColumnFilter>  $filters',
             '     * @param  list<ColumnOrder>  $order',
+            '     * @param  list<RelationFilter>  $relations',
             '     */',
             '    public function __construct(',
             '        private TypeTableReader $reader,',
@@ -316,6 +359,7 @@ final readonly class PhpTypeQueries implements Generator
             '        private array $order = [],',
             '        private ?TypeTableCursor $after = null,',
             '        private int $limit = TypeTableQuery::DEFAULT_LIMIT,',
+            '        private array $relations = [],',
             ...($localized ? ['        private ?Locale $locale = null,'] : []),
             '    ) {}',
             ...($localized ? [
@@ -374,9 +418,9 @@ final readonly class PhpTypeQueries implements Generator
             '    {',
             ...($localized ? [
                 '        $variant = VariantKey::of($this->locale ?? throw InvalidTypeTableQuery::localeRequired(new TypeName(self::TYPE)));',
-                '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), $variant, $this->filters, $this->order, $this->after, $this->limit), $access);',
+                '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), $variant, $this->filters, $this->order, $this->after, $this->limit, $this->relations), $access);',
             ] : [
-                '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit), $access);',
+                '        $page = $this->reader->page(new TypeTableQuery(new TypeName(self::TYPE), VariantKey::shared(), $this->filters, $this->order, $this->after, $this->limit, $this->relations), $access);',
             ]),
             '',
             '        return new RecordPage(array_map(',
@@ -424,5 +468,89 @@ final readonly class PhpTypeQueries implements Generator
             ),
             '    }',
         ]);
+    }
+
+    /**
+     * The filter and the order of a filterable relation (PRD 5.11), and the classes they use:
+     * `where<Field>()` with the target and an optional value per filterable attribute of its
+     * targets, and `orderBy<Field>()`, the order by its sort_by field, which the kernel reads from
+     * the sort key on the relation's edges.
+     *
+     * @param  Closure(string, string, string, string, string=, string=): string  $with
+     */
+    private function relationFilter(string $case, FieldDescriptor $field, string $records, Closure $with): PhpClass
+    {
+        $studly = PhpSource::studly($field->handle->value);
+        $sortBy = $field->relation?->sortBy;
+        $parameters = ['EntryId $target'];
+        $attributes = [];
+        $imports = [EntryId::class];
+
+        foreach ($field->relationMeta() as $attribute) {
+            if (! $attribute->filterable) {
+                continue;
+            }
+
+            $name = PhpSource::camel($attribute->handle->value);
+            $choice = $studly.PhpSource::studly($attribute->handle->value).'Choice';
+
+            [$native, $value, $valueImports] = match ($attribute->base) {
+                'integer' => ['int', 'new IntegerValue($%s)', [IntegerValue::class]],
+                'boolean' => ['bool', 'new BooleanValue($%s)', [BooleanValue::class]],
+                'date' => ['DateTimeImmutable', 'new DateValue($%s->format(\'Y-m-d\'))', [DateTimeImmutable::class, DateValue::class]],
+                'select' => [$choice, 'new TextValue($%s->value)', [$records.'\\'.$choice, TextValue::class]],
+                default => ['string', 'new TextValue($%s)', [TextValue::class]],
+            };
+
+            $parameters[] = '?'.$native.' $'.$name.' = null';
+            $attributes[] = in_array($native, ['int', 'bool', 'string'], true)
+                ? sprintf('        if ($%s !== null) {', $name)
+                : sprintf('        if ($%s instanceof %s) {', $name, $native);
+            $attributes[] = sprintf('            $attributes[] = new AttributeFilter(new FieldHandle(%s), %s);', PhpSource::literal($attribute->handle->value), sprintf($value, $name));
+            $attributes[] = '        }';
+            $attributes[] = '';
+            $imports = [...$imports, ...$valueImports, AttributeFilter::class, FieldHandle::class];
+        }
+
+        $summary = PhpSource::comment($field->label.($field->description === null ? '' : ': '.$field->description));
+        $filter = sprintf('[...$this->relations, new RelationFilter(%s, $target%s)]', PhpSource::literal($field->handle->value), $attributes === [] ? '' : ', ...$attributes');
+        $order = [];
+
+        if ($sortBy instanceof Handle) {
+            $order = [
+                '',
+                '    /**',
+                ...$this->docLines(sprintf('Orders by %s, the sort key the kernel writes onto the released edges of %s: after where%s(), the newest sources of the target first, read from the index on the edges.', $sortBy->value, $field->handle->value, $studly)),
+                '     */',
+                '    public function orderBy'.$studly.'(SortDirection $direction = SortDirection::Descending): self',
+                '    {',
+                sprintf('        return $this->orderBy(%sSortField::%s, $direction);', $case, PhpSource::studly($sortBy->value)),
+                '    }',
+            ];
+        }
+
+        return new PhpClass($imports, [
+            '    /**',
+            ...$this->docLines($summary),
+            '     *',
+            ...$this->docLines('Keeps the records whose released relation points to the target, through the kernel\'s relations table'.($attributes === [] ? '.' : ', on an edge with the attributes given.')),
+            '     */',
+            '    public function where'.$studly.'('.implode(', ', $parameters).'): self',
+            '    {',
+            ...($attributes === [] ? [] : ['        $attributes = [];', '', ...$attributes]),
+            $with('$this->filters', '$this->order', '$this->after', '$this->limit', '$this->locale', $filter),
+            '    }',
+            ...$order,
+        ]);
+    }
+
+    /**
+     * The text as the lines of a method's docblock, wrapped at 96 characters.
+     *
+     * @return list<string>
+     */
+    private function docLines(string $text): array
+    {
+        return array_map(static fn (string $line): string => '     * '.$line, explode("\n", wordwrap(PhpSource::comment($text), 89)));
     }
 }

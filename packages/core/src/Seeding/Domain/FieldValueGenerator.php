@@ -56,7 +56,9 @@ use Random\Randomizer;
  *
  * A relation (PRD 5.11) names entries that SeedRelations gives for its target types, entries of
  * the data set seeded before; a multiple relation names up to three, each once. A relation for
- * which SeedRelations has no target is left out, required or not.
+ * which SeedRelations has no target is left out, required or not, and so is a group, or an item of
+ * a repeated group, whose required relation has none, such as a target of a relation whose targets
+ * carry attributes.
  */
 #[Internal]
 final readonly class FieldValueGenerator
@@ -145,11 +147,13 @@ final readonly class FieldValueGenerator
     }
 
     /**
-     * The fields of a group, which share their group's classification.
+     * The fields of a group, which share their group's classification; null when a required
+     * field has no value, a relation SeedRelations has no target for, such as the entry of a
+     * relation whose targets carry attributes, so the group is left out as that relation is.
      *
      * @param  list<FieldRules>  $rules
      */
-    private function nested(array $rules, Randomizer $random, SeedRelations $relations): FieldMap
+    private function nested(array $rules, Randomizer $random, SeedRelations $relations): ?FieldMap
     {
         $named = [];
 
@@ -158,10 +162,22 @@ final readonly class FieldValueGenerator
 
             if ($value instanceof FieldValue) {
                 $named[] = new NamedValue($field->handle, $value);
+            } elseif (self::required($field)) {
+                return null;
             }
         }
 
         return new FieldMap(...$named);
+    }
+
+    /**
+     * A group's value, or null when it is left out (nested()).
+     */
+    private function group(FieldRules $field, Randomizer $random, SeedRelations $relations): ?GroupValue
+    {
+        $fields = $this->nested($field->fields, $random, $relations);
+
+        return $fields instanceof FieldMap ? new GroupValue($fields) : null;
     }
 
     private function present(FieldRules $field, Randomizer $random): bool
@@ -181,7 +197,7 @@ final readonly class FieldValueGenerator
             RuleName::Boolean => new BooleanValue($random->getInt(1, 100) <= 30),
             RuleName::Date => new DateValue($this->date($field, $random)),
             RuleName::Datetime => new DateTimeValue($this->datetime($field, $random)),
-            RuleName::Object => new GroupValue($this->nested($field->fields, $random, $relations)),
+            RuleName::Object => $this->group($field, $random, $relations),
             RuleName::List => $this->list($field, $random, $relations),
             RuleName::PortableText => $this->richText($field, $random),
             RuleName::Relation => $this->relation($field, $random, $relations),
@@ -357,7 +373,11 @@ final readonly class FieldValueGenerator
         $count = $this->skewed(min($low, $high), $high, $random);
 
         for ($index = 0; $index < $count; $index++) {
-            $items[] = new GroupValue($this->nested($field->fields, $random, $relations));
+            $item = $this->nested($field->fields, $random, $relations);
+
+            if ($item instanceof FieldMap) {
+                $items[] = new GroupValue($item);
+            }
         }
 
         return new ListValue(...$items);

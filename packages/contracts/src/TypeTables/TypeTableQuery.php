@@ -23,6 +23,11 @@ use Cbox\Cms\Contracts\Schema\TypeName;
  * The order is keyset pagination: the rows sort by the order's columns and then by the entry id,
  * which is unique, so every row has one place and a page continues exactly after the row its cursor
  * names. A page holds at most MAX_LIMIT rows.
+ *
+ * The relation filters (PRD 5.11) keep the rows whose filterable relation points to a target. When
+ * the order is the one key of a relation filter's sort_by field, the query is the target's reverse
+ * listing (sortedRelation()): a reader orders by the sort key on the relation's edges, which holds
+ * the sort_by field's released value, so the order and the cursor are the field's.
  */
 #[Experimental]
 final readonly class TypeTableQuery
@@ -38,6 +43,7 @@ final readonly class TypeTableQuery
     /**
      * @param  list<ColumnFilter>  $filters
      * @param  list<ColumnOrder>  $order
+     * @param  list<RelationFilter>  $relations
      *
      * @throws InvalidTypeTableQuery
      */
@@ -48,6 +54,7 @@ final readonly class TypeTableQuery
         public array $order = [],
         public ?TypeTableCursor $after = null,
         public int $limit = self::DEFAULT_LIMIT,
+        public array $relations = [],
     ) {
         if ($limit < 1 || $limit > self::MAX_LIMIT) {
             throw InvalidTypeTableQuery::limit($limit);
@@ -71,7 +78,9 @@ final readonly class TypeTableQuery
     /**
      * Refuses the query unless the type is the query's, the type's table has rows of the query's
      * variant (TypeDefinition::tableHolds()), every filter is on a filterable field of it and every key of the
-     * order on a sortable field of it (PRD 8.8), as a reader checks it before it reads.
+     * order on a sortable field of it (PRD 8.8), and every relation filter on a filterable relation
+     * with a sort_by field and on filterable attributes of its targets (PRD 5.11), as a reader
+     * checks it before it reads.
      *
      * @throws InvalidTypeTableQuery
      */
@@ -86,7 +95,10 @@ final readonly class TypeTableQuery
         }
 
         foreach ($this->filters as $filter) {
-            if (! self::fieldOf($type, $filter->column)->filterable) {
+            $field = self::fieldOf($type, $filter->column);
+
+            // A relation is filtered by its target, through a RelationFilter.
+            if (! $field->filterable || $field->isRelation()) {
                 throw InvalidTypeTableQuery::notFilterable($this->type, $filter->column);
             }
         }
@@ -96,6 +108,41 @@ final readonly class TypeTableQuery
                 throw InvalidTypeTableQuery::notSortable($this->type, $key->column);
             }
         }
+
+        foreach ($this->relations as $relation) {
+            $field = self::fieldOf($type, $relation->column);
+
+            if (! $field->isRelation() || ! $field->filterable || ! $type->sortKeyOf($field) instanceof FieldDefinition) {
+                throw InvalidTypeTableQuery::notFilterable($this->type, $relation->column);
+            }
+
+            foreach ($relation->attributes as $attribute) {
+                $declared = array_find($field->relationMeta(), static fn (FieldDefinition $meta): bool => $meta->handle->equals($attribute->attribute));
+
+                if (! $declared instanceof FieldDefinition || ! $declared->filterable) {
+                    throw InvalidTypeTableQuery::attributeNotFilterable($this->type, $relation->column, $attribute->attribute->value);
+                }
+            }
+        }
+    }
+
+    /**
+     * The relation filter the query is the reverse listing of, ordered by its sort key: the first
+     * whose relation's sort_by field is the order's one key; null when there is none.
+     */
+    public function sortedRelation(TypeDefinition $type): ?RelationFilter
+    {
+        if (count($this->order) !== 1) {
+            return null;
+        }
+
+        $column = $this->order[0]->column;
+
+        return array_find($this->relations, static function (RelationFilter $relation) use ($type, $column): bool {
+            $sortKey = $type->sortKeyOf(self::fieldOf($type, $relation->column));
+
+            return $sortKey?->column instanceof ColumnDefinition && $sortKey->column->name === $column;
+        });
     }
 
     /**
@@ -112,6 +159,7 @@ final readonly class TypeTableQuery
         $columns = [
             ...array_map(static fn (ColumnFilter $filter): string => $filter->column, $this->filters),
             ...array_map(static fn (ColumnOrder $key): string => $key->column, $this->order),
+            ...array_map(static fn (RelationFilter $relation): string => $relation->column, $this->relations),
         ];
 
         foreach ($columns as $column) {

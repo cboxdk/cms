@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Validation\Condition;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ColumnDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\FieldDescriptor;
+use Cbox\Cms\Generators\Descriptor\Domain\Dto\RelationDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\TypeDescriptor;
 use Cbox\Cms\Generators\Descriptor\Domain\Dto\ValidationRule;
 use Cbox\Cms\Generators\Generation\Domain\Dto\ExtensionVersion;
@@ -87,6 +88,10 @@ final readonly class TypeDescriptorJson
             'namespace' => $field->namespace?->value,
             'owner' => $field->owner->value,
             'php' => ['doc' => $field->php->doc, 'native' => $field->php->native, 'nullable' => $field->php->nullable],
+            'relation' => $field->relation instanceof RelationDescriptor ? [
+                'meta' => $field->relation->meta,
+                'sort_by' => $field->relation->sortBy?->value,
+            ] : null,
             'required' => $field->required,
             'sortable' => $field->sortable,
             'translatable' => $field->translatable,

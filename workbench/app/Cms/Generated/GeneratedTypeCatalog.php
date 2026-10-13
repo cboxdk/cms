@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Schema\FieldDefinition;
 use Cbox\Cms\Contracts\Schema\FieldFallback;
 use Cbox\Cms\Contracts\Schema\History;
 use Cbox\Cms\Contracts\Schema\Localization;
+use Cbox\Cms\Contracts\Schema\RelationDefinition;
 use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
@@ -72,6 +73,57 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         filterable: false,
                         sortable: false,
                         column: new ColumnDefinition('fixture_body', 'jsonb', false, ['jsonb_typeof("fixture_body") = \'array\'']),
+                    ),
+                    new FieldDefinition(
+                        namespace: null,
+                        handle: new FieldHandle('fixture_byline'),
+                        fieldType: 'relation',
+                        classification: ClassificationAccess::Public,
+                        agents: true,
+                        encrypted: false,
+                        required: false,
+                        filterable: true,
+                        sortable: false,
+                        column: new ColumnDefinition('fixture_byline', 'jsonb', false, ['CASE WHEN jsonb_typeof("fixture_byline") = \'array\' THEN jsonb_array_length("fixture_byline") BETWEEN 0 AND 20 ELSE "fixture_byline" IS NULL END']),
+                        fields: [
+                            new FieldDefinition(
+                                namespace: null,
+                                handle: new FieldHandle('entry'),
+                                fieldType: 'relation',
+                                classification: ClassificationAccess::Public,
+                                agents: true,
+                                encrypted: false,
+                                required: true,
+                                filterable: false,
+                                sortable: false,
+                                column: null,
+                            ),
+                            new FieldDefinition(
+                                namespace: null,
+                                handle: new FieldHandle('fixture_credit_note'),
+                                fieldType: 'text',
+                                classification: ClassificationAccess::Public,
+                                agents: true,
+                                encrypted: false,
+                                required: false,
+                                filterable: false,
+                                sortable: false,
+                                column: null,
+                            ),
+                            new FieldDefinition(
+                                namespace: null,
+                                handle: new FieldHandle('fixture_role'),
+                                fieldType: 'select',
+                                classification: ClassificationAccess::Public,
+                                agents: true,
+                                encrypted: false,
+                                required: true,
+                                filterable: true,
+                                sortable: false,
+                                column: null,
+                            ),
+                        ],
+                        relation: new RelationDefinition(meta: true, sortBy: new FieldHandle('fixture_published_on')),
                     ),
                     new FieldDefinition(
                         namespace: null,
@@ -155,9 +207,10 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                         agents: true,
                         encrypted: false,
                         required: false,
-                        filterable: false,
+                        filterable: true,
                         sortable: false,
                         column: new ColumnDefinition('fixture_related', 'jsonb', false, ['CASE WHEN jsonb_typeof("fixture_related") = \'array\' THEN jsonb_array_length("fixture_related") <= 200 ELSE "fixture_related" IS NULL END']),
+                        relation: new RelationDefinition(meta: false, sortBy: new FieldHandle('fixture_published_on')),
                     ),
                     new FieldDefinition(
                         namespace: null,

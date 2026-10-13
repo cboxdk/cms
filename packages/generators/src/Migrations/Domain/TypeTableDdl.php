@@ -28,6 +28,13 @@ use Cbox\Cms\Generators\Schema\Domain\Stages;
  * listing of one stage and locale filters and sorts on the index and pages with the entry id as
  * the last key (PRD 8.8).
  *
+ * A relation whose targets carry attributes (PRD 5.11) has, for each attribute declared
+ * filterable, a partial index on the kernel's `relations` table: `<table>__<column>__<attribute>`
+ * on (target_entry_id, filter_key, sort_key, source_entry_id) for the released edges of the field,
+ * where filter_key is the edge's text of the attribute, so a filter on the target and the
+ * attribute, ordered by the sort key, reads the index alone. down() drops those indexes before it drops the table or the columns, because they
+ * are not the table's.
+ *
  * A column added to an existing table is nullable, so ADD COLUMN changes only the catalog; its
  * index is built with CREATE INDEX CONCURRENTLY outside a transaction, after DROP INDEX
  * CONCURRENTLY of an invalid one a failed build left (PRD 4.2). Its foreign key is added NOT VALID,
@@ -44,6 +51,9 @@ final readonly class TypeTableDdl
 
     /** @var list<string> the system columns with a foreign key, each with its index */
     public const array REFERENCES = ['cms_home_node', 'cms_owner_actor'];
+
+    /** The kernel's table of relation edges (PRD 5.11). */
+    public const string RELATIONS = 'relations';
 
     /**
      * The statements of step 1: the table and its indexes.
@@ -75,6 +85,10 @@ final readonly class TypeTableDdl
 
             if ($column->references !== null) {
                 $indexes[] = 'create index '.self::referenceIndex($lock->table, $column);
+            }
+
+            foreach ($column->relationIndexes as $attribute) {
+                $indexes[] = 'create index '.self::relationIndex($lock->table, $column, $attribute);
             }
         }
 
@@ -119,6 +133,30 @@ final readonly class TypeTableDdl
                     self::reference($column->references),
                 );
                 $statements[] = sprintf('alter table %s validate constraint %s', $table, $name);
+            }
+
+            foreach ($column->relationIndexes as $attribute) {
+                $statements[] = 'drop index concurrently if exists '.SqlText::identifier(self::relationIndexName($lock->table, $column, $attribute));
+                $statements[] = 'create index concurrently '.self::relationIndex($lock->table, $column, $attribute);
+            }
+        }
+
+        return $statements;
+    }
+
+    /**
+     * The statements that drop the partial indexes on `relations` of the step's columns, which
+     * dropping the table or its columns leaves; none when the step has no relation index.
+     *
+     * @return list<string>
+     */
+    public static function dropRelationIndexes(TypeTableLock $lock, int $step): array
+    {
+        $statements = [];
+
+        foreach ($lock->columnsOf($step) as $column) {
+            foreach ($column->relationIndexes as $attribute) {
+                $statements[] = 'drop index if exists '.SqlText::identifier(self::relationIndexName($lock->table, $column, $attribute));
             }
         }
 
@@ -180,6 +218,40 @@ final readonly class TypeTableDdl
             SqlText::identifier($table),
             SqlText::identifier($column->name),
         );
+    }
+
+    /**
+     * `<name> on relations (target_entry_id, filter_key, sort_key, source_entry_id) where field =
+     * '<address>' and stage = 'released'`: the partial index of a relation's filterable attribute
+     * (PRD 5.11), whose text each edge of the field keeps as its filter key.
+     */
+    private static function relationIndex(string $table, LockedColumn $column, string $attribute): string
+    {
+        return sprintf(
+            "%s on %s (target_entry_id, filter_key, sort_key, source_entry_id)\n    where field = %s and stage = 'released'",
+            SqlText::identifier(self::relationIndexName($table, $column, $attribute)),
+            self::RELATIONS,
+            SqlText::literal(self::address($column->name)),
+        );
+    }
+
+    /**
+     * `<table>__<column>__<attribute>`, shortened as every index name is.
+     */
+    private static function relationIndexName(string $table, LockedColumn $column, string $attribute): string
+    {
+        return TypeTableNames::index($table, $column->name.TypeTableNames::INDEX_SEPARATOR.$attribute);
+    }
+
+    /**
+     * How the relations table names the field of a column: its handle, or `ext.<namespace>.<handle>`
+     * for the column `ext__<namespace>__<handle>` of an extension field.
+     */
+    private static function address(string $column): string
+    {
+        $parts = explode(TypeTableNames::INDEX_SEPARATOR, $column);
+
+        return count($parts) === 3 ? implode('.', $parts) : $column;
     }
 
     /**

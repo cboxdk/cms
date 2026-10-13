@@ -50,6 +50,12 @@ enum GenerateErrorCode: string
     case UnknownRelationType = 'generate_unknown_relation_type';
 
     /**
+     * A filterable relation's `sort_by` names no sortable top-level field of the type's owner that
+     * the same variant holds, so the kernel could not write its sort key at release (PRD 5.11).
+     */
+    case RelationSortByInvalid = 'generate_relation_sort_by_invalid';
+
+    /**
      * An extension extends a type of its own owner. A type has one owner, and only others extend it
      * (PRD 11.12, 13.3): the owner adds fields to its type in the type file, never under `ext`.
      */

@@ -92,6 +92,25 @@ final class InvalidTypeTableQuery extends InvalidArgumentException
         return new self(sprintf('The field of %s in the column %s is not filterable: its blueprint does not declare it filterable, so it has no index.', $type->value, $column));
     }
 
+    public static function attributeNotFilterable(TypeName $type, string $column, string $attribute): self
+    {
+        return new self(sprintf(
+            'The relation "%s" of the type %s has no filterable attribute "%s" on its targets.',
+            self::shown($column),
+            $type->value,
+            self::shown($attribute),
+        ));
+    }
+
+    public static function repeatedAttribute(string $column, string $attribute): self
+    {
+        return new self(sprintf(
+            'A filter on the relation "%s" names the attribute "%s" twice.',
+            self::shown($column),
+            self::shown($attribute),
+        ));
+    }
+
     public static function notSortable(TypeName $type, string $column): self
     {
         return new self(sprintf('The field of %s in the column %s is not sortable: its blueprint does not declare it sortable, so it has no index.', $type->value, $column));

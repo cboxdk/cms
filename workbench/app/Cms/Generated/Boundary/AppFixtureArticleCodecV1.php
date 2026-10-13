@@ -20,6 +20,7 @@ use stdClass;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1Ext;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1ExtFixtureaddon;
+use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1FixtureByline;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1FixtureEmbargo;
 use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureArticleV1FixtureSources;
 
@@ -73,6 +74,10 @@ final readonly class AppFixtureArticleCodecV1 implements JsonCodec
             $json->fixture_body = $object->fixtureBody instanceof ListValue ? JsonValues::encodeFieldValue($object->fixtureBody) : null;
         }
 
+        if (! $object->fixtureByline instanceof Omitted) {
+            $json->fixture_byline = $object->fixtureByline === null ? null : array_map($this->encodeAppFixtureArticleV1FixtureByline(...), $object->fixtureByline);
+        }
+
         if (! $object->fixtureEmbargo instanceof Omitted) {
             $json->fixture_embargo = $object->fixtureEmbargo instanceof AppFixtureArticleV1FixtureEmbargo ? $this->encodeAppFixtureArticleV1FixtureEmbargo($object->fixtureEmbargo) : null;
         }
@@ -112,12 +117,13 @@ final readonly class AppFixtureArticleCodecV1 implements JsonCodec
 
     private function decodeAppFixtureArticleV1(stdClass $value, ClassificationAccess $access): AppFixtureArticleV1
     {
-        $object = JsonValues::object($value, null, ['cms_id', 'ext', 'fixture_body', 'fixture_embargo', 'fixture_featured', 'fixture_published_on', 'fixture_reading_minutes', 'fixture_related', 'fixture_slug', 'fixture_sources', 'fixture_title', 'fixture_topics']);
+        $object = JsonValues::object($value, null, ['cms_id', 'ext', 'fixture_body', 'fixture_byline', 'fixture_embargo', 'fixture_featured', 'fixture_published_on', 'fixture_reading_minutes', 'fixture_related', 'fixture_slug', 'fixture_sources', 'fixture_title', 'fixture_topics']);
 
         return new AppFixtureArticleV1(
             cmsId: JsonValues::required($object, 'cms_id', null, static fn (mixed $value, FieldPath $at): EntryId => JsonValues::id($value, $at, EntryId::fromString(...))),
             ext: JsonValues::required($object, 'ext', null, $this->decodeAppFixtureArticleV1Ext(...)),
             fixtureBody: JsonValues::nullable($object, 'fixture_body', null, static fn (mixed $value, FieldPath $at): ListValue => JsonValues::portableText($value, $at, ['normal', 'h2', 'h3', 'h4', 'h5', 'h6', 'blockquote'], ['strong', 'em', 'underline', 'strike', 'code', 'sub', 'sup'], ['bullet', 'number'], ['url'])),
+            fixtureByline: JsonValues::nullable($object, 'fixture_byline', null, fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, $this->decodeAppFixtureArticleV1FixtureByline(...), maxItems: 20)),
             fixtureEmbargo: JsonValues::nullableClassified($object, 'fixture_embargo', null, ClassificationAccess::Confidential, $access, $this->decodeAppFixtureArticleV1FixtureEmbargo(...)),
             fixtureFeatured: JsonValues::required($object, 'fixture_featured', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             fixturePublishedOn: JsonValues::nullable($object, 'fixture_published_on', null, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::date($value, $at, min: '2000-01-01')),
@@ -164,6 +170,31 @@ final readonly class AppFixtureArticleCodecV1 implements JsonCodec
 
         return new AppFixtureArticleV1ExtFixtureaddon(
             fixtureSlug: JsonValues::nullable($object, 'fixture_slug', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 120)),
+        );
+    }
+
+    private function encodeAppFixtureArticleV1FixtureByline(AppFixtureArticleV1FixtureByline $object): stdClass
+    {
+        $json = new stdClass;
+        $json->entry = $object->entry->toString();
+
+        if (! $object->fixtureCreditNote instanceof Omitted) {
+            $json->fixture_credit_note = $object->fixtureCreditNote;
+        }
+
+        $json->fixture_role = $object->fixtureRole;
+
+        return $json;
+    }
+
+    private function decodeAppFixtureArticleV1FixtureByline(mixed $value, FieldPath $path): AppFixtureArticleV1FixtureByline
+    {
+        $object = JsonValues::object($value, $path, ['entry', 'fixture_credit_note', 'fixture_role']);
+
+        return new AppFixtureArticleV1FixtureByline(
+            entry: JsonValues::required($object, 'entry', $path, static fn (mixed $value, FieldPath $at): EntryId => JsonValues::id($value, $at, EntryId::fromString(...))),
+            fixtureCreditNote: JsonValues::nullable($object, 'fixture_credit_note', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, maxLength: 120)),
+            fixtureRole: JsonValues::required($object, 'fixture_role', $path, static fn (mixed $value, FieldPath $at): string => JsonValues::choice($value, $at, ['fixture_author', 'fixture_photo', 'fixture_contributor'])),
         );
     }
 

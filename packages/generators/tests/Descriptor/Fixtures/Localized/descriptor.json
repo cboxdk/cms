@@ -42,6 +42,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -103,6 +104,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": true,
@@ -198,6 +200,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -250,6 +253,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": true,
@@ -305,6 +309,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": false,
@@ -358,6 +363,7 @@
                 "native": "DateTimeImmutable",
                 "nullable": false
             },
+            "relation": null,
             "required": true,
             "sortable": true,
             "translatable": false,
@@ -417,6 +423,7 @@
                         "native": "string",
                         "nullable": true
                     },
+                    "relation": null,
                     "required": false,
                     "sortable": false,
                     "translatable": true,
@@ -464,6 +471,7 @@
                         "native": "string",
                         "nullable": false
                     },
+                    "relation": null,
                     "required": true,
                     "sortable": false,
                     "translatable": true,
@@ -502,6 +510,7 @@
                 "native": "array",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": true,
@@ -557,6 +566,7 @@
                 "native": "string",
                 "nullable": true
             },
+            "relation": null,
             "required": false,
             "sortable": false,
             "translatable": true,
@@ -612,6 +622,7 @@
                 "native": "string",
                 "nullable": false
             },
+            "relation": null,
             "required": true,
             "sortable": true,
             "translatable": true,

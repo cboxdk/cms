@@ -28,4 +28,5 @@ it('accepts the blueprint file', function (string $file): void {
     'the type notice with localization variants' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/localized.yaml'],
     'the type event with labels per locale, a layout, ui hints and defaults' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/layout.yaml'],
     'the type link_card with conditional fields' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/conditional.yaml'],
+    'the type story with a byline whose targets carry a role, and relations sorted by a day' => ['packages/contracts/tests/Codecs/Fixtures/Blueprint/valid/byline.yaml'],
 ]);

@@ -9,9 +9,9 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 /**
  * A field's column in a type's schema lock (PRD 11.6): its name, Postgres type, NOT NULL, CHECK
  * expressions, whether it has an index and the table its foreign key references, as the field's
- * descriptor gave them, and the step of the
- * lock whose migration added it. The system columns (`cms_*`) are not in the lock; every type table
- * has them.
+ * descriptor gave them, the attributes of a relation's targets that have a partial index on the
+ * kernel's relations table (PRD 5.11), and the step of the lock whose migration added it. The
+ * system columns (`cms_*`) are not in the lock; every type table has them.
  */
 #[Internal]
 final readonly class LockedColumn
@@ -22,6 +22,7 @@ final readonly class LockedColumn
      *                         that ends with the entry id
      * @param  int  $step  the step of the schema lock that added the column, from 1
      * @param  ?string  $references  the kernel table whose `id` the column references with a foreign key, or null
+     * @param  list<string>  $relationIndexes  the handles of a relation's filterable attributes, sorted, each with a partial index on relations
      */
     public function __construct(
         public string $name,
@@ -31,6 +32,7 @@ final readonly class LockedColumn
         public bool $indexed,
         public int $step,
         public ?string $references = null,
+        public array $relationIndexes = [],
     ) {}
 
     /**
@@ -43,6 +45,7 @@ final readonly class LockedColumn
             && $this->notNull === $other->notNull
             && $this->checks === $other->checks
             && $this->indexed === $other->indexed
-            && $this->references === $other->references;
+            && $this->references === $other->references
+            && $this->relationIndexes === $other->relationIndexes;
     }
 }

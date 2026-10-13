@@ -25,7 +25,8 @@ use Cbox\Cms\Generators\Migrations\Domain\Dto\TypeTableLock;
  *   blocking every query on the table behind it (PRD 4.2, 11.12). Running it again after a failure
  *   is safe: ADD COLUMN IF NOT EXISTS, and an invalid index is dropped before it is built.
  *
- * down() drops the table, or the step's columns and their indexes with them.
+ * down() drops the table, or the step's columns and their indexes with them, after the partial
+ * indexes of their relations' attributes on the kernel's relations table.
  *
  * The output is formatted the way Pint, Rector and PHPStan level 10 accept it unchanged.
  */
@@ -88,7 +89,7 @@ final readonly class MigrationSource
             '    {',
             '        $connection = DB::connection($this->getConnection());',
             '',
-            ...self::statement(TypeTableDdl::dropTable($lock)),
+            ...array_merge(...array_map(self::statement(...), [...TypeTableDdl::dropRelationIndexes($lock, 1), TypeTableDdl::dropTable($lock)])),
             '    }',
             '};',
         ];
@@ -140,7 +141,7 @@ final readonly class MigrationSource
             '    {',
             '        $connection = DB::connection($this->getConnection());',
             '',
-            ...self::statement(TypeTableDdl::dropColumns($lock, $step)),
+            ...array_merge(...array_map(self::statement(...), [...TypeTableDdl::dropRelationIndexes($lock, $step), TypeTableDdl::dropColumns($lock, $step)])),
             '    }',
             '};',
         ];

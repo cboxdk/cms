@@ -131,6 +131,7 @@ enum ErrorCode: string
     case GeneratePanelContributionMismatch = 'generate_panel_contribution_mismatch';
     case GeneratePanelPointUnknown = 'generate_panel_point_unknown';
     case GenerateRegistryUnreadable = 'generate_registry_unreadable';
+    case GenerateRelationSortByInvalid = 'generate_relation_sort_by_invalid';
     case GenerateRequiredFieldAdded = 'generate_required_field_added';
     case GenerateScaleAbovePrecision = 'generate_scale_above_precision';
     case GenerateSchemaInvalid = 'generate_schema_invalid';
@@ -669,6 +670,9 @@ enum ErrorCode: string
             self::GenerateOutputUnwritable => $this->tooling(
                 ExitCode::CantCreat,
                 'A generated file could not be written, or a stale one could not be removed. Check the permissions of the generated directories, then run cms:generate again.',
+            ),
+            self::GenerateRelationSortByInvalid => $this->refusedInput(
+                'A filterable relation field\'s sort_by names no sortable top-level field of the type\'s owner that the same variant holds, so the kernel cannot write the sort key of its edges at release. Name a sortable field of the owner, translatable as the relation is, or make that field sortable.',
             ),
             self::GenerateRequiredFieldAdded => $this->refusedInput(
                 'A field added to a type that already has a table is required, so its column would be NOT NULL on the rows that exist. Until schema evolution comes (B3), add the field as optional.',

@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Validation\WhenHidden;
 use Cbox\Cms\Generators\Schema\Domain\Classification;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldDefault;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
+use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SelectOption;
 use Cbox\Cms\Generators\Schema\Domain\FieldFallback;
 use Cbox\Cms\Generators\Schema\Domain\Handle;
@@ -47,6 +48,10 @@ use Cbox\Cms\Generators\Schema\Domain\SourceLocation;
  * up (FieldReference), and $whenHidden what happens to its value while it is hidden (gap G3). A
  * conditional field is never NOT NULL and its types are nullable, because a hidden field holds no
  * value; its presence() holds while it is shown.
+ *
+ * $relation is what a relation field holds beside its form (PRD 5.11), null for every other field:
+ * a relation whose targets carry attributes takes the form of a group, so its $base is `group`
+ * and its $fields are `entry` and the attributes.
  */
 #[Internal]
 final readonly class FieldDescriptor
@@ -96,6 +101,7 @@ final readonly class FieldDescriptor
         public ?FieldDefault $default = null,
         public ?Condition $when = null,
         public ?WhenHidden $whenHidden = null,
+        public ?RelationDescriptor $relation = null,
     ) {
         $this->base = $base ?? $type;
     }
@@ -112,5 +118,20 @@ final readonly class FieldDescriptor
         }
 
         return $this->column instanceof ColumnDescriptor && $this->namespace instanceof Owner ? Presence::RequiredOnRelease : Presence::Required;
+    }
+
+    /**
+     * The attributes each target of a relation carries, the nested fields but `entry`; empty for
+     * a relation without attributes and for every other field.
+     *
+     * @return list<FieldDescriptor>
+     */
+    public function relationMeta(): array
+    {
+        if ($this->relation?->meta !== true) {
+            return [];
+        }
+
+        return array_values(array_filter($this->fields, static fn (self $field): bool => $field->handle->value !== RelationOptions::ENTRY));
     }
 }

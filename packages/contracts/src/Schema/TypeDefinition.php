@@ -103,6 +103,29 @@ final readonly class TypeDefinition
 
         ksort($byColumn, SORT_STRING);
         $this->fields = array_values($byColumn);
+
+        foreach ($this->fields as $field) {
+            $sortBy = $field->relation?->sortBy;
+
+            if ($sortBy instanceof FieldHandle) {
+                $key = $this->field(null, $sortBy);
+
+                if (! $key instanceof FieldDefinition || ! $key->sortable || $key->translatable !== $field->translatable) {
+                    throw InvalidTypeDefinition::sortBy($field->address(), $sortBy->value);
+                }
+            }
+        }
+    }
+
+    /**
+     * The owner's field a filterable relation's released edges are sorted by (PRD 5.11), or null
+     * for a field that has none.
+     */
+    public function sortKeyOf(FieldDefinition $relation): ?FieldDefinition
+    {
+        $sortBy = $relation->relation?->sortBy;
+
+        return $sortBy instanceof FieldHandle ? $this->field(null, $sortBy) : null;
     }
 
     /**
