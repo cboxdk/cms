@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
+use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
@@ -147,9 +148,9 @@ function translationsOf(QueryResult $answer): array
 {
     $result = $answer->result;
 
-    return $result instanceof EntryDetail ? array_map(static fn (EntryHead $head): string => $head->translatedFrom === null
-        ? $head->variant->value.' -'
-        : sprintf('%s %s@%d %s', $head->variant->value, $head->translatedFrom->variant->value, $head->translatedFrom->revision->value, $head->stale ? 'stale' : 'current'), $result->heads) : [];
+    return $result instanceof EntryDetail ? array_map(static fn (EntryHead $head): string => $head->translatedFrom instanceof TranslatedFrom
+        ? sprintf('%s %s@%d %s', $head->variant->value, $head->translatedFrom->variant->value, $head->translatedFrom->revision->value, $head->stale ? 'stale' : 'current')
+        : $head->variant->value.' -', $result->heads) : [];
 }
 
 /**

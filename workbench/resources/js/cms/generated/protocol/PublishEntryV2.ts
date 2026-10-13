@@ -61,13 +61,6 @@ export interface TimeWindowV2 {
   live_until?: string | null;
 }
 
-const timeWindowV2Rule: ObjectRule = {
-  properties: [
-    { key: 'live_from', presence: 'optional', value: { kind: 'datetime' } },
-    { key: 'live_until', presence: 'optional', value: { kind: 'datetime' } },
-  ],
-};
-
 const variantReleaseV2Rule: ObjectRule = {
   properties: [
     {
@@ -80,6 +73,13 @@ const variantReleaseV2Rule: ObjectRule = {
     },
     { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
     { key: 'revision', presence: 'present', value: { kind: 'integer', min: 1 } },
+  ],
+};
+
+const timeWindowV2Rule: ObjectRule = {
+  properties: [
+    { key: 'live_from', presence: 'optional', value: { kind: 'datetime' } },
+    { key: 'live_until', presence: 'optional', value: { kind: 'datetime' } },
   ],
 };
 

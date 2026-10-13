@@ -134,15 +134,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 44',
+            'actions: 46',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 32',
+            'commands: 34',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 38',
+            'rest: 40',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -159,7 +159,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 46', 'addons: 1', 'commands: 33', 'hooks: 5', 'panel: 16', 'rest: 39'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 48', 'addons: 1', 'commands: 35', 'hooks: 5', 'panel: 16', 'rest: 41'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',

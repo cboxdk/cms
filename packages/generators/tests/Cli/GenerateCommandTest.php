@@ -184,10 +184,10 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/WhoAmIV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 85 files: 85 written, 0 unchanged, 0 stale removed.',
+            'Generated 87 files: 87 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 85 files: 0 written, 85 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 87 files: 0 written, 87 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -342,7 +342,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 98 files: 20 written, 78 unchanged, 0 stale removed.',
+            'Generated 100 files: 20 written, 80 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

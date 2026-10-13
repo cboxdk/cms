@@ -24,6 +24,9 @@ export type EditorBase =
   | 'select'
   | 'text';
 
+/** The values of EditorWidth. */
+export type EditorWidth = 'full' | 'half' | 'third' | 'two_thirds';
+
 /** The values of FieldFallback. */
 export type FieldFallback = 'variant' | 'field';
 
@@ -36,18 +39,22 @@ export type Localization = 'none' | 'variants';
 /** The values of Presence. */
 export type Presence = 'required' | 'required_on_release' | 'optional';
 
+/** The values of SelectDisplay. */
+export type SelectDisplay = 'radio' | 'buttons' | 'dropdown';
+
 /** The values of Stages. */
 export type Stages = 'none' | 'draft-release';
 
 /**
  * What the panel's forms render a type from (PRD 11.12, 14.1, GUARDRAILS 2.4): the type's name,
- * labels, capabilities and inferred title field, and its field tree as a flat list in form order,
- * each field with its type and base, labels, presence, classification, agents flag, the choices of
- * a select, how a group repeats, and its value rule in the form of the generated validation
- * runtime. The PHP form is Cbox\Cms\Contracts\Editors\TypeEditor, compiled by cms:generate into the
- * application's TypeEditors, and the generated codec TypeEditorCodecV1 writes its canonical JSON:
- * keys sorted, no whitespace. The queries type.list and type.describe answer with it, filtered to
- * the reader.
+ * labels, capabilities and inferred title field, its layout of tabs and a sidebar that places every
+ * top-level field once, and its field tree as a flat list in form order, each field with its type
+ * and base, labels, presence, classification, agents flag, the choices of a select, how a group
+ * repeats, its value rule in the form of the generated validation runtime, the hints its form takes
+ * and its form-only default. The PHP form is Cbox\Cms\Contracts\Editors\TypeEditor, compiled by
+ * cms:generate into the application's TypeEditors, and the generated codec TypeEditorCodecV1 writes
+ * its canonical JSON: keys sorted, no whitespace. The queries type.list and type.describe answer
+ * with it, filtered to the reader.
  */
 export interface TypeEditorV1 {
   /**
@@ -57,6 +64,11 @@ export interface TypeEditorV1 {
   capabilities: TypeCapabilitiesV1;
   /** What the type holds, as its blueprint describes it, or null. */
   description: string | null;
+  /**
+   * The description of the type per locale the blueprint names, sorted by locale; empty when the
+   * blueprint gives one text.
+   */
+  descriptions: readonly EditorTextV1[];
   /**
    * The extenders of the type, sorted by namespace, each with the version of its extension; the
    * fields each adds are under ext.<namespace> among the fields.
@@ -73,6 +85,19 @@ export interface TypeEditorV1 {
   id: string;
   /** The label of the type, as its blueprint gives it. */
   label: string;
+  /**
+   * The label of the type per locale the blueprint names, sorted by locale; empty when the
+   * blueprint gives one text.
+   */
+  labels: readonly EditorTextV1[];
+  /**
+   * The form's tabs and sidebar: every top-level field of the type is placed in exactly one
+   * section, and the fields below a group are never placed, because the group's input holds them. A
+   * type whose blueprint declares no layout gets the tab content with the section fields holding
+   * its fields in blueprint order, and the fields of an extender without a layout fragment land in
+   * the tab extensions, a section per namespace.
+   */
+  layout: EditorLayoutV1;
   /** The name of the type, <owner>:<handle>, such as app:blog_post. */
   name: string;
   /**
@@ -103,6 +128,17 @@ export interface TypeCapabilitiesV1 {
   stages: Stages;
 }
 
+/**
+ * A text in one language: the locale in its canonical case, as the kernel writes a locale, and the
+ * text.
+ */
+export interface EditorTextV1 {
+  /** The locale, such as da or en-GB. */
+  locale: string;
+  /** The text, 1 to 1,000 characters. */
+  text: string;
+}
+
 /** An extender of the type and the version of its extension. */
 export interface ExtensionVersionV1 {
   /** The extender's namespace, the owner that added the fields, such as app. */
@@ -130,8 +166,17 @@ export interface EditorFieldV1 {
   choices: readonly EditorChoiceV1[];
   /** The classification of the field (PRD 12.2), which decides who may read it. */
   classification: ClassificationAccess;
+  /**
+   * The form's starting value from the blueprint's default, or null:
+   * {"kind":"constant","value":...} with the value in the record's JSON form, or
+   * {"kind":"token","token":"today"} or "now" for a date or datetime the form takes from the clock.
+   * It is form only, never filled in by a command, and a group or rich text has none.
+   */
+  default: JsonObject | null;
   /** What the field holds, as its blueprint describes it, the help text of its input; or null. */
   description: string | null;
+  /** The description per locale the blueprint names, sorted by locale. */
+  descriptions: readonly EditorTextV1[];
   /** Whether the value is stored as ciphertext (PRD 12.2). */
   encrypted: boolean;
   /**
@@ -143,6 +188,8 @@ export interface EditorFieldV1 {
   handle: string;
   /** The label of the field, as its blueprint gives it. */
   label: string;
+  /** The label per locale the blueprint names, sorted by locale. */
+  labels: readonly EditorTextV1[];
   /**
    * The extender's namespace for an extension field, which a nested field takes from its group;
    * null for a field of the type's owner.
@@ -186,12 +233,16 @@ export interface EditorFieldV1 {
    * <namespace>:<handle> for a field type an addon contributes (PRD 13.1).
    */
   type: string;
+  /** The hints the form takes for the input. */
+  ui: EditorUiV1;
 }
 
 /** One option of a select field: the value the field stores and its label. */
 export interface EditorChoiceV1 {
   /** The label of the option, as its blueprint gives it. */
   label: string;
+  /** The label per locale the blueprint names, sorted by locale. */
+  labels: readonly EditorTextV1[];
   /** The value the field stores, a handle. */
   value: string;
 }
@@ -207,10 +258,134 @@ export interface EditorRepeatV1 {
   min_items: number | null;
 }
 
-const editorRepeatV1Rule: ObjectRule = {
+/** The hints the form takes for the input. */
+export interface EditorUiV1 {
+  /** How a select shows its choices, or null to leave it to the form; null for every other base. */
+  display: SelectDisplay | null;
+  /** Whether the form hides the input. */
+  hidden: boolean;
+  /** The hint shown in the empty input, or null. */
+  input_hint: string | null;
+  /** The input hint per locale the blueprint names, sorted by locale. */
+  input_hint_by_locale: readonly EditorTextV1[];
+  /** The instructions shown with the input, or null. */
+  instructions: string | null;
+  /** The instructions per locale the blueprint names, sorted by locale. */
+  instructions_by_locale: readonly EditorTextV1[];
+  /** Whether the form shows the value without an input to change it. */
+  read_only: boolean;
+  /**
+   * The summary template of a repeated group, which names the group's nested fields in braces, such
+   * as {title} ({year}), so a collapsed item shows its values; null for every other field.
+   */
+  summary: string | null;
+}
+
+/**
+ * The form's tabs and sidebar: every top-level field of the type is placed in exactly one section,
+ * and the fields below a group are never placed, because the group's input holds them. A type whose
+ * blueprint declares no layout gets the tab content with the section fields holding its fields in
+ * blueprint order, and the fields of an extender without a layout fragment land in the tab
+ * extensions, a section per namespace.
+ */
+export interface EditorLayoutV1 {
+  /** The sections of the sidebar in form order, each handle once; empty for a form without one. */
+  sidebar: readonly EditorSectionV1[];
+  /** The tabs in form order, each handle once. */
+  tabs: readonly EditorTabV1[];
+}
+
+/**
+ * A section: a run of placed fields, with an optional label and instructions, which a form may let
+ * the editor collapse.
+ */
+export interface EditorSectionV1 {
+  /** Whether a form lets the editor collapse the section. */
+  collapsible: boolean;
+  /** The placements of the section in form order, each path once. */
+  fields: readonly EditorPlacementV1[];
+  /** The handle of the section, as the blueprint declares it, once in its tab or in the sidebar. */
+  handle: string;
+  /** The instructions shown with the section, or null. */
+  instructions: string | null;
+  /** The instructions per locale the blueprint names, sorted by locale. */
+  instructions_by_locale: readonly EditorTextV1[];
+  /** The label of the section, or null for a section without a heading. */
+  label: string | null;
+  /** The label per locale the blueprint names, sorted by locale. */
+  labels: readonly EditorTextV1[];
+}
+
+/**
+ * The place of one top-level field in a section: its path among the fields and the width it takes
+ * in the row.
+ */
+export interface EditorPlacementV1 {
+  /**
+   * The path of the field, as the fields have it: a handle, or ext.<namespace>.<handle> for an
+   * extension field.
+   */
+  path: string;
+  /** The width preset: the whole row, or a half, a third or two thirds of it. */
+  width: EditorWidth;
+}
+
+/** A tab: a labelled page of sections. */
+export interface EditorTabV1 {
+  /** The handle of the tab, as the blueprint declares it. */
+  handle: string;
+  /** The label of the tab. */
+  label: string;
+  /** The label per locale the blueprint names, sorted by locale. */
+  labels: readonly EditorTextV1[];
+  /** The sections of the tab in form order, each handle once. */
+  sections: readonly EditorSectionV1[];
+}
+
+const typeCapabilitiesV1Rule: ObjectRule = {
   properties: [
-    { key: 'min_items', presence: 'present', value: { kind: 'integer', min: 0 } },
-    { key: 'max_items', presence: 'present', value: { kind: 'integer', min: 1 } },
+    {
+      key: 'history',
+      presence: 'required',
+      value: { kind: 'enum', values: ['full', 'audit-only', 'none'] },
+    },
+    {
+      key: 'stages',
+      presence: 'required',
+      value: { kind: 'enum', values: ['none', 'draft-release'] },
+    },
+    {
+      key: 'localization',
+      presence: 'required',
+      value: { kind: 'enum', values: ['none', 'variants'] },
+    },
+    { key: 'routable', presence: 'required', value: { kind: 'boolean' } },
+  ],
+};
+
+const editorTextV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'locale',
+      presence: 'required',
+      value: {
+        kind: 'string',
+        pattern: '^[a-z]{2,3}(-[A-Z][a-z]{3})?(-([A-Z]{2}|[0-9]{3}))?$',
+        maxLength: 12,
+      },
+    },
+    { key: 'text', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 1000 } },
+  ],
+};
+
+const extensionVersionV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'namespace',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
+    },
+    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
   ],
 };
 
@@ -222,6 +397,51 @@ const editorChoiceV1Rule: ObjectRule = {
       value: { kind: 'string', pattern: '^[a-z][a-z0-9]*(_[a-z0-9]+)*$', maxLength: 63 },
     },
     { key: 'label', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 100 } },
+    {
+      key: 'labels',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+  ],
+};
+
+const editorRepeatV1Rule: ObjectRule = {
+  properties: [
+    { key: 'min_items', presence: 'present', value: { kind: 'integer', min: 0 } },
+    { key: 'max_items', presence: 'present', value: { kind: 'integer', min: 1 } },
+  ],
+};
+
+const editorUiV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'instructions',
+      presence: 'present',
+      value: { kind: 'text', minLength: 1, maxLength: 1000 },
+    },
+    {
+      key: 'instructions_by_locale',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+    {
+      key: 'input_hint',
+      presence: 'present',
+      value: { kind: 'text', minLength: 1, maxLength: 100 },
+    },
+    {
+      key: 'input_hint_by_locale',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+    { key: 'read_only', presence: 'required', value: { kind: 'boolean' } },
+    { key: 'hidden', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'display',
+      presence: 'present',
+      value: { kind: 'enum', values: ['radio', 'buttons', 'dropdown'] },
+    },
+    { key: 'summary', presence: 'present', value: { kind: 'text', minLength: 1, maxLength: 200 } },
   ],
 };
 
@@ -293,38 +513,97 @@ const editorFieldV1Rule: ObjectRule = {
       presence: 'required',
       value: { kind: 'enum', values: ['variant', 'field'] },
     },
+    {
+      key: 'labels',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+    {
+      key: 'descriptions',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+    { key: 'ui', presence: 'required', value: { kind: 'object', object: editorUiV1Rule } },
+    { key: 'default', presence: 'present', value: { kind: 'document' } },
   ],
 };
 
-const extensionVersionV1Rule: ObjectRule = {
+const editorPlacementV1Rule: ObjectRule = {
   properties: [
+    { key: 'path', presence: 'required', value: { kind: 'text', minLength: 1 } },
     {
-      key: 'namespace',
+      key: 'width',
       presence: 'required',
-      value: { kind: 'string', pattern: '^[a-z][a-z0-9]{0,19}$', maxLength: 20 },
+      value: { kind: 'enum', values: ['full', 'half', 'third', 'two_thirds'] },
     },
-    { key: 'version', presence: 'required', value: { kind: 'integer', min: 1 } },
   ],
 };
 
-const typeCapabilitiesV1Rule: ObjectRule = {
+const editorSectionV1Rule: ObjectRule = {
   properties: [
     {
-      key: 'history',
+      key: 'handle',
       presence: 'required',
-      value: { kind: 'enum', values: ['full', 'audit-only', 'none'] },
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]*(_[a-z0-9]+)*$', maxLength: 63 },
+    },
+    { key: 'label', presence: 'present', value: { kind: 'text', minLength: 1, maxLength: 100 } },
+    {
+      key: 'labels',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
     },
     {
-      key: 'stages',
-      presence: 'required',
-      value: { kind: 'enum', values: ['none', 'draft-release'] },
+      key: 'instructions',
+      presence: 'present',
+      value: { kind: 'text', minLength: 1, maxLength: 1000 },
     },
     {
-      key: 'localization',
+      key: 'instructions_by_locale',
       presence: 'required',
-      value: { kind: 'enum', values: ['none', 'variants'] },
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
     },
-    { key: 'routable', presence: 'required', value: { kind: 'boolean' } },
+    { key: 'collapsible', presence: 'required', value: { kind: 'boolean' } },
+    {
+      key: 'fields',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorPlacementV1Rule } },
+    },
+  ],
+};
+
+const editorTabV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'handle',
+      presence: 'required',
+      value: { kind: 'string', pattern: '^[a-z][a-z0-9]*(_[a-z0-9]+)*$', maxLength: 63 },
+    },
+    { key: 'label', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 100 } },
+    {
+      key: 'labels',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+    {
+      key: 'sections',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorSectionV1Rule } },
+    },
+  ],
+};
+
+const editorLayoutV1Rule: ObjectRule = {
+  properties: [
+    {
+      key: 'tabs',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTabV1Rule } },
+    },
+    {
+      key: 'sidebar',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorSectionV1Rule } },
+    },
   ],
 };
 
@@ -370,6 +649,17 @@ const typeEditorV1Rule: ObjectRule = {
       key: 'fields',
       presence: 'required',
       value: { kind: 'list', item: { kind: 'object', object: editorFieldV1Rule } },
+    },
+    { key: 'layout', presence: 'required', value: { kind: 'object', object: editorLayoutV1Rule } },
+    {
+      key: 'labels',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
+    },
+    {
+      key: 'descriptions',
+      presence: 'required',
+      value: { kind: 'list', item: { kind: 'object', object: editorTextV1Rule } },
     },
   ],
 };
