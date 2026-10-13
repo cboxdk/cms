@@ -98,21 +98,21 @@ final readonly class TypeRows
             $columns = $this->upsert($type, $table, $stage, $rows);
 
             if ($stage === self::DRAFT) {
-                $this->dropDraftLikeReleased($table, $columns, self::byVariants($rows));
+                $this->dropDraftLikeReleased($table, $columns, $this->byVariants($rows));
             }
         }
 
         if ($shared !== []) {
-            $entries = self::entriesOf($shared);
+            $entries = $this->entriesOf($shared);
 
             if ($stage === self::DRAFT) {
-                $this->keepDraft($table, $this->copied($type), self::byEntries($entries));
+                $this->keepDraft($table, $this->copied($type), $this->byEntries($entries));
             }
 
             $this->updateShared($type, $table, $stage, $shared);
 
             if ($stage === self::DRAFT) {
-                $this->dropDraftLikeReleased($table, $this->fieldColumns($type), self::byEntries($entries));
+                $this->dropDraftLikeReleased($table, $this->fieldColumns($type), $this->byEntries($entries));
             }
         }
     }
@@ -146,16 +146,16 @@ final readonly class TypeRows
         [$rows, $shared] = $this->split($type, $variants);
 
         if ($rows !== []) {
-            $this->keepDraft($table, $copied, self::byVariants($rows));
+            $this->keepDraft($table, $copied, $this->byVariants($rows));
             $columns = $this->upsert($type, $table, self::RELEASED, $rows);
-            $this->dropDraftLikeReleased($table, $columns, self::byVariants($rows));
+            $this->dropDraftLikeReleased($table, $columns, $this->byVariants($rows));
         }
 
         if ($shared !== []) {
-            $entries = self::entriesOf($shared);
-            $this->keepDraft($table, $copied, self::byEntries($entries));
+            $entries = $this->entriesOf($shared);
+            $this->keepDraft($table, $copied, $this->byEntries($entries));
             $this->updateShared($type, $table, self::RELEASED, $shared);
-            $this->dropDraftLikeReleased($table, $this->fieldColumns($type), self::byEntries($entries));
+            $this->dropDraftLikeReleased($table, $this->fieldColumns($type), $this->byEntries($entries));
         }
     }
 
@@ -174,12 +174,12 @@ final readonly class TypeRows
             throw new LogicException(sprintf('The type %s has stages %s, so no revision of it is released or unreleased.', $type->name->value, $type->capabilities->stages->value));
         }
 
-        self::assertHeld($type, $variant);
+        $this->assertHeld($type, $variant);
         $table = $type->name->table();
         $localizedShared = $variant->isShared() && $type->capabilities->localization === Localization::Variants;
         $key = $localizedShared
-            ? self::byEntries([$entry->toString()])
-            : self::byVariants([new VariantFields($entry, $variant, new FieldValues)]);
+            ? $this->byEntries([$entry->toString()])
+            : $this->byVariants([new VariantFields($entry, $variant, new FieldValues)]);
 
         $this->keepDraft($table, $this->copied($type), $key);
         $delete = $this->db->table($table)
@@ -208,7 +208,7 @@ final readonly class TypeRows
         $shared = [];
 
         foreach ($variants as $variant) {
-            self::assertHeld($type, $variant->variant);
+            $this->assertHeld($type, $variant->variant);
 
             if ($variant->variant->isShared() && $type->capabilities->localization === Localization::Variants) {
                 $shared[] = $variant;
@@ -223,7 +223,7 @@ final readonly class TypeRows
     /**
      * @throws LogicException when an entry of the type has no such variant
      */
-    private static function assertHeld(TypeDefinition $type, VariantKey $variant): void
+    private function assertHeld(TypeDefinition $type, VariantKey $variant): void
     {
         if ($type->holds($variant)) {
             return;
@@ -365,12 +365,12 @@ final readonly class TypeRows
 
             $sets = [];
             $named = [];
-            $bindings = [self::entriesLiteral(self::entriesOf($chunk))];
+            $bindings = [$this->entriesLiteral($this->entriesOf($chunk))];
 
             foreach ($columns as $column) {
                 $sets[] = sprintf('"%1$s" = v."%1$s"::%2$s', $column->name, $column->type);
                 $named[] = '"'.$column->name.'"';
-                $bindings[] = self::textsLiteral(array_map(static fn (array $row): string|int|null => $row[$column->name] ?? null, $values));
+                $bindings[] = $this->textsLiteral(array_map(static fn (array $row): string|int|null => $row[$column->name] ?? null, $values));
             }
 
             $this->db->update(
@@ -401,7 +401,7 @@ final readonly class TypeRows
         $identities = [];
 
         foreach ($this->db->table('entries')
-            ->whereIn('id', self::entriesOf($variants))
+            ->whereIn('id', $this->entriesOf($variants))
             ->useWritePdo()
             ->get(['id', 'home_node_id', 'owner_actor_id']) as $identity) {
             $id = property_exists($identity, 'id') ? $identity->id : null;
@@ -429,7 +429,7 @@ final readonly class TypeRows
      * @param  non-empty-list<VariantFields>  $variants
      * @return non-empty-list<string>
      */
-    private static function entriesOf(array $variants): array
+    private function entriesOf(array $variants): array
     {
         return array_values(array_unique(array_map(static fn (VariantFields $variant): string => $variant->entry->toString(), $variants)));
     }
@@ -441,14 +441,14 @@ final readonly class TypeRows
      * @param  non-empty-list<VariantFields>  $variants
      * @return array{string, string, list<string>}
      */
-    private static function byVariants(array $variants): array
+    private function byVariants(array $variants): array
     {
         return [
             'unnest(?::uuid[], ?::text[]) as k(entry_id, locale)',
             sprintf('t.%s = k.entry_id and t.%s = k.locale', self::ENTRY, self::LOCALE),
             [
-                self::entriesLiteral(array_map(static fn (VariantFields $variant): string => $variant->entry->toString(), $variants)),
-                self::textsLiteral(array_map(static fn (VariantFields $variant): string => $variant->variant->value, $variants)),
+                $this->entriesLiteral(array_map(static fn (VariantFields $variant): string => $variant->entry->toString(), $variants)),
+                $this->textsLiteral(array_map(static fn (VariantFields $variant): string => $variant->variant->value, $variants)),
             ],
         ];
     }
@@ -460,19 +460,19 @@ final readonly class TypeRows
      * @param  non-empty-list<string>  $entries
      * @return array{string, string, list<string>}
      */
-    private static function byEntries(array $entries): array
+    private function byEntries(array $entries): array
     {
         return [
             'unnest(?::uuid[]) as k(entry_id)',
             sprintf('t.%s = k.entry_id', self::ENTRY),
-            [self::entriesLiteral($entries)],
+            [$this->entriesLiteral($entries)],
         ];
     }
 
     /**
      * @param  list<string>  $entries
      */
-    private static function entriesLiteral(array $entries): string
+    private function entriesLiteral(array $entries): string
     {
         return '{'.implode(',', $entries).'}';
     }
@@ -482,7 +482,7 @@ final readonly class TypeRows
      *
      * @param  list<string|int|null>  $values
      */
-    private static function textsLiteral(array $values): string
+    private function textsLiteral(array $values): string
     {
         return '{'.implode(',', array_map(
             static fn (string|int|null $value): string => $value === null ? 'NULL' : '"'.addcslashes((string) $value, '"\\').'"',

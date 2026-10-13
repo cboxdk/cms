@@ -91,7 +91,7 @@ final class FakeRouteReader implements RouteReader
      */
     public function withReleased(TypeId $type, EntryId $entry, FieldValues $fields, ?Locale $locale = null): self
     {
-        $this->released[self::rowKey($type, $entry, $locale instanceof Locale ? VariantKey::of($locale) : VariantKey::shared())] = $fields;
+        $this->released[$this->rowKey($type, $entry, $locale instanceof Locale ? VariantKey::of($locale) : VariantKey::shared())] = $fields;
 
         return $this;
     }
@@ -189,10 +189,10 @@ final class FakeRouteReader implements RouteReader
         $this->reads++;
         $variant = $type->capabilities->localization === Localization::Variants ? VariantKey::of($locale) : VariantKey::shared();
 
-        return $this->released[self::rowKey($type->id, $entry, $variant)] ?? null;
+        return $this->released[$this->rowKey($type->id, $entry, $variant)] ?? null;
     }
 
-    private static function rowKey(TypeId $type, EntryId $entry, VariantKey $variant): string
+    private function rowKey(TypeId $type, EntryId $entry, VariantKey $variant): string
     {
         return $type->toString().' '.$entry->toString().' '.$variant->value;
     }

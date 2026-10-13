@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\ExtensionFields;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
+use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Schema\FieldDefinition;
@@ -37,7 +38,7 @@ final readonly class LocaleRow
             $map = $field->namespace instanceof FieldNamespace ? $source->extension($field->namespace) : $source->own;
             $value = $map?->get($field->handle);
 
-            if ($value === null) {
+            if (! $value instanceof FieldValue) {
                 continue;
             }
 
