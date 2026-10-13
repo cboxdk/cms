@@ -15,6 +15,7 @@ use Cbox\Cms\Contracts\Schema\Stages;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Core\Access\Infrastructure\ActorContext;
 use Cbox\Cms\Core\Entries\Adapter\TypeRows;
+use Cbox\Cms\Core\Entries\Adapter\VariantWithdrawnWriter;
 use Cbox\Cms\Core\Entries\Boundary\StoredContent;
 use Cbox\Cms\Core\Entries\Domain\LocaleRow;
 use Cbox\Cms\Core\ReadModels\Domain\Dto\ChunkResult;
@@ -57,7 +58,8 @@ use UnexpectedValueException;
  * differs from the released one. The rows are therefore the ones the commands left. A type with
  * localization variants gets a row per language of each entry, with the shared variant's fields in
  * it (LocaleRow), the released row only while the language and the shared variant are both
- * released, as TypeRows writes them.
+ * released, as TypeRows writes them, and none for a language's variant that variant.delete
+ * withdrew (PRD 10.3), whose rows its writer removed.
  */
 #[Internal]
 final readonly class PostgresReadModelStore implements ReadModelStore
@@ -75,7 +77,7 @@ final readonly class PostgresReadModelStore implements ReadModelStore
 
     /** Each variant head of the range's entries, with the payloads a rebuild reads, locked. */
     public const string HEADS = <<<'SQL'
-        select h.entry_id::text as entry_id, h.variant,
+        select h.entry_id::text as entry_id, h.variant, h.release_state,
             d.schema_version as draft_schema, dp.format_version as draft_format, dp.content::text as draft_content,
             p.schema_version as released_schema, pp.format_version as released_format, pp.content::text as released_content,
             s.schema_version as snapshot_schema, s.format_version as snapshot_format, s.content::text as snapshot_content
@@ -174,13 +176,18 @@ final readonly class PostgresReadModelStore implements ReadModelStore
 
             $entry = EntryId::fromString($this->text($row, 'entry_id'));
             $variant = VariantKey::fromString($this->text($row, 'variant'));
+            $entries[$entry->toString()] = true;
+
+            if (! $variant->isShared() && $this->text($row, 'release_state') === VariantWithdrawnWriter::WITHDRAWN) {
+                continue;
+            }
+
             $draft = $type->capabilities->history === History::Full
                 ? $this->payload($type, $entry, $variant, $row, 'draft') ?? throw new LogicException(sprintf('The variant %s of the entry %s has no draft revision to rebuild from.', $variant->value, $entry->toString()))
                 : $this->payload($type, $entry, $variant, $row, 'snapshot') ?? throw new LogicException(sprintf('The variant %s of the entry %s has no head snapshot to rebuild from.', $variant->value, $entry->toString()));
             $released = $type->capabilities->stages === Stages::DraftRelease ? $this->payload($type, $entry, $variant, $row, 'released') : null;
 
             $heads[] = [$entry, $variant, $draft, $released];
-            $entries[$entry->toString()] = true;
         }
 
         if ($entries !== []) {

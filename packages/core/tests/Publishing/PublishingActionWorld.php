@@ -41,6 +41,8 @@ use Cbox\Cms\Contracts\Schema\TypeCapabilities;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
+use Cbox\Cms\Core\Entries\Actions\DeleteVariantAction;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Dto\StoredHead;
 use Cbox\Cms\Core\IdempotencyStore\Domain\Dto\IdempotencySettings;
 use Cbox\Cms\Core\Pipeline\Actions\AwaitWaitLevel;
@@ -93,7 +95,7 @@ use DateTimeImmutable;
 use LogicException;
 
 /**
- * The composite actions entry.publish, in version 1 and version 2, and entry.unpublish in the command pipeline with the fakes of
+ * The composite actions entry.publish, in version 1 and version 2, entry.unpublish and variant.delete in the command pipeline with the fakes of
  * its ports and of the contracts they read (GUARDRAILS 9): an active editor, the test type NoteType
  * with stages, and READING, a test type with stages none, in the catalog, a FakeEntryReader, a
  * FakePlacementReader, the revisions of a FakeRevisionContents, and a committer that records what
@@ -246,7 +248,7 @@ final class PublishingActionWorld
     }
 
     /**
-     * Grants the editor the role PUBLISHER, which may run entry.publish and entry.unpublish, on the node, with the effect, in the
+     * Grants the editor the role PUBLISHER, which may run entry.publish, entry.unpublish and variant.delete, on the node, with the effect, in the
      * locales given or in every locale. From the first grant on, the authorizer decides as the
      * kernel's CommandAuthorizer does (FakeCommandAuthorizer::granting()).
      *
@@ -267,7 +269,7 @@ final class PublishingActionWorld
             $this->permissions->path($node),
             $effect,
             $locales === null ? null : array_map(static fn (string $locale): Locale => new Locale($locale), $locales),
-        ), [new CommandName('entry.publish'), new CommandName('entry.unpublish')]);
+        ), [new CommandName('entry.publish'), new CommandName('entry.unpublish'), new CommandName('variant.delete')]);
 
         return $this;
     }
@@ -324,6 +326,14 @@ final class PublishingActionWorld
         return $this->run(new UnpublishEntry(self::entry(), new AggregateVersion($version)), $agent, $dryRun);
     }
 
+    /**
+     * variant.delete of the entry's variant, read at the version given.
+     */
+    public function deleteVariant(string $variant, int $version, bool $dryRun = false): WriteResult
+    {
+        return $this->run(new DeleteVariant(self::entry(), VariantKey::fromString($variant), new AggregateVersion($version)), dryRun: $dryRun);
+    }
+
     public function run(Command $command, bool $agent = false, bool $dryRun = false): WriteResult
     {
         $clock = new FakeClock;
@@ -343,6 +353,7 @@ final class PublishingActionWorld
                 PublishEntry::class => $this->binding('entry.publish', new PublishEntryAction($this->entries, $this->placements, $types, $this->clock)),
                 UnpublishEntry::class => $this->binding('entry.unpublish', new UnpublishEntryAction($this->entries, $this->placements, $types, $this->clock)),
                 PublishLocalizedEntry::class => $this->binding('entry.publish', new PublishLocalizedEntryAction($this->entries, $this->placements, $types, $this->clock), 2),
+                DeleteVariant::class => $this->binding('variant.delete', new DeleteVariantAction($this->entries, $this->placements, $types)),
             ]),
             $this->identity,
             $this->permissions instanceof FakePermissions ? FakeCommandAuthorizer::granting($this->permissions) : new FakeCommandAuthorizer,

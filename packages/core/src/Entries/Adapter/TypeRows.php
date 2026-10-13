@@ -37,7 +37,8 @@ use LogicException;
  * revision's values, and the draft row is removed again when it holds the same values, so it
  * exists after the release exactly when the pending draft differs from what was released.
  * unrelease() removes the released row again when the content is unpublished (PRD 6.4), keeping
- * its values as the draft row where the variant had none.
+ * its values as the draft row where the variant had none, and remove() removes every row of a
+ * language's variant when it is deleted (PRD 10.3).
  *
  * A type without localization has the one variant `shared`, whose row is `cms_locale = 'shared'`.
  * A type with localization variants (PRD 10.1) has a row per language and none for the shared
@@ -191,6 +192,26 @@ final readonly class TypeRows
         }
 
         $delete->delete();
+    }
+
+    /**
+     * Removes every row of a language's variant, released and draft, when the variant is deleted
+     * (PRD 10.3), in one statement by the entry and the locale. The entry's other languages keep
+     * their rows.
+     *
+     * @throws LogicException when the variant is the shared one, whose fields are in every language's row, or the type does not hold it
+     */
+    public function remove(TypeDefinition $type, EntryId $entry, VariantKey $variant): void
+    {
+        if ($variant->isShared()) {
+            throw new LogicException(sprintf('The shared variant of the entry %s has no rows of its own to remove; a language\'s variant is removed.', $entry->toString()));
+        }
+
+        $this->assertHeld($type, $variant);
+        $this->db->table($type->name->table())
+            ->where(self::ENTRY, $entry->toString())
+            ->where(self::LOCALE, $variant->value)
+            ->delete();
     }
 
     /**

@@ -806,6 +806,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/resources/js/cms/generated/protocol/CreateRoleV1.ts',
         'workbench/resources/js/cms/generated/protocol/CreateVariantFromV1.ts',
         'workbench/resources/js/cms/generated/protocol/DeactivateActorV1.ts',
+        'workbench/resources/js/cms/generated/protocol/DeleteVariantV1.ts',
         'workbench/resources/js/cms/generated/protocol/DeliveryExplanationV1.ts',
         'workbench/resources/js/cms/generated/protocol/DeliveryFragmentV1.ts',
         'workbench/resources/js/cms/generated/protocol/DeliveryV1.ts',

@@ -15,6 +15,7 @@ use Cbox\Cms\Contracts\Plans\Mutations\PlacementClosed;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementLocaleAdded;
 use Cbox\Cms\Contracts\Plans\Mutations\PlacementWindowSet;
+use Cbox\Cms\Contracts\Plans\Mutations\PlacementWithdrawn;
 use Cbox\Cms\Contracts\Plans\Plan;
 use Cbox\Cms\Core\Placements\Domain\CanonicalRule;
 use Cbox\Cms\Core\Placements\Domain\Commands\CreatePlacement;
@@ -28,8 +29,9 @@ use LogicException;
 /**
  * The kernel's planner of placements (PRD 5.7, 6.2 phase 3): the plans of placement.create and
  * placement.set_window, which other commands compose, such as entry.publish with the home
- * placement going live, and the plan that closes an entry's placements, which entry.unpublish
- * composes. It computes a plan and nothing else.
+ * placement going live, the plan that closes an entry's placements, which entry.unpublish
+ * composes, and the plan that withdraws them in one locale, which variant.delete composes. It
+ * computes a plan and nothing else.
  *
  * Every plan keeps one canonical placement of the entry in each locale it touches (invariant 14):
  * it applies the CanonicalRule to the entry's placements as the plan leaves them, at the time the
@@ -116,6 +118,26 @@ final readonly class PlacementPlanner
         }
 
         return $steps === [] ? new Plan : new Plan(...$steps, ...$this->moves($placements->locale, $placements, $states, $at));
+    }
+
+    /**
+     * The plan that withdraws every placement of the entry in the locale that is not withdrawn
+     * already, whatever its state (PRD 10.3): each loses its window and its canonical flag, so the
+     * entry has no canonical placement in the locale afterwards, which the rule keeps, because a
+     * withdrawn placement is never canonical (invariant 14). It is empty when every placement is
+     * withdrawn, or the entry has none in the locale.
+     */
+    public function withdraw(LocalePlacements $placements): Plan
+    {
+        $steps = [];
+
+        foreach ($placements->states as $state) {
+            if ($state->visibility !== Visibility::Withdrawn) {
+                $steps[] = new PlacementWithdrawn($state->placement, $placements->locale);
+            }
+        }
+
+        return new Plan(...$steps);
     }
 
     /**

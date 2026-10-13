@@ -726,7 +726,7 @@ final class SurfaceContractTest extends TestCase
     private const array EXPOSED = [
         'entry.create', 'entry.publish', 'entry.revise', 'entry.unpublish', 'mount.create', 'mount.set_override', 'node.archive', 'node.create',
         'node.move', 'node.set_label', 'node.set_route', 'placement.create', 'placement.set_slug', 'placement.set_window', 'site.add_locale', 'site.remove_locale',
-        'variant.create_from', 'variant.release',
+        'variant.create_from', 'variant.delete', 'variant.release',
     ];
 
     /**

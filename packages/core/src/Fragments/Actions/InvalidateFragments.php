@@ -28,6 +28,7 @@ use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantWithdrawn;
 use Cbox\Cms\Core\Fragments\Domain\ContentKeys;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
 use Cbox\Cms\Core\Fragments\Domain\EdgePurge;
@@ -47,8 +48,8 @@ use Override;
 
 /**
  * The invalidation subscriber (PRD 7.6, 8.4, 8.12, 9.4), on the critical lane: for each content
- * event (an entry created, a variant revised, released or unreleased, a placement created or its
- * window set, which covers publishing and unpublishing, or its slug changed, a node moved, given a
+ * event (an entry created, a variant revised, released, unreleased or deleted, a placement created or its
+ * window set, which covers publishing and unpublishing, or withdrawn with a deleted translation, or its slug changed, a node moved, given a
  * route or given a label, a site's locale added or removed, an exception to a mount set for an
  * entry) it purges the fragments of
  * the content keys the event affects, then purges the same keys at the edge through the CDN
@@ -71,7 +72,7 @@ use Override;
  *   locale event they are the site's root node's, so what was resolved below the root in the
  *   locale is purged.
  * - The edge purge is soft for a change, which may be served stale while it is rebuilt (PRD 8.12
- *   point 3), and hard for a removal, an unrelease, a placement no longer live or a locale removed, which may never
+ *   point 3), and hard for a removal, an unrelease, a deleted translation, a placement no longer live or a locale removed, which may never
  *   be served again (point 4, EdgePurge); a driver without soft purges applies every purge hard.
  *   The fragments are purged first, so an edge that refetches gets a fresh origin.
  * - The acknowledgement runs in the runner's batch transaction, so it commits with the
@@ -82,7 +83,7 @@ use Override;
  * Each step is idempotent and a fence never moves down, so an event handled twice, or an older
  * version handled after a newer one, changes nothing more.
  */
-#[Subscription(self::NAME, events: [EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class, PlacementSlugChanged::class, NodeMoved::class, NodeRouteChanged::class, NodeLabelChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class, MountOverrideSet::class], lane: Lane::Critical, projection: self::PROJECTION)]
+#[Subscription(self::NAME, events: [EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, VariantWithdrawn::class, PlacementCreated::class, PlacementVisibilityChanged::class, PlacementSlugChanged::class, NodeMoved::class, NodeRouteChanged::class, NodeLabelChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class, MountOverrideSet::class], lane: Lane::Critical, projection: self::PROJECTION)]
 #[Internal]
 final readonly class InvalidateFragments implements Subscriber
 {

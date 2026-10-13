@@ -1,7 +1,7 @@
 ---
 title: Entry commands
 weight: 43
-description: "The kernel's commands entry.create and entry.revise, in version 1 for one variant and version 2 for an entry's shared variant and its languages, and variant.create_from for a translation: what a caller sends, how the kernel stores the revisions and the type table's rows for any type as its capabilities say, the events they emit, and how they are rejected."
+description: "The kernel's commands entry.create and entry.revise, in version 1 for one variant and version 2 for an entry's shared variant and its languages, variant.create_from for a translation and variant.delete to delete one: what a caller sends, how the kernel stores the revisions and the type table's rows for any type as its capabilities say, the events they emit, and how they are rejected."
 ---
 
 # Entry commands
@@ -11,6 +11,7 @@ description: "The kernel's commands entry.create and entry.revise, in version 1 
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry -->
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\ReviseVariants -->
 <!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom -->
+<!-- extension-point: Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant -->
 
 Content is written with two commands of the kernel, `entry.create` and `entry.revise`, each in version 1, which writes one variant, and version 2, which writes an entry's shared variant and its languages (PRD 5.4, 6.4, 10.1). They run through the [command pipeline](commands.md) like every other write, on every surface: `#[Action]` exposes them on REST, Inertia, MCP and the CLI, and jobs, seeds and subscribers call them too. Both work for any type from its schema; the kernel names no type and reads what it needs from the `TypeCatalog` the generated code binds (GUARDRAILS 2.4). Both commands and their events are `#[Experimental]`.
 
@@ -141,6 +142,39 @@ it('creates the German variant from a revision of the Danish one', function (): 
 });
 ```
 
+## Deleting a translation
+
+`Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant`, `variant.delete` version 1, deletes one language's variant of an entry and leaves the entry, its shared variant and its other languages as they are (PRD 10.3): the entry, the language's `VariantKey` and the `AggregateVersion` of that variant the caller read. In one changeset the kernel withdraws the variant's head, which then has no released revision, removes its rows from the type's table, released and draft, and withdraws every placement of the entry in that locale, on every site, so their URLs answer 410, gone, on the [delivery API](../developers/delivery.md). The variant's revisions stay, as history. Withdrawn is sticky: only a reinstatement changes it (invariant 7), and a rebuild of the type table writes no row for a withdrawn language.
+
+The command is authorized at the entry's home in the variant's locale, as `variant.release` version 2 is, so a translator granted `de` deletes `de` and is `unauthorized` for `da`. The placements are withdrawn wherever they are, also below nodes the caller's regions do not reach, because the deletion is decided on the entry's home (PRD 5.10). The shared variant, a type with `localization: none` and a variant withdrawn already are `validation_failed`. The changeset emits `variant.withdrawn` about the variant and `placement.visibility_changed` to `withdrawn` about each placement, so the [invalidation](subscribers.md) purges the entry's `e-` key and each placement's `n-` key, hard at the edge.
+
+<!-- example: examples/Unit/Entries/DeleteTranslationTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\VariantKey;
+use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Pipeline\AggregateVersion;
+use Cbox\Cms\Contracts\Pipeline\ReadVersion;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
+
+// An editor deletes the Danish translation of an entry at the version of the Danish variant the
+// editor read. The kernel withdraws the variant and the entry's placements in da, so their URLs
+// answer 410, and leaves the entry, its shared variant and its other languages as they are.
+
+it('deletes the Danish variant at the version the editor read', function (): void {
+    $entry = EntryId::fromString('01936f5e-8a2b-7c3d-9e4f-000000000111');
+
+    $delete = new DeleteVariant($entry, VariantKey::of(new Locale('da')), new AggregateVersion(5));
+
+    expect($delete->ref()->aggregateKey())->toBe('variant:01936f5e-8a2b-7c3d-9e4f-000000000111:da')
+        ->and($delete->expectedVersions()->of($delete->ref()))->toEqual(ReadVersion::at($delete->ref(), new AggregateVersion(5)));
+});
+```
+
 ## Fields the caller may not read
 
 A caller sets only the fields it may read (PRD 2.31, 12.2), by the rule every read applies: a field classified above the call's classification access is closed to it, and for a call an agent issues, every field, and every nested field of a group, whose blueprint says `agents: false`. The command pipeline checks every revision a plan writes, so the rule holds for both commands and any other command that writes a revision:
@@ -234,8 +268,8 @@ A changeset of `entry.create` emits `entry.created` about the entry and `variant
 
 | Code | When |
 |---|---|
-| `version_conflict` | a create of an entry that exists, or of a variant the entry has; a `variant.create_from` whose source is at another version than the command gives; a revise of a variant at another version than the command gives, or of an entry that does not exist or the caller cannot reach; and either when another call changed what it read before it committed |
-| `validation_failed` | the fields break the type's rules, the type is not a type of the installation, the home node does not exist or is outside the caller's regions, a variant the type does not hold is written, or version 2 gives a language for a type without localization or none for a type with localization variants; for `variant.create_from` a type without localization, the shared variant as the new variant or the source, a variant from itself, a source revision the variant does not have, or one written under another schema version than the type's |
+| `version_conflict` | a create of an entry that exists, or of a variant the entry has; a `variant.create_from` whose source is at another version than the command gives; a `variant.delete` of a variant at another version or one the entry does not have; a revise of a variant at another version than the command gives, or of an entry that does not exist or the caller cannot reach; and either when another call changed what it read before it committed |
+| `validation_failed` | the fields break the type's rules, the type is not a type of the installation, the home node does not exist or is outside the caller's regions, a variant the type does not hold is written, or version 2 gives a language for a type without localization or none for a type with localization variants; for `variant.create_from` a type without localization, the shared variant as the new variant or the source, a variant from itself, a source revision the variant does not have, or one written under another schema version than the type's; for `variant.delete` the shared variant, a type without localization, or a variant withdrawn already |
 | `unauthorized` | no role of the caller with the command's permission reaches the entry's home in the locale of a language's variant, or in every locale for the shared variant |
 | `field_encryption_unavailable` | a value for a field classified confidential or above, which is stored only as ciphertext (PRD 12.2); until key management exists (PRD 12.3), such a field can only be left out or null |
 

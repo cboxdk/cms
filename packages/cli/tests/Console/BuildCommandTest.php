@@ -13,6 +13,7 @@ use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -134,15 +135,15 @@ it('writes the eight registries to the application\'s bootstrap/cache/cms, and r
             ...fixtureAddonWarnings(),
             // The kernel's actions, and the fixture addon's query fixtureaddon.articles and command
             // fixtureaddon.slug.set, each on REST and Inertia.
-            'actions: 46',
+            'actions: 47',
             // The workbench's fixture addon, which its allowlist names.
             'addons: 1',
-            'commands: 34',
+            'commands: 35',
             // The workbench's fixture addon, which package discovery registers: its four hooks and
             // its extension of app:fixture_article.
             'hooks: 4',
             'panel: 15',
-            'rest: 40',
+            'rest: 41',
             'schema: 1',
             'subscribers: 1',
             sprintf('Registry written to %s.', $directory),
@@ -159,7 +160,7 @@ it('adds what an addon provider\'s scan root declares', function (): void {
     [$status, $output] = buildCommand();
 
     expect($status)->toBe(0)
-        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 48', 'addons: 1', 'commands: 35', 'hooks: 5', 'panel: 16', 'rest: 41'])
+        ->and(array_slice($output, 0, 27))->toBe([...fixtureAddonWarnings(), 'actions: 49', 'addons: 1', 'commands: 36', 'hooks: 5', 'panel: 16', 'rest: 42'])
         ->and(RegistryFixtures::load($directory.'/commands.php'))->toMatchArray(['entries' => [[
             'class' => GrantBootstrapRole::class,
             'name' => 'access.bootstrap',
@@ -323,6 +324,11 @@ it('adds what an addon provider\'s scan root declares', function (): void {
         ], [
             'class' => CreateVariantFrom::class,
             'name' => 'variant.create_from',
+            'package' => CoreServiceProvider::PACKAGE,
+            'version' => 1,
+        ], [
+            'class' => DeleteVariant::class,
+            'name' => 'variant.delete',
             'package' => CoreServiceProvider::PACKAGE,
             'version' => 1,
         ], [

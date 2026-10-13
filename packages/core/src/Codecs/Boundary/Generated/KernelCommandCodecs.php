@@ -54,6 +54,7 @@ final readonly class KernelCommandCodecs
             RegisterSiteCodecV1::commandCodec(),
             RemoveSiteLocaleCodecV1::commandCodec(),
             CreateVariantFromCodecV1::commandCodec(),
+            DeleteVariantCodecV1::commandCodec(),
             ReleaseVariantCodecV1::commandCodec(),
             ReleaseVariantCodecV2::commandCodec(),
         ];

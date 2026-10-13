@@ -36,6 +36,7 @@ description: "The JSON form of the kernel's commands, one JSON Schema per comman
 <!-- extension-point: packages/core/resources/schemas/commands/site.register.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/site.remove_locale.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/variant.create_from.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/commands/variant.delete.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/variant.release.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/commands/variant.release.v2.json -->
 <!-- extension-point: Cbox\Cms\Core\Pipeline\Domain\CommandEncoder -->
@@ -51,6 +52,7 @@ A caller sends a command to a surface as a JSON document: the body of a REST cal
 | `variant.release` | `variant.release.v1.json` | `ReleaseVariantCodecV1` | [`ReleaseVariant`](release-command.md) |
 | `variant.release` version 2 | `variant.release.v2.json` | `ReleaseVariantCodecV2` | [`ReleaseEntryVariant`](release-command.md) |
 | `variant.create_from` | `variant.create_from.v1.json` | `CreateVariantFromCodecV1` | [`CreateVariantFrom`](entry-commands.md#translations) |
+| `variant.delete` | `variant.delete.v1.json` | `DeleteVariantCodecV1` | [`DeleteVariant`](entry-commands.md#deleting-a-translation) |
 | `entry.publish` | `entry.publish.v1.json` | `PublishEntryCodecV1` | [`PublishEntry`](publish-commands.md) |
 | `entry.publish` version 2 | `entry.publish.v2.json` | `PublishEntryCodecV2` | [`PublishLocalizedEntry`](publish-commands.md#version-2-the-languages-of-an-entry) |
 | `entry.unpublish` | `entry.unpublish.v1.json` | `UnpublishEntryCodecV1` | [`UnpublishEntry`](publish-commands.md) |
@@ -92,7 +94,7 @@ A document is an object of the command's keys in snake_case and no other key. Ev
 - `site.add_locale` and `site.remove_locale` have the `site`, the `version` of it the caller read and one `locale`; a locale the site publishes in already, one it does not publish in, and its last locale are refused by the action with `validation_failed`.
 - A slug of `placement.create` is an object of `locale` and `slug`: 1 to 255 characters without a slash or white space, and not `.` or `..`. `placement.set_slug` has the `placement`, its `version`, one `locale` and the `slug` in the same form.
 - Version 2 of `entry.create` has `shared`, the fields of the shared variant, and `locales`, a list of objects of `locale` and `fields`, each locale once, possibly empty for a type without localization. Version 2 of `entry.revise` has `variants`, a list of at least one object of `variant`, `version` and `fields`, each variant once. A variant is `shared` or a locale, as in `variant` of version 2 of `variant.release`. A locale or a variant twice is `json_invalid` at its path.
-- Version 2 of `entry.publish` has `variants`, a list of at least one object of `variant`, `version` and `revision`, each variant once, beside the `placement`, `placement_version`, `locale` and `window` of version 1; `revision` is null for a type with `stages: none`. `variant` and `source` of `variant.create_from` are locales, never `shared`, with the source's `revision` and `version`.
+- Version 2 of `entry.publish` has `variants`, a list of at least one object of `variant`, `version` and `revision`, each variant once, beside the `placement`, `placement_version`, `locale` and `window` of version 1; `revision` is null for a type with `stages: none`. `variant` and `source` of `variant.create_from` are locales, never `shared`, with the source's `revision` and `version`. `variant` of `variant.delete` takes `shared` or a locale, as `variant.release` version 2 does, so the action refuses `shared` with `validation_failed` rather than the codec with `json_invalid`.
 - `kind` of `node.create` is one of `site`, `section`, `page`, `list`, `storage` and `mount`; the action refuses `site`, which a site's registration makes, and `mount`, which `mount.create` will make, with `validation_failed`.
 - `route` of `node.set_route`, both versions, which take the same document, is `/` or `/`-separated segments of anything but slashes and white space, at most 32 segments and 2048 bytes, with no trailing slash and no `.` or `..` segment, the same form as the `path` of `path.resolve`.
 - `label` of `node.set_label` is 1 to 200 characters without control characters that start and end with a character that is not white space, the form of `NodeLabelSet::LABEL_PATTERN`.

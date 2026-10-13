@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Cdn\PurgeMode;
 use Cbox\Cms\Contracts\Events\InvalidEvent;
 use Cbox\Cms\Contracts\Events\StoredEvent;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantWithdrawn;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementVisibilityChanged;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Structure\Domain\Events\MountOverrideSet;
@@ -20,6 +21,7 @@ use Cbox\Cms\Core\Structure\Domain\Events\SiteLocaleRemoved;
  * never serve again, also not stale-if-error.
  *
  * A removal is a variant.unreleased, whose content the public no longer sees, a
+ * variant.withdrawn, a translation deleted, a
  * placement.visibility_changed to anything but live: hidden by unpublishing, scheduled for later,
  * expired or withdrawn, a site.locale_removed, after which the public resolves nothing below
  * the site's root in the locale, and a mount.override_set that hides the entry on the mount.
@@ -46,7 +48,7 @@ final readonly class EdgePurge
     private static function removes(StoredEvent $event): bool
     {
         return match ($event->type->name) {
-            VariantUnreleased::NAME, SiteLocaleRemoved::NAME => true,
+            VariantUnreleased::NAME, VariantWithdrawn::NAME, SiteLocaleRemoved::NAME => true,
             PlacementVisibilityChanged::NAME => $event->data->get(self::VISIBILITY)->asEnumValue() !== Visibility::Live->value,
             MountOverrideSet::NAME => $event->data->get(self::HIDDEN)->asBoolean(),
             default => false,

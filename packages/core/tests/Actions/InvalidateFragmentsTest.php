@@ -26,6 +26,7 @@ use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantWithdrawn;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementSlugChanged;
@@ -187,6 +188,18 @@ it('invalidates the entry of variant.unreleased and purges the edge hard, becaus
         ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
 });
 
+it('invalidates the entry of variant.withdrawn and purges the edge hard, because a deleted translation is removed', function (): void {
+    $world = new InvalidationWorld;
+    $world->write('page:a', 90);
+    $changeset = $world->changeset('origin');
+
+    $world->handle($world->stored(InvalidationWorld::withdrawn(5, 2), $changeset, 100));
+
+    expect($world->fragments->read(new FragmentKey('page:a')))->toBeNull()
+        ->and($world->cdn->requests())->toEqual([new CdnPurge([InvalidationWorld::key()], PurgeMode::Hard)])
+        ->and($world->origin($changeset)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
 it('invalidates the entry and the node of placement.created, so a 404 of the path below the node is purged too', function (): void {
     $world = new InvalidationWorld;
     $world->write('page:a', 90);
@@ -248,7 +261,7 @@ it('subscribes on the critical lane to every event that changes what a fragment 
     $world->handle($world->stored(InvalidationWorld::revised(2), $world->changeset('origin'), 100));
     $subscription = new ReflectionClass(InvalidateFragments::class)->getAttributes(Subscription::class)[0]->newInstance();
 
-    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementSlugChanged::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, NodeRouteChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
+    expect($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, VariantWithdrawn::class, PlacementCreated::class, PlacementSlugChanged::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, NodeRouteChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class])
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe(InvalidateFragments::PROJECTION);
 });

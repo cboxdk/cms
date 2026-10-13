@@ -17,6 +17,7 @@ use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -92,6 +93,7 @@ function kernelCommandClasses(): array
         'site.register@1' => RegisterSite::class,
         'site.remove_locale@1' => RemoveSiteLocale::class,
         'variant.create_from@1' => CreateVariantFrom::class,
+        'variant.delete@1' => DeleteVariant::class,
         'variant.release@1' => ReleaseVariant::class,
         'variant.release@2' => ReleaseEntryVariant::class,
     ];

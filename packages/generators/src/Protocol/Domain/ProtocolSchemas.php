@@ -108,6 +108,7 @@ use Cbox\Cms\Core\Delivery\Domain\Dto\StoredAnswer;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -951,6 +952,11 @@ final readonly class ProtocolSchemas
                 '#/properties/entry' => $id(EntryId::class),
                 '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
                 '#/properties/source' => ValueBinding::value(VariantKey::class),
+                '#/properties/variant' => ValueBinding::value(VariantKey::class),
+                '#/properties/version' => $version,
+            ]),
+            self::command('variant.delete.v1.json', 'DeleteVariantCodecV1', DeleteVariant::class, [
+                '#/properties/entry' => $id(EntryId::class),
                 '#/properties/variant' => ValueBinding::value(VariantKey::class),
                 '#/properties/version' => $version,
             ]),

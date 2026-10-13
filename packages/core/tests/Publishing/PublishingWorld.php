@@ -36,6 +36,7 @@ use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
+use Cbox\Cms\Core\Entries\Actions\DeleteVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
@@ -50,9 +51,11 @@ use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantDerivedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantWithdrawnWriter;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -83,6 +86,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementClosedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementWithdrawnWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
@@ -126,7 +130,7 @@ use LogicException;
 /**
  * The real command pipeline on Postgres for entry.publish, in version 1 and version 2, and
  * entry.unpublish (PRD 6.2, 6.4, 10.3), with entry.create in both versions, variant.release
- * version 2, variant.create_from, placement.create and placement.set_window to make what they
+ * version 2, variant.create_from, variant.delete, placement.create and placement.set_window to make what they
  * publish: the command
  * transaction, the Postgres stores, the actor directory, the entry and placement readers, the
  * revision contents a release is validated against, and the PostgresChangesetCommitter with the
@@ -143,7 +147,7 @@ use LogicException;
 final readonly class PublishingWorld
 {
     /** @var list<string> the commands the world runs, which a granted world's role may run */
-    public const array COMMANDS = ['entry.create', 'entry.revise', 'placement.create', 'placement.set_window', 'entry.publish', 'entry.unpublish', 'variant.release', 'variant.create_from'];
+    public const array COMMANDS = ['entry.create', 'entry.revise', 'placement.create', 'placement.set_window', 'entry.publish', 'entry.unpublish', 'variant.release', 'variant.create_from', 'variant.delete'];
 
     public FakeClock $clock;
 
@@ -232,6 +236,14 @@ final readonly class PublishingWorld
     public function createFrom(EntryId $entry, string $variant, string $source, int $revision, int $version, string $key): WriteResult
     {
         return $this->run(new CreateVariantFrom($entry, VariantKey::fromString($variant), VariantKey::fromString($source), new RevisionNumber($revision), new AggregateVersion($version)), $key);
+    }
+
+    /**
+     * variant.delete of the language's variant $variant of the entry, read at the version given.
+     */
+    public function deleteVariant(EntryId $entry, string $variant, int $version, string $key): WriteResult
+    {
+        return $this->run(new DeleteVariant($entry, VariantKey::fromString($variant), new AggregateVersion($version)), $key);
     }
 
     /**
@@ -339,6 +351,7 @@ final readonly class PublishingWorld
                 ReleaseEntryVariant::class => $this->binding('variant.release', new ReleaseEntryVariantAction($entries, $types, new VariantReleasePlanner), 2),
                 CreateVariantFrom::class => $this->binding('variant.create_from', new CreateVariantFromAction($entries, $types, $revisions)),
                 PublishLocalizedEntry::class => $this->binding('entry.publish', new PublishLocalizedEntryAction($entries, $placements, $types, $this->clock), 2),
+                DeleteVariant::class => $this->binding('variant.delete', new DeleteVariantAction($entries, $placements, $types)),
             ]),
             new PostgresActorDirectory($connections),
             $this->granted ? app(CommandAuthorizer::class) : new FakeCommandAuthorizer,
@@ -373,6 +386,8 @@ final readonly class PublishingWorld
                     new PlacementWindowSetWriter($connections),
                     new PlacementCanonicalSetWriter($connections),
                     new PlacementClosedWriter($connections),
+                    new VariantWithdrawnWriter($connections, $types),
+                    new PlacementWithdrawnWriter($connections),
                 ),
                 app(AffectedProjections::class),
                 new PostgresReceiptStore($connections, $this->clock),

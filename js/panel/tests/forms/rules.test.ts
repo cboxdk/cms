@@ -51,6 +51,7 @@ import { validateAddSiteLocaleV1 } from '../../../../workbench/resources/js/cms/
 import { validateRegisterSiteV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RegisterSiteV1';
 import { validateRemoveSiteLocaleV1 } from '../../../../workbench/resources/js/cms/generated/protocol/RemoveSiteLocaleV1';
 import { validateCreateVariantFromV1 } from '../../../../workbench/resources/js/cms/generated/protocol/CreateVariantFromV1';
+import { validateDeleteVariantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/DeleteVariantV1';
 import { validateReleaseVariantV1 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV1';
 import { validateReleaseVariantV2 } from '../../../../workbench/resources/js/cms/generated/protocol/ReleaseVariantV2';
 
@@ -94,6 +95,7 @@ const GENERATED: Readonly<Record<string, Validator>> = {
   'site.register.v1.json': validateRegisterSiteV1,
   'site.remove_locale.v1.json': validateRemoveSiteLocaleV1,
   'variant.create_from.v1.json': validateCreateVariantFromV1,
+  'variant.delete.v1.json': validateDeleteVariantV1,
   'variant.release.v1.json': validateReleaseVariantV1,
   'variant.release.v2.json': validateReleaseVariantV2,
 };

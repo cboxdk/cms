@@ -100,7 +100,7 @@ it('offers each kernel command and query the workbench exposes on MCP as a tool 
     $offered = array_map(static fn (McpTool $tool): string => ($tool->command?->command->value ?? $tool->query?->name->value ?? '').' '.($tool->command->version ?? $tool->query->version ?? 0), $tools->tools);
     sort($offered);
 
-    expect($exposed)->toBe(['entry.create 1', 'entry.create 2', 'entry.get 1', 'entry.list 1', 'entry.publish 1', 'entry.publish 2', 'entry.revise 1', 'entry.revise 2', 'entry.unpublish 1', 'mount.create 1', 'mount.set_override 1', 'node.archive 1', 'node.create 1', 'node.move 1', 'node.set_label 1', 'node.set_route 1', 'node.set_route 2', 'placement.create 1', 'placement.set_slug 1', 'placement.set_window 1', 'site.add_locale 1', 'site.remove_locale 1', 'type.describe 1', 'type.list 1', 'variant.create_from 1', 'variant.release 1', 'variant.release 2'])
+    expect($exposed)->toBe(['entry.create 1', 'entry.create 2', 'entry.get 1', 'entry.list 1', 'entry.publish 1', 'entry.publish 2', 'entry.revise 1', 'entry.revise 2', 'entry.unpublish 1', 'mount.create 1', 'mount.set_override 1', 'node.archive 1', 'node.create 1', 'node.move 1', 'node.set_label 1', 'node.set_route 1', 'node.set_route 2', 'placement.create 1', 'placement.set_slug 1', 'placement.set_window 1', 'site.add_locale 1', 'site.remove_locale 1', 'type.describe 1', 'type.list 1', 'variant.create_from 1', 'variant.delete 1', 'variant.release 1', 'variant.release 2'])
         ->and(workbenchMcpActions(app(CompiledRegistry::class)))->toBe($exposed)
         ->and($tools->undescribed)->toBe([])
         ->and($offered)->toBe($exposed);
@@ -134,7 +134,7 @@ it('names each kernel command and query without a codec in a world whose codecs 
     $tools = McpWorld::tools(workbenchRegistry());
 
     expect($tools->tools)->toBe([])
-        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.create 2', 'entry.get 1', 'entry.list 1', 'entry.publish 1', 'entry.publish 2', 'entry.revise 1', 'entry.revise 2', 'entry.unpublish 1', 'mount.create 1', 'mount.set_override 1', 'node.archive 1', 'node.create 1', 'node.move 1', 'node.set_label 1', 'node.set_route 1', 'node.set_route 2', 'placement.create 1', 'placement.set_slug 1', 'placement.set_window 1', 'site.add_locale 1', 'site.remove_locale 1', 'type.describe 1', 'type.list 1', 'variant.create_from 1', 'variant.release 1', 'variant.release 2'])
+        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.create 2', 'entry.get 1', 'entry.list 1', 'entry.publish 1', 'entry.publish 2', 'entry.revise 1', 'entry.revise 2', 'entry.unpublish 1', 'mount.create 1', 'mount.set_override 1', 'node.archive 1', 'node.create 1', 'node.move 1', 'node.set_label 1', 'node.set_route 1', 'node.set_route 2', 'placement.create 1', 'placement.set_slug 1', 'placement.set_window 1', 'site.add_locale 1', 'site.remove_locale 1', 'type.describe 1', 'type.list 1', 'variant.create_from 1', 'variant.delete 1', 'variant.release 1', 'variant.release 2'])
         ->and($tools->undescribed[0]->reason)->toContain('No codec reads version 1 of the command')
         ->and($tools->undescribed[0]->reason)->toContain('cbox-cms.command-codecs');
 });
@@ -147,7 +147,7 @@ it('lists the compiled tools of the workbench with the test-only actions and run
 
     expect(Route::has(McpRoutes::NAME))->toBeTrue()
         ->and(array_map(static fn (McpTool $tool): string => $tool->name->value, $tools->tools))->toBe([McpWorld::READ_TOOL, McpWorld::WRITE_TOOL])
-        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.create 2', 'entry.get 1', 'entry.list 1', 'entry.publish 1', 'entry.publish 2', 'entry.revise 1', 'entry.revise 2', 'entry.unpublish 1', 'mount.create 1', 'mount.set_override 1', 'node.archive 1', 'node.create 1', 'node.move 1', 'node.set_label 1', 'node.set_route 1', 'node.set_route 2', 'placement.create 1', 'placement.set_slug 1', 'placement.set_window 1', 'site.add_locale 1', 'site.remove_locale 1', 'type.describe 1', 'type.list 1', 'variant.create_from 1', 'variant.release 1', 'variant.release 2']);
+        ->and(undescribedActions($tools))->toBe(['entry.create 1', 'entry.create 2', 'entry.get 1', 'entry.list 1', 'entry.publish 1', 'entry.publish 2', 'entry.revise 1', 'entry.revise 2', 'entry.unpublish 1', 'mount.create 1', 'mount.set_override 1', 'node.archive 1', 'node.create 1', 'node.move 1', 'node.set_label 1', 'node.set_route 1', 'node.set_route 2', 'placement.create 1', 'placement.set_slug 1', 'placement.set_window 1', 'site.add_locale 1', 'site.remove_locale 1', 'type.describe 1', 'type.list 1', 'variant.create_from 1', 'variant.delete 1', 'variant.release 1', 'variant.release 2']);
 
     $listed = McpClient::tools();
     $called = McpClient::call(McpWorld::WRITE_TOOL, McpClient::writeArguments($world, ['idempotency_key' => 'mcp-workbench']), $world->exposed->credential(IssuerKind::Agent));

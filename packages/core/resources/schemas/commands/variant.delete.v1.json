@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "variant.delete, contract version 1",
+  "description": "Deletes one translation of an entry (PRD 10.3): the entry, the language's variant and the version of it the caller read. The variant's head is withdrawn and its rows in the type's table are removed, and every placement of the entry in that locale, on every site, is withdrawn, so its URL answers 410; the entry, its shared variant and its other languages stay. The shared variant, a type without localization and a variant withdrawn already are validation_failed, a variant at another version is version_conflict, and the command is authorized in the variant's locale. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Commands\\DeleteVariant, and the generated codec DeleteVariantCodecV1 reads it and writes its canonical JSON: every key, sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry",
+    "variant",
+    "version"
+  ],
+  "properties": {
+    "entry": {
+      "description": "The entry's id.",
+      "$ref": "#/$defs/id"
+    },
+    "variant": {
+      "description": "The language's variant to delete; the shared variant is refused.",
+      "$ref": "#/$defs/variant"
+    },
+    "version": {
+      "description": "The version of the variant the caller read.",
+      "$ref": "#/$defs/version"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$",
+      "examples": [
+        "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01"
+      ]
+    },
+    "variant": {
+      "description": "A variant of the entry: shared, the variant that holds the fields that do not vary by language, or the language tag of a language's variant, such as da or en-GB.",
+      "type": "string",
+      "pattern": "^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$",
+      "examples": [
+        "da"
+      ]
+    },
+    "version": {
+      "description": "The version of an aggregate that the caller read, an integer of 1 or more; the command is version_conflict when the aggregate is at another version when it commits.",
+      "type": "integer",
+      "minimum": 1
+    }
+  }
+}

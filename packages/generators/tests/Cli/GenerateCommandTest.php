@@ -132,6 +132,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/CreateRoleV1.ts',
             'written: resources/js/cms/generated/protocol/CreateVariantFromV1.ts',
             'written: resources/js/cms/generated/protocol/DeactivateActorV1.ts',
+            'written: resources/js/cms/generated/protocol/DeleteVariantV1.ts',
             'written: resources/js/cms/generated/protocol/DeliveryExplanationV1.ts',
             'written: resources/js/cms/generated/protocol/DeliveryFragmentV1.ts',
             'written: resources/js/cms/generated/protocol/DeliveryV1.ts',
@@ -184,10 +185,10 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/WhoAmIV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 87 files: 87 written, 0 unchanged, 0 stale removed.',
+            'Generated 88 files: 88 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 87 files: 0 written, 87 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 88 files: 0 written, 88 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -225,6 +226,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'resources/js/cms/generated/protocol/CreateRoleV1.ts',
             'resources/js/cms/generated/protocol/CreateVariantFromV1.ts',
             'resources/js/cms/generated/protocol/DeactivateActorV1.ts',
+            'resources/js/cms/generated/protocol/DeleteVariantV1.ts',
             'resources/js/cms/generated/protocol/DeliveryExplanationV1.ts',
             'resources/js/cms/generated/protocol/DeliveryFragmentV1.ts',
             'resources/js/cms/generated/protocol/DeliveryV1.ts',
@@ -342,7 +344,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 100 files: 20 written, 80 unchanged, 0 stale removed.',
+            'Generated 101 files: 20 written, 81 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

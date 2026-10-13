@@ -45,6 +45,7 @@ const PROTOCOL_CODECS = [
     'CreateRoleCodecV1.php',
     'CreateVariantFromCodecV1.php',
     'DeactivateActorCodecV1.php',
+    'DeleteVariantCodecV1.php',
     'DeliveryCodecV1.php',
     'DeliveryExplanationCodecV1.php',
     'DeliveryFragmentCodecV1.php',

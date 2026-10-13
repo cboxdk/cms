@@ -29,11 +29,13 @@ A mutation implements `Cbox\Cms\Contracts\Plans\Mutation`: a final readonly clas
 | `VariantReleased(entry, type, variant, revision)` | the variant | the revision becomes the variant's released revision |
 | `VariantUnreleased(entry, variant, revision)` | the variant | the variant has no released revision any more; `revision` is the one it had |
 | `VariantDerived(entry, variant, revision, source, sourceRevision)` | the variant | the revision of a language's variant is a translation of revision `sourceRevision` of the language's variant `source`, the derivation `translated_from` |
+| `VariantWithdrawn(entry, variant)` | the variant | a language's variant is deleted: its head is withdrawn and its rows in the type's table are removed (PRD 10.3) |
 | `PlacementCreated(placement, entry, node, site)` | the placement | the entry is placed below the node of the site |
 | `PlacementLocaleAdded(placement, locale, slug, canonical)` | the placement | the placement gets the `Locale` with its `Slug`, hidden, canonical as the kernel decides |
 | `PlacementWindowSet(placement, locale, window)` | the placement | the `TimeWindow` in which the placement is live in the `Locale`; null hides it there |
 | `PlacementCanonicalSet(placement, locale, canonical)` | the placement | the placement becomes, or stops being, the canonical placement of its entry in the `Locale` |
 | `PlacementClosed(placement, locale)` | the placement | the placement is hidden in the `Locale` and loses its window, because its entry's content is unpublished |
+| `PlacementWithdrawn(placement, locale)` | the placement | the placement is withdrawn in the `Locale`, loses its window and its canonical flag, and its URL answers 410, because its entry's variant of the locale is deleted |
 | `ActorDeactivated(actor, source)` | the actor | the actor is deactivated (PRD 5.16), by the `DeactivationSource` given, `local` by default |
 | `ActorRegistered(actor, class, profile, responsible)` | the actor | the actor is created pending (PRD 5.16), with its `ActorClass`, its `ActorProfile` and, for a service actor, the `ActorId` of the person responsible for it |
 | `ActorActivated(actor)` | the actor | the pending actor becomes active |

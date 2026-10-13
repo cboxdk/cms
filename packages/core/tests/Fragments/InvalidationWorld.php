@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Consistency\CommitPosition;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\RetentionClass;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Content\VariantRef;
 use Cbox\Cms\Contracts\Events\Event;
@@ -36,6 +37,8 @@ use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevisedV1;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleasedV1;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantWithdrawn;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantWithdrawnV1;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
 use Cbox\Cms\Core\Placements\Domain\Events\PlacementCreated;
@@ -216,6 +219,16 @@ final readonly class InvalidationWorld
         $id = self::entry();
 
         return new VariantUnreleased($version, new VariantUnreleasedV1($id, new VariantRef($id, VariantKey::shared()), $revision));
+    }
+
+    /**
+     * variant.withdrawn of the entry's da variant, released at the revision until then.
+     */
+    public static function withdrawn(int $version, int $revision): VariantWithdrawn
+    {
+        $id = self::entry();
+
+        return new VariantWithdrawn($version, new VariantWithdrawnV1($id, new VariantRef($id, VariantKey::of(new Locale('da'))), ReleaseState::Released, $revision));
     }
 
     public static function placed(): PlacementCreated

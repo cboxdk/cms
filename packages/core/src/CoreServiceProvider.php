@@ -131,6 +131,7 @@ use Cbox\Cms\Core\Entries\Adapter\RevisionCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantDerivedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
+use Cbox\Cms\Core\Entries\Adapter\VariantWithdrawnWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\Fragments\Adapter\PostgresSubtreeNodes;
@@ -208,6 +209,7 @@ use Cbox\Cms\Core\Placements\Adapter\PlacementCreatedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementLocaleAddedWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementSlugSetWriter;
 use Cbox\Cms\Core\Placements\Adapter\PlacementWindowSetWriter;
+use Cbox\Cms\Core\Placements\Adapter\PlacementWithdrawnWriter;
 use Cbox\Cms\Core\Placements\Adapter\PostgresCanonicalPlacementLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresEntryReleaseLock;
 use Cbox\Cms\Core\Placements\Adapter\PostgresPlacementReader;
@@ -590,6 +592,9 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // the release and the placement commands and read through their readers; they add the
         // writers of taking a release back and of closing a placement on every site.
         $this->app->tag([VariantUnreleasedWriter::class, PlacementClosedWriter::class], MutationWriters::TAG);
+        // variant.delete (PRD 10.3): the writers of a language's variant withdrawn with its type
+        // rows, and of its placements in the locale withdrawn on every site.
+        $this->app->tag([VariantWithdrawnWriter::class, PlacementWithdrawnWriter::class], MutationWriters::TAG);
 
         // actor.deactivate (PRD 5.16): the writer of its mutation, which deactivates the actor and
         // ends its direct grants.

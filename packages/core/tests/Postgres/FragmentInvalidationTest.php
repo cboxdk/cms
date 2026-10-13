@@ -14,6 +14,7 @@ use Cbox\Cms\Contracts\Cdn\CdnDriver;
 use Cbox\Cms\Contracts\Cdn\PurgeMode;
 use Cbox\Cms\Contracts\Clock;
 use Cbox\Cms\Contracts\Consistency\CommitPosition;
+use Cbox\Cms\Contracts\Consistency\Outcome;
 use Cbox\Cms\Contracts\Consistency\ProjectionName;
 use Cbox\Cms\Contracts\Consistency\ProjectionState;
 use Cbox\Cms\Contracts\Events\EventStream;
@@ -21,6 +22,7 @@ use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Ids\ChangesetId;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\NodeId;
+use Cbox\Cms\Contracts\Ids\PlacementId;
 use Cbox\Cms\Contracts\Receipts\ProjectionStatus;
 use Cbox\Cms\Contracts\ReceiptStore;
 use Cbox\Cms\Contracts\Results\WriteResult;
@@ -32,8 +34,11 @@ use Cbox\Cms\Core\Subscriptions\Domain\Dto\LaneRun;
 use Cbox\Cms\Core\Subscriptions\Domain\SubscriptionLog;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
+use Cbox\Cms\Core\Tests\Entries\LocalizedEntries;
 use Cbox\Cms\Core\Tests\Identity\PostgresIdentity;
 use Cbox\Cms\Core\Tests\Placements\PlacementStructure;
+use Cbox\Cms\Core\Tests\Placements\PlacementWorld;
+use Cbox\Cms\Core\Tests\Publishing\PublishingWorld;
 use Cbox\Cms\Core\Tests\Structure\NodeWorld;
 use Cbox\Cms\Core\Tests\Subscriptions\Fakes\StopAfterRounds;
 use Cbox\Cms\Testkit\Cdn\FakeCdnDriver;
@@ -51,7 +56,8 @@ use PHPUnit\Framework\AssertionFailedError;
  * a node given a label are invalidated the same way, by the n- key of the node and, for a move,
  * of every node below it; a site.remove_locale purges the site root's node key the same way, hard
  * at the edge; a site's exception to a mount by the e- key of the entry and the n- key of the
- * mount node, hard when the entry is hidden.
+ * mount node, hard when the entry is hidden; and a deleted translation by the e- key of the entry
+ * and the n- key of the node its withdrawn placement sits under, hard at the edge (PRD 10.3).
  */
 
 const INVALIDATION_NODE = '0192a0c0-0000-7000-8000-0000000009a1';
@@ -342,4 +348,42 @@ it('purges the entry and the mount node hard once the runner has handled a mount
         ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($mount)) : null)->toBe(PurgeMode::Hard)
         ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::entry($entry)) : null)->toBe(PurgeMode::Hard)
         ->and(invalidationOrigin($hidden)?->state)->toBe(ProjectionState::Acknowledged);
+});
+
+it('purges the fragment of a deleted translation\'s URL by the entry\'s and the placement node\'s keys, hard at the edge, once the runner has handled variant.delete', function (): void {
+    $world = invalidationWorld();
+    $structure = PlacementWorld::seed();
+    $publishing = new PublishingWorld([$structure->northSection], seed: 9);
+    $entry = EntryWorld::entry();
+    $placement = PlacementId::fromString('0192a0c0-0000-7000-8000-0000000009c5');
+    $created = $publishing->createLocalized($entry, LocalizedEntries::NOTICE, LocalizedEntries::shared('2026-03-09', 3), [
+        'da' => LocalizedEntries::translated('Havnen åbner'),
+        'en' => LocalizedEntries::translated('The harbour opens'),
+    ], $structure->northSection, 'create-notice');
+    $placed = $publishing->place($placement, $entry, $structure->northSection, $structure->north, 'havnen', 'place-notice');
+    invalidationRunUntilOrigin(invalidationChangeset($placed));
+
+    $fragments = app(FragmentStore::class);
+    $stale = invalidationReadPosition();
+    $keys = [DependencyKey::entry($entry), DependencyKey::node($structure->northSection->id)];
+    $page = new Fragment(new FragmentKey('path:north:da:/havnen'), '<article>da</article>', $keys, $stale, $world->clock->now()->add(new DateInterval('PT1H')));
+    expect($created->outcome())->toBe(Outcome::Committed)
+        ->and($fragments->write($page))->toBeInstanceOf(FragmentStored::class);
+
+    $delete = $publishing->deleteVariant($entry, 'da', 1, 'delete-da-origin');
+    $deleted = invalidationChangeset($delete);
+
+    expect($delete->receipt->projections)->toEqual([ProjectionStatus::pending(new ProjectionName('origin'))])
+        ->and($fragments->read(new FragmentKey('path:north:da:/havnen')))->not->toBeNull();
+
+    $world->clock->advance(new DateInterval('PT2S'));
+    invalidationRunUntilOrigin($deleted);
+    $cdn = app(CdnDriver::class);
+
+    expect($fragments->read(new FragmentKey('path:north:da:/havnen')))->toBeNull()
+        ->and($fragments->fragmentsOf(DependencyKey::entry($entry)))->toBe([])
+        ->and($fragments->write($page))->toBeInstanceOf(FragmentFenced::class)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::entry($entry)) : null)->toBe(PurgeMode::Hard)
+        ->and($cdn instanceof FakeCdnDriver ? $cdn->purgedWith(DependencyKey::node($structure->northSection->id)) : null)->toBe(PurgeMode::Hard)
+        ->and(invalidationOrigin($deleted)?->state)->toBe(ProjectionState::Acknowledged);
 });

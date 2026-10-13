@@ -11,6 +11,7 @@ use Cbox\Cms\Core\Entries\Domain\Events\EntryCreated;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantReleased;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantRevised;
 use Cbox\Cms\Core\Entries\Domain\Events\VariantUnreleased;
+use Cbox\Cms\Core\Entries\Domain\Events\VariantWithdrawn;
 use Cbox\Cms\Core\Fragments\Actions\InvalidateFragments;
 use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
 use Cbox\Cms\Core\Fragments\Domain\Dto\InvalidationSettings;
@@ -45,7 +46,7 @@ it('declares fragments.invalidate on the critical lane for the content events, a
     expect($subscription->name)->toBe('fragments.invalidate')
         ->and($subscription->lane)->toBe(Lane::Critical)
         ->and($subscription->projection)->toBe('origin')
-        ->and($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, PlacementCreated::class, PlacementSlugChanged::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, NodeRouteChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class]);
+        ->and($subscription->events)->toBe([EntryCreated::class, VariantReleased::class, VariantRevised::class, VariantUnreleased::class, VariantWithdrawn::class, PlacementCreated::class, PlacementSlugChanged::class, PlacementVisibilityChanged::class, MountOverrideSet::class, NodeLabelChanged::class, NodeMoved::class, NodeRouteChanged::class, SiteLocaleAdded::class, SiteLocaleRemoved::class]);
 });
 
 it('is in the compiled registry, so a receipt of a content event lists origin', function (): void {
@@ -54,7 +55,7 @@ it('is in the compiled registry, so a receipt of a content event lists origin', 
     expect(array_map(static fn (ProjectionName $name): string => $name->value, $registry->projectionsFor(VariantRevised::class)))->toContain('origin')
         ->and(array_map(static fn (ProjectionName $name): string => $name->value, $registry->projectionsFor(EntryCreated::class)))->toContain('origin');
 
-    foreach ([VariantReleased::class, VariantUnreleased::class, PlacementCreated::class, PlacementVisibilityChanged::class] as $event) {
+    foreach ([VariantReleased::class, VariantUnreleased::class, VariantWithdrawn::class, PlacementCreated::class, PlacementVisibilityChanged::class] as $event) {
         expect(array_map(static fn (ProjectionName $name): string => $name->value, $registry->projectionsFor($event)))->toContain('origin');
     }
 });

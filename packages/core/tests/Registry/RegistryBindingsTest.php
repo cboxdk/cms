@@ -21,6 +21,7 @@ use Cbox\Cms\Core\CoreServiceProvider;
 use Cbox\Cms\Core\Entries\Actions\CreateEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateLocalizedEntryAction;
 use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
+use Cbox\Cms\Core\Entries\Actions\DeleteVariantAction;
 use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
@@ -30,6 +31,7 @@ use Cbox\Cms\Core\Entries\Actions\ReviseVariantsAction;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateLocalizedEntry;
 use Cbox\Cms\Core\Entries\Domain\Commands\CreateVariantFrom;
+use Cbox\Cms\Core\Entries\Domain\Commands\DeleteVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseEntryVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReleaseVariant;
 use Cbox\Cms\Core\Entries\Domain\Commands\ReviseEntry;
@@ -199,6 +201,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'site.register@1 '.RegisterSite::class,
             'site.remove_locale@1 '.RemoveSiteLocale::class,
             'variant.create_from@1 '.CreateVariantFrom::class,
+            'variant.delete@1 '.DeleteVariant::class,
             'variant.release@1 '.ReleaseVariant::class,
             'variant.release@2 '.ReleaseEntryVariant::class,
         ])
@@ -246,6 +249,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'type.describe@1 '.DescribeTypeAction::class.' query',
             'type.list@1 '.ListTypesAction::class.' query',
             'variant.create_from@1 '.CreateVariantFromAction::class.' write',
+            'variant.delete@1 '.DeleteVariantAction::class.' write',
             'variant.release@1 '.ReleaseVariantAction::class.' write',
             'variant.release@2 '.ReleaseEntryVariantAction::class.' write',
         ])
@@ -263,7 +267,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([44, 0, 33, 0, 15, 38, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([45, 0, 34, 0, 15, 39, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])
