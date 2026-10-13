@@ -68,8 +68,17 @@ export const SUBPATHS = Object.freeze([
   { name: '/storybook', entry: 'js/panel-sdk/storybook/preset.js', level: '@stable' },
 ]);
 
-/** The directories whose exports take the stability of the barrel that re-exports them. */
-const GENERATED = ['js/panel-sdk/src/generated/', 'js/panel-sdk/src/kit/'];
+/**
+ * The directories whose exports take the stability of the barrel that re-exports them: the SDK's
+ * generated modules, its re-exports of the kit, and the TypeScript of the kernel contracts the kit
+ * re-exports from js/ui-kit/src/generated/protocol, which npm run generate:sdk puts in the barrel of
+ * the kit's own tag for the statement that re-exports it.
+ */
+const GENERATED = [
+  'js/panel-sdk/src/generated/',
+  'js/panel-sdk/src/kit/',
+  'js/ui-kit/src/generated/protocol/',
+];
 
 /** The stability tags; an export carries exactly one. */
 export const STABILITY_TAGS = ['@stable', '@experimental'];

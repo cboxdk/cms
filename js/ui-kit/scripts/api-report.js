@@ -28,7 +28,12 @@ import { basename, dirname, join, relative, resolve } from 'node:path';
 import process from 'node:process';
 import { fileURLToPath } from 'node:url';
 
-import { Extractor, ExtractorConfig, ExtractorLogLevel } from '@microsoft/api-extractor';
+import {
+  Extractor,
+  ExtractorConfig,
+  ExtractorLogLevel,
+  ExtractorMessageCategory,
+} from '@microsoft/api-extractor';
 import ts from 'typescript';
 
 /** The report, relative to the root. */
@@ -45,6 +50,15 @@ const CSS_DECLARATIONS = 'js/ui-kit/src/css.d.ts';
 
 /** The stability tags; an export carries exactly one. */
 export const STABILITY_TAGS = ['@stable', '@experimental'];
+
+/**
+ * The directory of the TypeScript of the kernel contracts the kit reads, which composer
+ * generate:protocol writes, relative to the root: an export declared there takes the stability tag
+ * of the entry's statement that re-exports it, as the SDK's generated exports take the stability of
+ * their barrel, because a file generated from a kernel schema carries no tag of its own. The token
+ * names that npm run generate:tokens writes carry their own.
+ */
+export const GENERATED = 'js/ui-kit/src/generated/protocol/';
 
 /**
  * @typedef {object} ApiReport
@@ -131,8 +145,33 @@ function tagsOf(node) {
 }
 
 /**
+ * The tags of the TSDoc of the entry's statement that exports the name: the `export { ... } from`
+ * statement around its specifier.
+ *
+ * @param {ts.Symbol} exported
+ * @returns {string[]}
+ */
+function statementTagsOf(exported) {
+  for (const declaration of exported.declarations ?? []) {
+    /** @type {ts.Node} */
+    let node = declaration;
+
+    while (!ts.isSourceFile(node) && !ts.isExportDeclaration(node)) {
+      node = node.parent;
+    }
+
+    if (ts.isExportDeclaration(node)) {
+      return tagsOf(node);
+    }
+  }
+
+  return [];
+}
+
+/**
  * The stability tag of each export of the kit's entry, and each export that does not carry exactly
- * one in the TSDoc of its declaration, as `<file>:<line>: <name> ...`.
+ * one in the TSDoc of its declaration, or for a declaration below GENERATED in the TSDoc of the
+ * entry's statement that exports it, as `<file>:<line>: <name> ...`.
  *
  * @param {string} root
  * @param {string} entryPath the absolute path of the entry; the kit's by default
@@ -162,8 +201,11 @@ export function stabilities(root, entryPath = join(root, ENTRY)) {
       (exported.flags & ts.SymbolFlags.Alias) !== 0 ? checker.getAliasedSymbol(exported) : exported;
 
     for (const declaration of symbol.declarations ?? []) {
-      const tags = tagsOf(declaration).filter((tag) => STABILITY_TAGS.includes(tag));
       const file = declaration.getSourceFile();
+      const generated = relative(root, file.fileName).startsWith(GENERATED);
+      const tags = (generated ? statementTagsOf(exported) : tagsOf(declaration)).filter((tag) =>
+        STABILITY_TAGS.includes(tag),
+      );
       const { line } = file.getLineAndCharacterOfPosition(declaration.getStart(file));
       const at = `${relative(root, file.fileName)}:${String(line + 1)}`;
 
@@ -291,11 +333,20 @@ export function apiReport(root, options = {}) {
     showVerboseMessages: false,
     messageCallback: (message) => {
       // API Extractor's own notes about the files it writes, such as that it created the report,
-      // are not problems of the kit.
+      // are not problems of the kit; nor is the TSDoc of a file generated from a kernel schema,
+      // whose comments quote JSON with braces, as the SDK's report takes no TSDoc problem at all.
+      const generatedDoc =
+        message.category === ExtractorMessageCategory.TSDoc &&
+        message.sourceFilePath !== undefined &&
+        relative(join(work, 'types'), message.sourceFilePath).startsWith(
+          relative('js/ui-kit/src', GENERATED),
+        );
+
       if (
         (message.logLevel === ExtractorLogLevel.Error ||
           message.logLevel === ExtractorLogLevel.Warning) &&
-        !message.messageId.startsWith('console-')
+        !message.messageId.startsWith('console-') &&
+        !generatedDoc
       ) {
         messages.push(message.formatMessageWithLocation(root));
       }

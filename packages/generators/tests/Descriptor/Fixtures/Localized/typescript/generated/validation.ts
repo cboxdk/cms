@@ -14,13 +14,39 @@
 /** Where a value is: the keys and list indexes from the document to it. */
 export type Path = readonly (string | number)[];
 
-/** The first value of a document that breaks its contract, and why. */
+/**
+ * The code of the kernel's error catalog for a value that breaks a rule, the code the kernel's
+ * InputValidator gives the same value of a type's fields (PRD 11.8): validation_required for a
+ * value that is missing or null where one is needed, validation_wrong_type for a value of another
+ * kind, and one code per rule for the others.
+ */
+export type IssueCode =
+  | 'validation_required'
+  | 'validation_wrong_type'
+  | 'validation_unknown_field'
+  | 'validation_too_short'
+  | 'validation_too_long'
+  | 'validation_invalid_format'
+  | 'validation_below_minimum'
+  | 'validation_above_maximum'
+  | 'validation_too_many_digits'
+  | 'validation_not_an_option'
+  | 'validation_too_few_items'
+  | 'validation_too_many_items'
+  | 'validation_duplicate_item'
+  | 'validation_invalid_rich_text'
+  | 'validation_rich_text_not_allowed'
+  | 'validation_hidden_field';
+
+/** A value of a document that breaks its contract, and why. */
 export interface ValidationIssue {
   /**
    * The value, as the kernel's FieldPath writes it: names joined by dots and list indexes in
    * brackets, such as `fixture_sources[1].fixture_source_url`. Null is the document itself.
    */
   readonly path: string | null;
+  /** The rule it breaks, as a code of the kernel's error catalog. */
+  readonly code: IssueCode;
   readonly reason: string;
 }
 
@@ -271,13 +297,61 @@ export function validate<T>(value: unknown, rule: ObjectRule): Validation<T> {
     checkConditions(record(value, []), [], rule, []);
   } catch (error) {
     if (error instanceof Invalid) {
-      return { valid: false, issue: { path: error.path, reason: error.reason } };
+      return { valid: false, issue: error.issue() };
     }
 
     throw error;
   }
 
   return { valid: true, value: value as T };
+}
+
+/**
+ * Checks a JSON value against the rules of its contract, as validate() does, and gives every value
+ * that breaks one instead of the first: one issue per key of each object and per item of each
+ * list, in the order validate() reaches them, the first being the one validate() gives. A key whose
+ * value breaks a rule has no issue of its condition. Empty when the value is valid.
+ */
+export function validateAll(value: unknown, rule: ObjectRule): readonly ValidationIssue[] {
+  const issues: Invalid[] = [];
+
+  try {
+    checkObject(value, [], rule, issues);
+  } catch (error) {
+    if (error instanceof Invalid) {
+      return [error.issue()];
+    }
+
+    throw error;
+  }
+
+  if (isRecord(value)) {
+    checkConditions(value, [], rule, [], issues);
+  }
+
+  return issues.map((issue) => issue.issue());
+}
+
+/**
+ * Runs a check, and records what it finds wrong when issues are collected, so the check of the
+ * next key or item still runs; it throws when they are not.
+ */
+function collected(issues: Invalid[] | undefined, check: () => void): void {
+  if (issues === undefined) {
+    check();
+
+    return;
+  }
+
+  try {
+    check();
+  } catch (error) {
+    if (!(error instanceof Invalid)) {
+      throw error;
+    }
+
+    issues.push(error);
+  }
 }
 
 /**
@@ -327,6 +401,7 @@ function checkConditions(
   at: Path,
   rule: ObjectRule,
   ancestors: readonly Readonly<Record<string, unknown>>[],
+  issues?: Invalid[],
 ): void {
   const scopes = [...ancestors, object];
 
@@ -335,19 +410,34 @@ function checkConditions(
     const value = Object.hasOwn(object, property.key) ? object[property.key] : null;
     const shown = property.when === undefined || conditionHolds(property.when, scopes);
 
+    if (issues !== undefined && issues.some((issue) => within(issue.segments, path))) {
+      continue;
+    }
+
     if (value === null || value === undefined) {
       if (shown && property.requiredWhenShown === true) {
-        throw new Invalid(path, 'is missing, and the field is shown and required');
+        collected(issues, () => {
+          throw new Invalid(
+            'validation_required',
+            path,
+            'is missing, and the field is shown and required',
+          );
+        });
       }
 
       continue;
     }
 
     if (!shown && property.whenHidden === 'clear') {
-      throw new Invalid(
-        path,
-        'has a value, and the field is hidden because its condition does not hold',
-      );
+      collected(issues, () => {
+        throw new Invalid(
+          'validation_hidden_field',
+          path,
+          'has a value, and the field is hidden because its condition does not hold',
+        );
+      });
+
+      continue;
     }
 
     const inner = property.value.kind === 'list' ? property.value.item : property.value;
@@ -360,13 +450,18 @@ function checkConditions(
       const items: readonly unknown[] = value;
       items.forEach((item, index) => {
         if (isRecord(item)) {
-          checkConditions(item, [...path, index], inner.object, scopes);
+          checkConditions(item, [...path, index], inner.object, scopes, issues);
         }
       });
     } else if (isRecord(value)) {
-      checkConditions(value, path, inner.object, scopes);
+      checkConditions(value, path, inner.object, scopes, issues);
     }
   }
+}
+
+/** Whether a path is the other path or a path below it. */
+function within(path: Path, other: Path): boolean {
+  return other.length <= path.length && other.every((segment, index) => path[index] === segment);
 }
 
 /** The path as the kernel's FieldPath writes it, or null for the document itself. */
@@ -382,15 +477,22 @@ export function pathText(path: Path): string | null {
 }
 
 class Invalid extends Error {
-  readonly path: string | null;
+  readonly segments: Path;
+
+  readonly code: IssueCode;
 
   readonly reason: string;
 
-  constructor(path: Path, reason: string) {
+  constructor(code: IssueCode, path: Path, reason: string) {
     const text = pathText(path);
     super(text === null ? reason : `${text}: ${reason}`);
-    this.path = text;
+    this.segments = path;
+    this.code = code;
     this.reason = reason;
+  }
+
+  issue(): ValidationIssue {
+    return { path: pathText(this.segments), code: this.code, reason: this.reason };
   }
 }
 
@@ -452,9 +554,10 @@ function isRecord(value: unknown): value is Readonly<Record<string, unknown>> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
-function checkObject(value: unknown, at: Path, rule: ObjectRule): void {
+function checkObject(value: unknown, at: Path, rule: ObjectRule, issues?: Invalid[]): void {
   if (!isRecord(value)) {
     throw new Invalid(
+      'validation_wrong_type',
       at,
       at.length === 0 ? 'the document is not a JSON object' : 'is not an object',
     );
@@ -464,12 +567,20 @@ function checkObject(value: unknown, at: Path, rule: ObjectRule): void {
 
   for (const key of Object.keys(value)) {
     if (!keys.includes(key)) {
-      throw new Invalid(at, `has the key "${key}", which is not a field of the contract`);
+      collected(issues, () => {
+        throw new Invalid(
+          'validation_unknown_field',
+          at,
+          `has the key "${key}", which is not a field of the contract`,
+        );
+      });
     }
   }
 
   for (const property of rule.properties) {
-    checkProperty(value, at, property);
+    collected(issues, () => {
+      checkProperty(value, at, property, issues);
+    });
   }
 }
 
@@ -477,12 +588,13 @@ function checkProperty(
   object: Readonly<Record<string, unknown>>,
   at: Path,
   property: PropertyRule,
+  issues?: Invalid[],
 ): void {
   const path = [...at, property.key];
 
   if (!Object.hasOwn(object, property.key)) {
     if (property.presence === 'required' || property.presence === 'present') {
-      throw new Invalid(path, 'is missing, and the field is required');
+      throw new Invalid('validation_required', path, 'is missing, and the field is required');
     }
 
     return;
@@ -492,16 +604,16 @@ function checkProperty(
 
   if (value === null) {
     if (property.presence === 'required' || property.presence === 'omittable') {
-      throw new Invalid(path, 'is null, and the field is not nullable');
+      throw new Invalid('validation_required', path, 'is null, and the field is not nullable');
     }
 
     return;
   }
 
-  checkValue(value, path, property.value);
+  checkValue(value, path, property.value, issues);
 }
 
-function checkValue(value: unknown, at: Path, rule: ValueRule): void {
+function checkValue(value: unknown, at: Path, rule: ValueRule, issues?: Invalid[]): void {
   switch (rule.kind) {
     case 'text':
       checkText(value, at, rule);
@@ -514,7 +626,7 @@ function checkValue(value: unknown, at: Path, rule: ValueRule): void {
       break;
     case 'boolean':
       if (typeof value !== 'boolean') {
-        throw new Invalid(at, 'is not a boolean');
+        throw new Invalid('validation_wrong_type', at, 'is not a boolean');
       }
       break;
     case 'date':
@@ -524,18 +636,26 @@ function checkValue(value: unknown, at: Path, rule: ValueRule): void {
       checkDatetime(value, at, rule);
       break;
     case 'choice':
-      if (typeof value !== 'string' || !rule.choices.includes(value)) {
-        throw new Invalid(at, `is not one of ${rule.choices.join(', ')}`);
+      if (typeof value !== 'string') {
+        throw new Invalid('validation_wrong_type', at, 'is not a string');
+      }
+
+      if (!rule.choices.includes(value)) {
+        throw new Invalid(
+          'validation_not_an_option',
+          at,
+          `is not one of ${rule.choices.join(', ')}`,
+        );
       }
       break;
     case 'portable_text':
       checkPortableText(value, at, rule);
       break;
     case 'object':
-      checkObject(value, at, rule.object);
+      checkObject(value, at, rule.object, issues);
       break;
     case 'list':
-      checkList(value, at, rule);
+      checkList(value, at, rule, issues);
       break;
     case 'string':
       checkString(value, at, rule);
@@ -545,15 +665,20 @@ function checkValue(value: unknown, at: Path, rule: ValueRule): void {
       break;
     case 'document':
       if (typeof value !== 'object' || value === null || Array.isArray(value)) {
-        throw new Invalid(at, 'is not an object');
+        throw new Invalid('validation_wrong_type', at, 'is not an object');
       }
       break;
     case 'enum':
-      if (
-        (typeof value !== 'string' && typeof value !== 'number') ||
-        !rule.values.includes(value)
-      ) {
-        throw new Invalid(at, `is not one of ${rule.values.map(String).join(', ')}`);
+      if (typeof value !== 'string' && typeof value !== 'number') {
+        throw new Invalid('validation_wrong_type', at, 'is neither a string nor a number');
+      }
+
+      if (!rule.values.includes(value)) {
+        throw new Invalid(
+          'validation_not_an_option',
+          at,
+          `is not one of ${rule.values.map(String).join(', ')}`,
+        );
       }
       break;
   }
@@ -561,13 +686,14 @@ function checkValue(value: unknown, at: Path, rule: ValueRule): void {
 
 function checkText(value: unknown, at: Path, rule: TextRule): void {
   if (typeof value !== 'string') {
-    throw new Invalid(at, 'is not a string');
+    throw new Invalid('validation_wrong_type', at, 'is not a string');
   }
 
   const length = characters(value);
 
   if (rule.minLength !== undefined && length < rule.minLength) {
     throw new Invalid(
+      'validation_too_short',
       at,
       `has ${String(length)} characters, fewer than the ${String(rule.minLength)} the field requires`,
     );
@@ -575,13 +701,14 @@ function checkText(value: unknown, at: Path, rule: TextRule): void {
 
   if (rule.maxLength !== undefined && length > rule.maxLength) {
     throw new Invalid(
+      'validation_too_long',
       at,
       `has ${String(length)} characters, more than the ${String(rule.maxLength)} the field allows`,
     );
   }
 
   if (rule.format !== undefined && !matchesFormat(rule.format, value)) {
-    throw new Invalid(at, `is not in the format ${rule.format}`);
+    throw new Invalid('validation_invalid_format', at, `is not in the format ${rule.format}`);
   }
 }
 
@@ -616,15 +743,23 @@ function matchesFormat(format: 'email' | 'url', value: string): boolean {
 
 function checkInteger(value: unknown, at: Path, rule: IntegerRule): void {
   if (typeof value !== 'number' || !Number.isSafeInteger(value)) {
-    throw new Invalid(at, 'is not an integer');
+    throw new Invalid('validation_wrong_type', at, 'is not an integer');
   }
 
   if (rule.min !== undefined && value < rule.min) {
-    throw new Invalid(at, `is ${String(value)}, less than the minimum ${String(rule.min)}`);
+    throw new Invalid(
+      'validation_below_minimum',
+      at,
+      `is ${String(value)}, less than the minimum ${String(rule.min)}`,
+    );
   }
 
   if (rule.max !== undefined && value > rule.max) {
-    throw new Invalid(at, `is ${String(value)}, more than the maximum ${String(rule.max)}`);
+    throw new Invalid(
+      'validation_above_maximum',
+      at,
+      `is ${String(value)}, more than the maximum ${String(rule.max)}`,
+    );
   }
 }
 
@@ -668,23 +803,31 @@ function checkDecimal(value: unknown, at: Path, rule: DecimalRule): void {
   const number = typeof value === 'string' ? decimalNumber(value) : null;
   const digits = rule.precision - rule.scale;
 
+  if (number === null) {
+    throw new Invalid(
+      'validation_wrong_type',
+      at,
+      `is not a decimal number in a string with at most ${String(digits)} digits before the point and ${String(rule.scale)} after it`,
+    );
+  }
+
   if (
-    number === null ||
     number.fraction.length > rule.scale ||
     (number.whole === '0' ? 0 : number.whole.length) > digits
   ) {
     throw new Invalid(
+      'validation_too_many_digits',
       at,
       `is not a decimal number in a string with at most ${String(digits)} digits before the point and ${String(rule.scale)} after it`,
     );
   }
 
   if (rule.min !== undefined && compareDecimals(number, bound(rule.min)) < 0) {
-    throw new Invalid(at, `is less than the minimum ${rule.min}`);
+    throw new Invalid('validation_below_minimum', at, `is less than the minimum ${rule.min}`);
   }
 
   if (rule.max !== undefined && compareDecimals(number, bound(rule.max)) > 0) {
-    throw new Invalid(at, `is more than the maximum ${rule.max}`);
+    throw new Invalid('validation_above_maximum', at, `is more than the maximum ${rule.max}`);
   }
 }
 
@@ -718,15 +861,19 @@ function checkDate(value: unknown, at: Path, rule: DateRule): void {
     value.startsWith(YEAR_ZERO) ||
     !isDay(Number(match[1]), Number(match[2]), Number(match[3]))
   ) {
-    throw new Invalid(at, 'is not a date in the form YYYY-MM-DD');
+    throw new Invalid('validation_wrong_type', at, 'is not a date in the form YYYY-MM-DD');
   }
 
   if (rule.min !== undefined && value < rule.min) {
-    throw new Invalid(at, `is ${value}, before the minimum ${rule.min}`);
+    throw new Invalid(
+      'validation_below_minimum',
+      at,
+      `is ${value}, before the minimum ${rule.min}`,
+    );
   }
 
   if (rule.max !== undefined && value > rule.max) {
-    throw new Invalid(at, `is ${value}, after the maximum ${rule.max}`);
+    throw new Invalid('validation_above_maximum', at, `is ${value}, after the maximum ${rule.max}`);
   }
 }
 
@@ -775,17 +922,18 @@ function checkDatetime(value: unknown, at: Path, rule: DatetimeRule): void {
 
   if (time === null) {
     throw new Invalid(
+      'validation_wrong_type',
       at,
       'is not a date-time of RFC 3339 with an offset, such as 2026-01-01T12:00:00Z',
     );
   }
 
   if (rule.min !== undefined && time < instantBound(rule.min)) {
-    throw new Invalid(at, `is before the minimum ${rule.min}`);
+    throw new Invalid('validation_below_minimum', at, `is before the minimum ${rule.min}`);
   }
 
   if (rule.max !== undefined && time > instantBound(rule.max)) {
-    throw new Invalid(at, `is after the maximum ${rule.max}`);
+    throw new Invalid('validation_above_maximum', at, `is after the maximum ${rule.max}`);
   }
 }
 
@@ -799,15 +947,16 @@ function instantBound(value: string): bigint {
   return time;
 }
 
-function checkList(value: unknown, at: Path, rule: ListRule): void {
+function checkList(value: unknown, at: Path, rule: ListRule, issues?: Invalid[]): void {
   if (!Array.isArray(value)) {
-    throw new Invalid(at, 'is not a list');
+    throw new Invalid('validation_wrong_type', at, 'is not a list');
   }
 
   const items: readonly unknown[] = value;
 
   if (rule.minItems !== undefined && items.length < rule.minItems) {
     throw new Invalid(
+      'validation_too_few_items',
       at,
       `has ${String(items.length)} items, fewer than the ${String(rule.minItems)} the field requires`,
     );
@@ -815,6 +964,7 @@ function checkList(value: unknown, at: Path, rule: ListRule): void {
 
   if (rule.maxItems !== undefined && items.length > rule.maxItems) {
     throw new Invalid(
+      'validation_too_many_items',
       at,
       `has ${String(items.length)} items, more than the ${String(rule.maxItems)} the field allows`,
     );
@@ -823,12 +973,18 @@ function checkList(value: unknown, at: Path, rule: ListRule): void {
   const seen: unknown[] = [];
 
   items.forEach((item, index) => {
-    checkValue(item, [...at, index], rule.item);
+    collected(issues, () => {
+      checkValue(item, [...at, index], rule.item, issues);
 
-    // Objects are never equal to one another, as the kernel's codec compares what it reads.
-    if (rule.distinct === true && typeof item !== 'object' && seen.includes(item)) {
-      throw new Invalid([...at, index], 'is an item the list already has');
-    }
+      // Objects are never equal to one another, as the kernel's codec compares what it reads.
+      if (rule.distinct === true && typeof item !== 'object' && seen.includes(item)) {
+        throw new Invalid(
+          'validation_duplicate_item',
+          [...at, index],
+          'is an item the list already has',
+        );
+      }
+    });
 
     seen.push(item);
   });
@@ -836,7 +992,7 @@ function checkList(value: unknown, at: Path, rule: ListRule): void {
 
 function checkString(value: unknown, at: Path, rule: StringRule): void {
   if (typeof value !== 'string') {
-    throw new Invalid(at, 'is not a string');
+    throw new Invalid('validation_wrong_type', at, 'is not a string');
   }
 
   const length = characters(value);
@@ -846,7 +1002,11 @@ function checkString(value: unknown, at: Path, rule: StringRule): void {
     (rule.minLength !== undefined && length < rule.minLength) ||
     (rule.maxLength !== undefined && length > rule.maxLength)
   ) {
-    throw new Invalid(at, 'is not valid: it is not in the form of its contract');
+    throw new Invalid(
+      'validation_invalid_format',
+      at,
+      'is not valid: it is not in the form of its contract',
+    );
   }
 }
 
@@ -857,7 +1017,11 @@ function checkString(value: unknown, at: Path, rule: StringRule): void {
 function checkJson(value: unknown, at: Path): void {
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value)) {
-      throw new Invalid(at, 'holds a number that is not an integer');
+      throw new Invalid(
+        'validation_invalid_rich_text',
+        at,
+        'holds a number that is not an integer',
+      );
     }
 
     return;
@@ -878,6 +1042,7 @@ function checkJson(value: unknown, at: Path): void {
 
       if (bytes === 0 || bytes > MAX_KEY_BYTES) {
         throw new Invalid(
+          'validation_invalid_rich_text',
           at,
           `has a key of ${String(bytes)} bytes; a key has 1 to ${String(MAX_KEY_BYTES)}`,
         );
@@ -895,7 +1060,7 @@ function checkJson(value: unknown, at: Path): void {
  */
 function checkFields(value: unknown, at: Path): void {
   if (!isRecord(value)) {
-    throw new Invalid(at, 'is not an object of fields by handle');
+    throw new Invalid('validation_wrong_type', at, 'is not an object of fields by handle');
   }
 
   for (const [key, field] of Object.entries(value)) {
@@ -911,16 +1076,28 @@ function checkFields(value: unknown, at: Path): void {
 
 function checkExtensionFields(value: unknown, at: Path): void {
   if (!isRecord(value)) {
-    throw new Invalid(at, 'is not an object of extension fields by namespace');
+    throw new Invalid(
+      'validation_wrong_type',
+      at,
+      'is not an object of extension fields by namespace',
+    );
   }
 
   for (const [namespace, fields] of Object.entries(value)) {
     if (!FIELD_NAMESPACE.test(namespace) || namespace === EXTENSIONS_KEY) {
-      throw new Invalid(at, `has the key "${namespace}", which is not a namespace`);
+      throw new Invalid(
+        'validation_unknown_field',
+        at,
+        `has the key "${namespace}", which is not a namespace`,
+      );
     }
 
     if (!isRecord(fields)) {
-      throw new Invalid([...at, namespace], 'is not an object of fields by handle');
+      throw new Invalid(
+        'validation_wrong_type',
+        [...at, namespace],
+        'is not an object of fields by handle',
+      );
     }
 
     for (const [handle, field] of Object.entries(fields)) {
@@ -936,7 +1113,11 @@ function checkNamedValue(handle: string, value: unknown, at: Path): void {
     handle === EXTENSIONS_KEY ||
     handle.startsWith('cms_')
   ) {
-    throw new Invalid(at, `has the key "${handle}", which is not a field handle`);
+    throw new Invalid(
+      'validation_unknown_field',
+      at,
+      `has the key "${handle}", which is not a field handle`,
+    );
   }
 
   checkFieldValue(value, [...at, handle]);
@@ -953,7 +1134,7 @@ function checkFieldValue(value: unknown, at: Path): void {
 
   if (typeof value === 'number') {
     if (!Number.isSafeInteger(value)) {
-      throw new Invalid(at, 'holds a number that is not an integer');
+      throw new Invalid('validation_wrong_type', at, 'holds a number that is not an integer');
     }
 
     return;
@@ -969,7 +1150,7 @@ function checkFieldValue(value: unknown, at: Path): void {
   }
 
   if (!isRecord(value)) {
-    throw new Invalid(at, 'holds a number that is not an integer');
+    throw new Invalid('validation_wrong_type', at, 'holds a number that is not an integer');
   }
 
   for (const [key, entry] of Object.entries(value)) {
@@ -977,6 +1158,7 @@ function checkFieldValue(value: unknown, at: Path): void {
 
     if (bytes === 0 || bytes > MAX_KEY_BYTES) {
       throw new Invalid(
+        'validation_wrong_type',
         at,
         `has a key of ${String(bytes)} bytes; a key has 1 to ${String(MAX_KEY_BYTES)}`,
       );
@@ -992,7 +1174,7 @@ function shown(values: readonly string[]): string {
 
 function record(value: unknown, at: Path): Readonly<Record<string, unknown>> {
   if (!isRecord(value)) {
-    throw new Invalid(at, 'is not an object');
+    throw new Invalid('validation_invalid_rich_text', at, 'is not an object');
   }
 
   return value;
@@ -1000,7 +1182,7 @@ function record(value: unknown, at: Path): Readonly<Record<string, unknown>> {
 
 function list(value: unknown, at: Path): readonly unknown[] {
   if (!Array.isArray(value)) {
-    throw new Invalid(at, 'is not a list');
+    throw new Invalid('validation_invalid_rich_text', at, 'is not a list');
   }
 
   return value;
@@ -1018,7 +1200,7 @@ function optionalText(
   const value = object[key];
 
   if (typeof value !== 'string') {
-    throw new Invalid([...at, key], 'is not a string');
+    throw new Invalid('validation_invalid_rich_text', [...at, key], 'is not a string');
   }
 
   return value;
@@ -1028,7 +1210,7 @@ function text(object: Readonly<Record<string, unknown>>, key: string, at: Path):
   const value = optionalText(object, key, at);
 
   if (value === null) {
-    throw new Invalid([...at, key], 'is missing');
+    throw new Invalid('validation_invalid_rich_text', [...at, key], 'is missing');
   }
 
   return value;
@@ -1044,11 +1226,15 @@ function uniqueKey(
   const key = text(object, '_key', at);
 
   if (key === '') {
-    throw new Invalid([...at, '_key'], 'is empty');
+    throw new Invalid('validation_invalid_rich_text', [...at, '_key'], 'is empty');
   }
 
   if (keys.includes(key)) {
-    throw new Invalid([...at, '_key'], `"${key}" is the key of ${scope}`);
+    throw new Invalid(
+      'validation_invalid_rich_text',
+      [...at, '_key'],
+      `"${key}" is the key of ${scope}`,
+    );
   }
 
   keys.push(key);
@@ -1057,6 +1243,7 @@ function uniqueKey(
 function oneOf(value: string | null, allowed: readonly string[], at: Path, what: string): void {
   if (value !== null && !allowed.includes(value)) {
     throw new Invalid(
+      'validation_rich_text_not_allowed',
       at,
       `is the ${what} "${value}", which the field does not allow (${shown(allowed)})`,
     );
@@ -1074,7 +1261,7 @@ function checkPortableText(value: unknown, at: Path, rule: PortableTextRule): vo
   checkJson(value, at);
 
   if (!Array.isArray(value)) {
-    throw new Invalid(at, 'is not a list of blocks');
+    throw new Invalid('validation_wrong_type', at, 'is not a list of blocks');
   }
 
   const blocks: readonly unknown[] = value;
@@ -1086,6 +1273,7 @@ function checkPortableText(value: unknown, at: Path, rule: PortableTextRule): vo
 
     if (text(block, '_type', blockAt) !== 'block') {
       throw new Invalid(
+        'validation_invalid_rich_text',
         [...blockAt, '_type'],
         'is not "block": a rich text field of the blueprint schema v1 holds only blocks',
       );
@@ -1112,13 +1300,21 @@ function checkListItem(
   }
 
   if (listItem === null) {
-    throw new Invalid([...at, 'level'], 'is given without a listItem');
+    throw new Invalid(
+      'validation_invalid_rich_text',
+      [...at, 'level'],
+      'is given without a listItem',
+    );
   }
 
   const level = block['level'];
 
   if (typeof level !== 'number' || !Number.isSafeInteger(level) || level < 1) {
-    throw new Invalid([...at, 'level'], 'is not an integer of 1 or more');
+    throw new Invalid(
+      'validation_invalid_rich_text',
+      [...at, 'level'],
+      'is not an integer of 1 or more',
+    );
   }
 }
 
@@ -1146,13 +1342,18 @@ function checkMarkDefinitions(
 
     if (!allowed.includes(type)) {
       throw new Invalid(
+        'validation_rich_text_not_allowed',
         [...definitionAt, '_type'],
         `is the mark definition "${type}", which the field does not allow (${shown(allowed)})`,
       );
     }
 
     if (!matchesFormat('url', text(definition, 'href', definitionAt))) {
-      throw new Invalid([...definitionAt, 'href'], 'is not an absolute http or https URL');
+      throw new Invalid(
+        'validation_invalid_format',
+        [...definitionAt, 'href'],
+        'is not an absolute http or https URL',
+      );
     }
   });
 
@@ -1166,13 +1367,17 @@ function checkChildren(
   definitions: readonly string[],
 ): void {
   if (!Object.hasOwn(block, 'children')) {
-    throw new Invalid([...at, 'children'], 'is missing');
+    throw new Invalid('validation_invalid_rich_text', [...at, 'children'], 'is missing');
   }
 
   const spans = list(block['children'], [...at, 'children']);
 
   if (spans.length === 0) {
-    throw new Invalid([...at, 'children'], 'is empty: a block has at least one span');
+    throw new Invalid(
+      'validation_invalid_rich_text',
+      [...at, 'children'],
+      'is empty: a block has at least one span',
+    );
   }
 
   const keys: string[] = [];
@@ -1182,7 +1387,7 @@ function checkChildren(
     const span = record(item, spanAt);
 
     if (text(span, '_type', spanAt) !== 'span') {
-      throw new Invalid([...spanAt, '_type'], 'is not "span"');
+      throw new Invalid('validation_invalid_rich_text', [...spanAt, '_type'], 'is not "span"');
     }
 
     uniqueKey(span, spanAt, keys, 'another span of the block');
@@ -1195,6 +1400,7 @@ function checkChildren(
     list(span['marks'], [...spanAt, 'marks']).forEach((mark, markIndex) => {
       if (typeof mark !== 'string' || (!marks.includes(mark) && !definitions.includes(mark))) {
         throw new Invalid(
+          'validation_rich_text_not_allowed',
           [...spanAt, 'marks', markIndex],
           `is neither a decorator the field allows (${shown(marks)}) nor the key of a mark definition of the block`,
         );

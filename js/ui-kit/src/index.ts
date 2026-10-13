@@ -119,6 +119,64 @@ export type {
   StringShape,
   UnsupportedSchema,
 } from './components/schema-form/model';
+export { EntryForm } from './components/EntryForm';
+export type { EntryFormErrors, EntryFormProps } from './components/EntryForm';
+export { ENTRY_FIELD_INPUTS } from './components/entry-form/inputs';
+export type {
+  EntryFieldInput,
+  EntryFieldInputProps,
+  EntryFieldInputs,
+  EntryLeafBase,
+} from './components/entry-form/inputs';
+export { editorText } from './components/entry-form/model';
+export { entryPathText, isEntryItemKey, parseEntryPath } from './components/entry-form/paths';
+export type { EntryItemKey, EntryPathSegment } from './components/entry-form/paths';
+export { validateEntry } from './components/entry-form/rules';
+export type { EntryIssue, EntryStage } from './components/entry-form/rules';
+export {
+  clearHidden,
+  localDate,
+  localDateTime,
+  newEntryFields,
+  newGroupValue,
+} from './components/entry-form/values';
+/**
+ * The type editor descriptor, type-editor.v1.json, as the TypeScript composer generate:protocol
+ * writes: what EntryForm renders a type from.
+ *
+ * @experimental
+ */
+export type {
+  ClassificationAccess,
+  EditorBase,
+  EditorChoiceV1,
+  EditorFieldV1,
+  EditorLayoutV1,
+  EditorPlacementV1,
+  EditorRepeatV1,
+  EditorSectionV1,
+  EditorTabV1,
+  EditorTextV1,
+  EditorUiV1,
+  EditorWidth,
+  ExtensionVersionV1,
+  FieldFallback,
+  History as TypeHistory,
+  Localization,
+  Presence,
+  SelectDisplay,
+  Stages,
+  TypeCapabilitiesV1,
+  TypeEditorV1,
+  WhenHidden,
+} from './generated/protocol/TypeEditorV1';
+/**
+ * The codes of the error catalog the generated validation runtime gives an issue, and a JSON
+ * object of another contract, as the descriptor holds a rule, a condition or a default.
+ *
+ * @experimental
+ */
+export type { IssueCode, JsonObject as JsonDocument } from './generated/protocol/validation';
 
 // Feedback
 export { Callout } from './components/Callout';

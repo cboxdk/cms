@@ -1,0 +1,29 @@
+import { ArgTypes, Canvas, Description, Meta } from '@storybook/addon-docs/blocks';
+
+import * as EntryFormStories from './EntryForm.stories';
+
+<Meta of={EntryFormStories} />
+
+# EntryForm
+
+Stability: **experimental**. Since: **1.0**.
+
+<Description of={EntryFormStories} />
+
+<Canvas of={EntryFormStories.Default} />
+
+## Do and don't
+
+- Do give it the type's descriptor as `type.describe` answers it, and the reader's locale; the labels, instructions and choices are in that locale, or the blueprint's own text.
+- Do start a new entry with `newEntryFields(descriptor, now)`, so its defaults, today and now are in the fields.
+- Do set `showErrors="all"` once the editor tries to save, and give the server's errors back by path; they are shown before the client's own.
+- Do replace an input through `inputs` by its base, such as a rich text editor, behind the `EntryFieldInput` contract.
+- Don't validate the fields with a validator of your own: `validateEntry()` is the generated validation runtime over the descriptor's rules, the same the kernel holds to its InputValidator.
+
+## Accessibility
+
+The keyboard and screen reader behaviour is described above and held by the stories' play functions, which run as tests in gate 7 with axe; every story is shown in the dark theme, in forced colours and in Danish.
+
+## Props
+
+<ArgTypes of={EntryFormStories} />

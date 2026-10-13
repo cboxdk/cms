@@ -484,8 +484,10 @@ import { CardProps } from '@cboxdk/cms-ui-kit';
 import { Checkbox } from '@cboxdk/cms-ui-kit';
 import { CheckboxProps } from '@cboxdk/cms-ui-kit';
 import { Classification } from '@cboxdk/cms-ui-kit';
+import { ClassificationAccess } from '@cboxdk/cms-ui-kit';
 import { ClassificationBadge } from '@cboxdk/cms-ui-kit';
 import { ClassificationBadgeProps } from '@cboxdk/cms-ui-kit';
+import { clearHidden } from '@cboxdk/cms-ui-kit';
 import { Combobox } from '@cboxdk/cms-ui-kit';
 import { ComboboxOption } from '@cboxdk/cms-ui-kit';
 import { ComboboxProps } from '@cboxdk/cms-ui-kit';
@@ -511,19 +513,46 @@ import { DrawerProps } from '@cboxdk/cms-ui-kit';
 import { DryRunReport } from '@cboxdk/cms-ui-kit';
 import { DryRunReportProps } from '@cboxdk/cms-ui-kit';
 import { DryRunSummary } from '@cboxdk/cms-ui-kit';
+import { EditorBase } from '@cboxdk/cms-ui-kit';
+import { EditorChoiceV1 } from '@cboxdk/cms-ui-kit';
+import { EditorFieldV1 } from '@cboxdk/cms-ui-kit';
+import { EditorLayoutV1 } from '@cboxdk/cms-ui-kit';
+import { EditorPlacementV1 } from '@cboxdk/cms-ui-kit';
+import { EditorRepeatV1 } from '@cboxdk/cms-ui-kit';
+import { EditorSectionV1 } from '@cboxdk/cms-ui-kit';
+import { EditorTabV1 } from '@cboxdk/cms-ui-kit';
+import { editorText } from '@cboxdk/cms-ui-kit';
+import { EditorTextV1 } from '@cboxdk/cms-ui-kit';
+import { EditorUiV1 } from '@cboxdk/cms-ui-kit';
+import { EditorWidth } from '@cboxdk/cms-ui-kit';
 import { emptied } from '@cboxdk/cms-ui-kit';
 import { EmptyState } from '@cboxdk/cms-ui-kit';
 import { EmptyStateProps } from '@cboxdk/cms-ui-kit';
+import { ENTRY_FIELD_INPUTS } from '@cboxdk/cms-ui-kit';
+import { EntryFieldInput } from '@cboxdk/cms-ui-kit';
+import { EntryFieldInputProps } from '@cboxdk/cms-ui-kit';
+import { EntryFieldInputs } from '@cboxdk/cms-ui-kit';
+import { EntryForm } from '@cboxdk/cms-ui-kit';
+import { EntryFormErrors } from '@cboxdk/cms-ui-kit';
+import { EntryFormProps } from '@cboxdk/cms-ui-kit';
+import { EntryIssue } from '@cboxdk/cms-ui-kit';
+import { EntryItemKey } from '@cboxdk/cms-ui-kit';
+import { EntryLeafBase } from '@cboxdk/cms-ui-kit';
+import { EntryPathSegment } from '@cboxdk/cms-ui-kit';
+import { entryPathText } from '@cboxdk/cms-ui-kit';
+import { EntryStage } from '@cboxdk/cms-ui-kit';
 import { EnumShape } from '@cboxdk/cms-ui-kit';
 import { ErrorState } from '@cboxdk/cms-ui-kit';
 import { ErrorStateProps } from '@cboxdk/cms-ui-kit';
 import { ErrorSummary } from '@cboxdk/cms-ui-kit';
 import { ErrorSummaryItem } from '@cboxdk/cms-ui-kit';
 import { ErrorSummaryProps } from '@cboxdk/cms-ui-kit';
+import { ExtensionVersionV1 } from '@cboxdk/cms-ui-kit';
 import { Field } from '@cboxdk/cms-ui-kit';
 import { FieldControlProps } from '@cboxdk/cms-ui-kit';
 import { FieldError } from '@cboxdk/cms-ui-kit';
 import { FieldErrorProps } from '@cboxdk/cms-ui-kit';
+import { FieldFallback } from '@cboxdk/cms-ui-kit';
 import { FieldPath } from '@cboxdk/cms-ui-kit';
 import { fieldPathText } from '@cboxdk/cms-ui-kit';
 import { FieldProps } from '@cboxdk/cms-ui-kit';
@@ -551,7 +580,9 @@ import { initialDocument } from '@cboxdk/cms-ui-kit';
 import { Inline } from '@cboxdk/cms-ui-kit';
 import { InlineProps } from '@cboxdk/cms-ui-kit';
 import { IntegerShape } from '@cboxdk/cms-ui-kit';
+import { isEntryItemKey } from '@cboxdk/cms-ui-kit';
 import { isSchemaUnsupported } from '@cboxdk/cms-ui-kit';
+import { IssueCode } from '@cboxdk/cms-ui-kit';
 import { JsonEditor } from '@cboxdk/cms-ui-kit';
 import { JsonEditorProps } from '@cboxdk/cms-ui-kit';
 import { JsonObject } from '@cboxdk/cms-ui-kit';
@@ -564,6 +595,9 @@ import { KitToast } from '@cboxdk/cms-ui-kit';
 import { KitToastOptions } from '@cboxdk/cms-ui-kit';
 import { KitToastQueue } from '@cboxdk/cms-ui-kit';
 import { ListShape } from '@cboxdk/cms-ui-kit';
+import { localDate } from '@cboxdk/cms-ui-kit';
+import { localDateTime } from '@cboxdk/cms-ui-kit';
+import { Localization } from '@cboxdk/cms-ui-kit';
 import { Menu } from '@cboxdk/cms-ui-kit';
 import { MenuItemSpec } from '@cboxdk/cms-ui-kit';
 import { MenuProps } from '@cboxdk/cms-ui-kit';
@@ -571,6 +605,8 @@ import { MenuTriggerSpec } from '@cboxdk/cms-ui-kit';
 import { MultiSelect } from '@cboxdk/cms-ui-kit';
 import { MultiSelectOption } from '@cboxdk/cms-ui-kit';
 import { MultiSelectProps } from '@cboxdk/cms-ui-kit';
+import { newEntryFields } from '@cboxdk/cms-ui-kit';
+import { newGroupValue } from '@cboxdk/cms-ui-kit';
 import { NodePath } from '@cboxdk/cms-ui-kit';
 import { NodePathProps } from '@cboxdk/cms-ui-kit';
 import { NodePicker } from '@cboxdk/cms-ui-kit';
@@ -585,11 +621,13 @@ import { PageHeaderProps } from '@cboxdk/cms-ui-kit';
 import { PageProps } from '@cboxdk/cms-ui-kit';
 import { Pagination } from '@cboxdk/cms-ui-kit';
 import { PaginationProps } from '@cboxdk/cms-ui-kit';
+import { parseEntryPath } from '@cboxdk/cms-ui-kit';
 import { PartName } from '@cboxdk/cms-ui-kit';
 import { PasswordInput } from '@cboxdk/cms-ui-kit';
 import { PasswordInputProps } from '@cboxdk/cms-ui-kit';
 import { PickerActor } from '@cboxdk/cms-ui-kit';
 import { PickerRole } from '@cboxdk/cms-ui-kit';
+import { Presence } from '@cboxdk/cms-ui-kit';
 import { ProblemDetails } from '@cboxdk/cms-ui-kit';
 import { ProblemDetailsProps } from '@cboxdk/cms-ui-kit';
 import { ProblemSummary } from '@cboxdk/cms-ui-kit';
@@ -618,6 +656,7 @@ import { SegmentedControl } from '@cboxdk/cms-ui-kit';
 import { SegmentedControlProps } from '@cboxdk/cms-ui-kit';
 import { SegmentedOption } from '@cboxdk/cms-ui-kit';
 import { Select } from '@cboxdk/cms-ui-kit';
+import { SelectDisplay } from '@cboxdk/cms-ui-kit';
 import { SelectOption } from '@cboxdk/cms-ui-kit';
 import { SelectProps } from '@cboxdk/cms-ui-kit';
 import { ShellHeader } from '@cboxdk/cms-ui-kit';
@@ -634,6 +673,7 @@ import { SkipLinkProps } from '@cboxdk/cms-ui-kit';
 import { SortDirection } from '@cboxdk/cms-ui-kit';
 import { Stack } from '@cboxdk/cms-ui-kit';
 import { StackProps } from '@cboxdk/cms-ui-kit';
+import { Stages } from '@cboxdk/cms-ui-kit';
 import { StatusScreen } from '@cboxdk/cms-ui-kit';
 import { StatusScreenProps } from '@cboxdk/cms-ui-kit';
 import { StringShape } from '@cboxdk/cms-ui-kit';
@@ -667,7 +707,12 @@ import { TooltipProps } from '@cboxdk/cms-ui-kit';
 import { Tree } from '@cboxdk/cms-ui-kit';
 import { TreeNode } from '@cboxdk/cms-ui-kit';
 import { TreeProps } from '@cboxdk/cms-ui-kit';
+import { TypeCapabilitiesV1 } from '@cboxdk/cms-ui-kit';
+import { TypeEditorV1 } from '@cboxdk/cms-ui-kit';
+import { TypeHistory } from '@cboxdk/cms-ui-kit';
 import { UnsupportedSchema } from '@cboxdk/cms-ui-kit';
+import { validateEntry } from '@cboxdk/cms-ui-kit';
+import { WhenHidden } from '@cboxdk/cms-ui-kit';
 import { Wizard } from '@cboxdk/cms-ui-kit';
 import { WizardProps } from '@cboxdk/cms-ui-kit';
 import { WizardStep } from '@cboxdk/cms-ui-kit';
@@ -761,9 +806,13 @@ export { CheckboxProps }
 
 export { Classification }
 
+export { ClassificationAccess }
+
 export { ClassificationBadge }
 
 export { ClassificationBadgeProps }
+
+export { clearHidden }
 
 export { Combobox }
 
@@ -857,11 +906,61 @@ export interface DryRunViewV1 {
     version: number;
 }
 
+export { EditorBase }
+
+export { EditorChoiceV1 }
+
+export { EditorFieldV1 }
+
+export { EditorLayoutV1 }
+
+export { EditorPlacementV1 }
+
+export { EditorRepeatV1 }
+
+export { EditorSectionV1 }
+
+export { EditorTabV1 }
+
+export { editorText }
+
+export { EditorTextV1 }
+
+export { EditorUiV1 }
+
+export { EditorWidth }
+
 export { emptied }
 
 export { EmptyState }
 
 export { EmptyStateProps }
+
+export { ENTRY_FIELD_INPUTS }
+
+export { EntryFieldInput }
+
+export { EntryFieldInputProps }
+
+export { EntryFieldInputs }
+
+export { EntryForm }
+
+export { EntryFormErrors }
+
+export { EntryFormProps }
+
+export { EntryIssue }
+
+export { EntryItemKey }
+
+export { EntryLeafBase }
+
+export { EntryPathSegment }
+
+export { entryPathText }
+
+export { EntryStage }
 
 export { EnumShape }
 
@@ -875,6 +974,8 @@ export { ErrorSummaryItem }
 
 export { ErrorSummaryProps }
 
+export { ExtensionVersionV1 }
+
 export { Field }
 
 export { FieldControlProps }
@@ -882,6 +983,8 @@ export { FieldControlProps }
 export { FieldError }
 
 export { FieldErrorProps }
+
+export { FieldFallback }
 
 // @experimental
 export type FieldInput<D = never> = Replacement<FieldInputProps, D>;
@@ -967,7 +1070,11 @@ export { InlineProps }
 
 export { IntegerShape }
 
+export { isEntryItemKey }
+
 export { isSchemaUnsupported }
+
+export { IssueCode }
 
 // @experimental
 export type IssuerKind = 'human' | 'agent' | 'service';
@@ -1001,6 +1108,12 @@ export { KitToastQueue }
 
 export { ListShape }
 
+export { localDate }
+
+export { localDateTime }
+
+export { Localization }
+
 // @experimental
 export type LoginNoticeV1 = Record<string, never>;
 
@@ -1017,6 +1130,10 @@ export { MultiSelect }
 export { MultiSelectOption }
 
 export { MultiSelectProps }
+
+export { newEntryFields }
+
+export { newGroupValue }
 
 export { NodePath }
 
@@ -1049,6 +1166,8 @@ export { Pagination }
 
 export { PaginationProps }
 
+export { parseEntryPath }
+
 export { PartName }
 
 export { PasswordInput }
@@ -1058,6 +1177,8 @@ export { PasswordInputProps }
 export { PickerActor }
 
 export { PickerRole }
+
+export { Presence }
 
 export { ProblemDetails }
 
@@ -1115,6 +1236,8 @@ export { SegmentedOption }
 
 export { Select }
 
+export { SelectDisplay }
+
 export { SelectOption }
 
 export { SelectProps }
@@ -1152,6 +1275,8 @@ export { SortDirection }
 export { Stack }
 
 export { StackProps }
+
+export { Stages }
 
 export { StatusScreen }
 
@@ -1219,13 +1344,23 @@ export { TreeNode }
 
 export { TreeProps }
 
+export { TypeCapabilitiesV1 }
+
+export { TypeEditorV1 }
+
+export { TypeHistory }
+
 export { UnsupportedSchema }
+
+export { validateEntry }
 
 // @experimental
 export interface ViewerSummaryV1 {
     actor: string;
     issuer: IssuerKind;
 }
+
+export { WhenHidden }
 
 export { Wizard }
 

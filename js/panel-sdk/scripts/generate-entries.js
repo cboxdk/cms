@@ -20,6 +20,8 @@ import { fileURLToPath } from 'node:url';
 import * as prettier from 'prettier';
 import ts from 'typescript';
 
+import { stabilities } from '../../ui-kit/scripts/api-report.js';
+
 /** The kit's entry, relative to the root. */
 export const KIT_ENTRY = 'js/ui-kit/src/index.ts';
 
@@ -59,6 +61,9 @@ export function kitExports(root) {
     types: [],
   });
   const checker = program.getTypeChecker();
+  // The kit's own rule of which TSDoc gives an export its tag: its declaration's, or for the
+  // TypeScript of a kernel contract the entry's statement that re-exports it.
+  const { tags: stability } = stabilities(root);
   const source = program.getSourceFile(entry);
   const module = source === undefined ? undefined : checker.getSymbolAtLocation(source);
 
@@ -70,19 +75,11 @@ export function kitExports(root) {
   for (const exported of module === undefined ? [] : checker.getExportsOfModule(module)) {
     const symbol =
       (exported.flags & ts.SymbolFlags.Alias) !== 0 ? checker.getAliasedSymbol(exported) : exported;
-    const tags = new Set(
-      (symbol.declarations ?? []).flatMap((declaration) =>
-        ts
-          .getJSDocTags(declaration)
-          .map((tag) => `@${tag.tagName.text}`)
-          .filter((tag) => TAGS.includes(tag)),
-      ),
-    );
-    const [tag] = [...tags];
+    const tag = stability.get(exported.name);
 
-    if (tags.size !== 1 || (tag !== '@stable' && tag !== '@experimental')) {
+    if (tag !== '@stable' && tag !== '@experimental') {
       problems.push(
-        `${exported.name}: carries ${tags.size === 0 ? 'no stability tag' : [...tags].join(' and ')}; give it exactly one of ${TAGS.join(' and ')}`,
+        `${exported.name}: carries no stability tag, or more than one; give it exactly one of ${TAGS.join(' and ')}`,
       );
       continue;
     }

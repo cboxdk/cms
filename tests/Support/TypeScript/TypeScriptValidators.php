@@ -21,11 +21,12 @@ final readonly class TypeScriptValidators
 
     /**
      * The verdict of each case, in order: `['valid' => true]`, or `['valid' => false, 'path' =>
-     * ?string, 'reason' => string]`.
+     * ?string, 'code' => string, 'reason' => string]`, the code being the error catalog's code the
+     * validation runtime gives the issue.
      *
      * @param  string  $directory  the generated TypeScript directory, relative to the root
      * @param  list<array{module: string, validator: string, document: string}>  $cases
-     * @return list<array{valid: bool, path?: ?string, reason?: string}>
+     * @return list<array{valid: bool, path?: ?string, code?: string, reason?: string}>
      *
      * @throws JsonException
      */
@@ -44,7 +45,7 @@ final readonly class TypeScriptValidators
             throw new RuntimeException('The TypeScript validators did not run: '.$process->getErrorOutput().$process->getOutput());
         }
 
-        /** @var list<array{valid: bool, path?: ?string, reason?: string}> $verdicts */
+        /** @var list<array{valid: bool, path?: ?string, code?: string, reason?: string}> $verdicts */
         $verdicts = json_decode($process->getOutput(), true, 16, JSON_THROW_ON_ERROR);
 
         return $verdicts;

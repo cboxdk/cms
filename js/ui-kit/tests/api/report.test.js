@@ -95,6 +95,39 @@ describe('the stability tags', () => {
     );
   });
 
+  test(
+    'of the TypeScript of a kernel contract come from the statement that re-exports it',
+    {
+      timeout: 60_000,
+    },
+    () => {
+      const entry = join(ROOT, `js/ui-kit/src/planted-entry-${String(process.pid)}.ts`);
+
+      try {
+        writeFileSync(
+          entry,
+          [
+            '/** @experimental */',
+            "export type { TypeEditorV1 } from './generated/protocol/TypeEditorV1';",
+            "export type { EditorFieldV1 } from './generated/protocol/TypeEditorV1';",
+            '',
+          ].join('\n'),
+        );
+        const found = stabilities(ROOT, entry);
+
+        assert.equal(found.tags.get('TypeEditorV1'), '@experimental');
+        assert.deepEqual(
+          found.problems.map((problem) => problem.replace(/^[^ ]+ /, '')),
+          [
+            'EditorFieldV1 carries no stability tag; give it exactly one of @stable and @experimental',
+          ],
+        );
+      } finally {
+        rmSync(entry, { force: true });
+      }
+    },
+  );
+
   test('replace @public in the report', () => {
     const report = [
       '// @public',

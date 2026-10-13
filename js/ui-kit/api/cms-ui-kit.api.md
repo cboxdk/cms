@@ -191,12 +191,18 @@ export interface CheckboxProps {
 export type Classification = 'public' | 'internal' | 'confidential' | 'personal' | 'sensitive';
 
 // @experimental
+export type ClassificationAccess = 'public' | 'internal' | 'confidential' | 'personal' | 'sensitive';
+
+// @experimental
 export function ClassificationBadge(input: ClassificationBadgeProps): JSX.Element;
 
 // @experimental
 export interface ClassificationBadgeProps {
     readonly classification: Classification;
 }
+
+// @experimental
+export function clearHidden(descriptor: TypeEditorV1, value: JsonObject): JsonObject;
 
 // @experimental
 export function Combobox(input: ComboboxProps): JSX.Element;
@@ -387,6 +393,104 @@ export interface DryRunSummary {
 }
 
 // @experimental
+export type EditorBase = 'boolean' | 'date' | 'datetime' | 'decimal' | 'group' | 'integer' | 'long_text' | 'rich_text' | 'select' | 'text';
+
+// @experimental
+export interface EditorChoiceV1 {
+    label: string;
+    labels: readonly EditorTextV1[];
+    value: string;
+}
+
+// @experimental
+export interface EditorFieldV1 {
+    agents: boolean;
+    base: EditorBase;
+    choices: readonly EditorChoiceV1[];
+    classification: ClassificationAccess;
+    default: JsonDocument | null;
+    description: string | null;
+    descriptions: readonly EditorTextV1[];
+    encrypted: boolean;
+    fallback: FieldFallback;
+    handle: string;
+    label: string;
+    labels: readonly EditorTextV1[];
+    namespace: string | null;
+    parent: string | null;
+    path: string;
+    presence: Presence;
+    repeat: EditorRepeatV1 | null;
+    rule: JsonDocument | null;
+    translatable: boolean;
+    type: string;
+    ui: EditorUiV1;
+    when: JsonDocument | null;
+    when_hidden: WhenHidden | null;
+}
+
+// @experimental
+export interface EditorLayoutV1 {
+    sidebar: readonly EditorSectionV1[];
+    tabs: readonly EditorTabV1[];
+}
+
+// @experimental
+export interface EditorPlacementV1 {
+    path: string;
+    width: EditorWidth;
+}
+
+// @experimental
+export interface EditorRepeatV1 {
+    max_items: number | null;
+    min_items: number | null;
+}
+
+// @experimental
+export interface EditorSectionV1 {
+    collapsible: boolean;
+    fields: readonly EditorPlacementV1[];
+    handle: string;
+    instructions: string | null;
+    instructions_by_locale: readonly EditorTextV1[];
+    label: string | null;
+    labels: readonly EditorTextV1[];
+}
+
+// @experimental
+export interface EditorTabV1 {
+    handle: string;
+    label: string;
+    labels: readonly EditorTextV1[];
+    sections: readonly EditorSectionV1[];
+}
+
+// @experimental
+export function editorText(fallback: string, texts: readonly EditorTextV1[], locale: string): string;
+
+// @experimental
+export interface EditorTextV1 {
+    locale: string;
+    text: string;
+}
+
+// @experimental
+export interface EditorUiV1 {
+    display: SelectDisplay | null;
+    hidden: boolean;
+    input_hint: string | null;
+    input_hint_by_locale: readonly EditorTextV1[];
+    instructions: string | null;
+    instructions_by_locale: readonly EditorTextV1[];
+    read_only: boolean;
+    summary: string | null;
+}
+
+// @experimental
+export type EditorWidth = 'full' | 'half' | 'third' | 'two_thirds';
+
+// @experimental
 export function emptied(member: FormMember): JsonValue | undefined;
 
 // @experimental
@@ -399,6 +503,82 @@ export interface EmptyStateProps {
     readonly headingLevel?: 2 | 3 | 4;
     readonly title: string;
 }
+
+// @experimental
+export const ENTRY_FIELD_INPUTS: EntryFieldInputs;
+
+// @experimental
+export type EntryFieldInput = (props: EntryFieldInputProps) => ReactNode;
+
+// @experimental
+export interface EntryFieldInputProps {
+    readonly description: string | undefined;
+    readonly disabled: boolean;
+    readonly error: string | undefined;
+    readonly field: EditorFieldV1;
+    readonly id: string;
+    readonly inputHint: string | undefined;
+    readonly label: string;
+    readonly locale: string;
+    readonly name: string;
+    readonly onChange: (next: JsonValue | undefined) => void;
+    readonly readOnly: boolean;
+    readonly required: boolean;
+    readonly value: JsonValue | undefined;
+}
+
+// @experimental
+export type EntryFieldInputs = {
+    readonly [Base in EntryLeafBase]: EntryFieldInput;
+};
+
+// @experimental
+export function EntryForm(input: EntryFormProps): JSX.Element;
+
+// @experimental
+export type EntryFormErrors = 'touched' | 'all';
+
+// @experimental
+export interface EntryFormProps {
+    readonly descriptor: TypeEditorV1;
+    readonly disabled?: boolean | undefined;
+    readonly errors?: Readonly<Record<string, string>> | undefined;
+    readonly idPrefix?: string | undefined;
+    readonly inputs?: Partial<EntryFieldInputs> | undefined;
+    readonly locale: string;
+    readonly now?: (() => Date) | undefined;
+    readonly onChange: (value: JsonObject) => void;
+    readonly showErrors?: EntryFormErrors | undefined;
+    readonly stage?: EntryStage | undefined;
+    readonly value: JsonObject;
+}
+
+// @experimental
+export interface EntryIssue {
+    // (undocumented)
+    readonly code: IssueCode;
+    readonly path: string | null;
+    // (undocumented)
+    readonly reason: string;
+}
+
+// @experimental
+export interface EntryItemKey {
+    // (undocumented)
+    readonly key: string;
+}
+
+// @experimental
+export type EntryLeafBase = Exclude<EditorBase, 'group'>;
+
+// @experimental
+export type EntryPathSegment = string | number | EntryItemKey;
+
+// @experimental
+export function entryPathText(segments: readonly EntryPathSegment[]): string;
+
+// @experimental
+export type EntryStage = 'write' | 'release';
 
 // @experimental
 export interface EnumShape {
@@ -436,6 +616,12 @@ export interface ErrorSummaryProps {
 }
 
 // @experimental
+export interface ExtensionVersionV1 {
+    namespace: string;
+    version: number;
+}
+
+// @experimental
 export function Field(input: FieldProps): JSX.Element;
 
 // @experimental
@@ -454,6 +640,9 @@ export interface FieldErrorProps {
     readonly children: string;
     readonly id: string;
 }
+
+// @experimental
+export type FieldFallback = 'variant' | 'field';
 
 // @experimental
 export type FieldPath = readonly (string | number)[];
@@ -609,11 +798,22 @@ export interface IntegerShape {
     readonly minimum?: number | undefined;
 }
 
+// @experimental
+export function isEntryItemKey(segment: EntryPathSegment): segment is EntryItemKey;
+
 // @stable
 export function isKitLocale(value: string): value is KitLocale;
 
 // @experimental
 export function isSchemaUnsupported(value: unknown): value is UnsupportedSchema;
+
+// @experimental
+export type IssueCode = 'validation_required' | 'validation_wrong_type' | 'validation_unknown_field' | 'validation_too_short' | 'validation_too_long' | 'validation_invalid_format' | 'validation_below_minimum' | 'validation_above_maximum' | 'validation_too_many_digits' | 'validation_not_an_option' | 'validation_too_few_items' | 'validation_too_many_items' | 'validation_duplicate_item' | 'validation_invalid_rich_text' | 'validation_rich_text_not_allowed' | 'validation_hidden_field';
+
+// @experimental
+export type JsonDocument = {
+    readonly [key: string]: unknown;
+};
 
 // @experimental
 export function JsonEditor(input: JsonEditorProps): JSX.Element;
@@ -706,6 +906,15 @@ export interface ListShape {
 }
 
 // @experimental
+export function localDate(now: Date): string;
+
+// @experimental
+export function localDateTime(now: Date): string;
+
+// @experimental
+export type Localization = 'none' | 'variants';
+
+// @experimental
 export function Menu(input: MenuProps): JSX.Element;
 
 // @experimental
@@ -750,6 +959,12 @@ export interface MultiSelectProps {
     readonly required?: boolean | undefined;
     readonly value: readonly string[];
 }
+
+// @experimental
+export function newEntryFields(descriptor: TypeEditorV1, now: Date): JsonObject;
+
+// @experimental
+export function newGroupValue(descriptor: TypeEditorV1, group: EditorFieldV1, now: Date): JsonObject;
 
 // @experimental
 export function NodePath(input: NodePathProps): JSX.Element;
@@ -846,6 +1061,9 @@ export interface PaginationProps {
 }
 
 // @experimental
+export function parseEntryPath(written: string): readonly EntryPathSegment[] | null;
+
+// @experimental
 export type PartName = 'status-screen' | 'task-screen';
 
 // @experimental
@@ -872,6 +1090,9 @@ export interface PickerRole {
     readonly handle: string;
     readonly id: string;
 }
+
+// @experimental
+export type Presence = 'required' | 'required_on_release' | 'optional';
 
 // @experimental
 export function ProblemDetails(input: ProblemDetailsProps): JSX.Element;
@@ -1068,6 +1289,9 @@ export interface SegmentedOption {
 export function Select(input: SelectProps): JSX.Element;
 
 // @experimental
+export type SelectDisplay = 'radio' | 'buttons' | 'dropdown';
+
+// @experimental
 export type SelectOption = OptionItem;
 
 // @experimental
@@ -1152,6 +1376,9 @@ export interface StackProps {
     readonly children: ReactNode;
     readonly gap?: Gap;
 }
+
+// @experimental
+export type Stages = 'none' | 'draft-release';
 
 // @experimental
 export function StatusScreen(input: StatusScreenProps): JSX.Element;
@@ -1363,11 +1590,44 @@ export interface TreeProps {
 }
 
 // @experimental
+export interface TypeCapabilitiesV1 {
+    history: TypeHistory;
+    localization: Localization;
+    routable: boolean;
+    stages: Stages;
+}
+
+// @experimental
+export interface TypeEditorV1 {
+    capabilities: TypeCapabilitiesV1;
+    description: string | null;
+    descriptions: readonly EditorTextV1[];
+    extensions: readonly ExtensionVersionV1[];
+    fields: readonly EditorFieldV1[];
+    id: string;
+    label: string;
+    labels: readonly EditorTextV1[];
+    layout: EditorLayoutV1;
+    name: string;
+    title_field: string | null;
+    version: number;
+}
+
+// @experimental
+export type TypeHistory = 'full' | 'audit-only' | 'none';
+
+// @experimental
 export interface UnsupportedSchema {
     readonly keyword: string;
     readonly message: string;
     readonly pointer: string;
 }
+
+// @experimental
+export function validateEntry(descriptor: TypeEditorV1, fields: JsonObject, stage?: EntryStage): readonly EntryIssue[];
+
+// @experimental
+export type WhenHidden = 'clear' | 'keep';
 
 // @experimental
 export function Wizard(input: WizardProps): JSX.Element | null;

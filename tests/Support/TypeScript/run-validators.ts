@@ -6,8 +6,8 @@
 // Usage: node --experimental-strip-types run-validators.ts <generated directory>, with a JSON list
 // of cases on stdin, each {"module": "records/AppFixtureArticleV1", "validator":
 // "validateAppFixtureArticleV1", "document": "<JSON text>"}. It prints a JSON list of verdicts in
-// the same order, each {"valid": true} or {"valid": false, "path": <string or null>, "reason":
-// <string>}, and exits 0, or exits 1 with the reason on stderr when a module does not compile or
+// the same order, each {"valid": true} or {"valid": false, "path": <string or null>, "code":
+// <the error catalog's code>, "reason": <string>}, and exits 0, or exits 1 with the reason on stderr when a module does not compile or
 // has no such validator.
 
 import { mkdirSync, mkdtempSync, readdirSync, readFileSync, rmSync, writeFileSync } from 'node:fs';
@@ -25,13 +25,22 @@ interface ValidatorCase {
 
 type Verdict =
   | { readonly valid: true }
-  | { readonly valid: false; readonly path: string | null; readonly reason: string };
+  | {
+      readonly valid: false;
+      readonly path: string | null;
+      readonly code: string;
+      readonly reason: string;
+    };
 
 type Validation =
   | { readonly valid: true }
   | {
       readonly valid: false;
-      readonly issue: { readonly path: string | null; readonly reason: string };
+      readonly issue: {
+        readonly path: string | null;
+        readonly code: string;
+        readonly reason: string;
+      };
     };
 
 type Validator = (value: unknown) => Validation;
@@ -74,7 +83,12 @@ function run(load: (id: string) => unknown, validatorCase: ValidatorCase): Verdi
 
   return validation.valid
     ? { valid: true }
-    : { valid: false, path: validation.issue.path, reason: validation.issue.reason };
+    : {
+        valid: false,
+        path: validation.issue.path,
+        code: validation.issue.code,
+        reason: validation.issue.reason,
+      };
 }
 
 const directory = process.argv[2];
@@ -84,7 +98,21 @@ if (directory === undefined) {
   process.exit(2);
 }
 
-const cases = JSON.parse(readFileSync(0, 'utf8')) as ValidatorCase[];
+/**
+ * Standard input, read to its end: a large input does not arrive in one read, and a synchronous
+ * read of a pipe that has no data yet fails with EAGAIN.
+ */
+async function standardInput(): Promise<string> {
+  const chunks: Buffer[] = [];
+
+  for await (const chunk of process.stdin) {
+    chunks.push(Buffer.isBuffer(chunk) ? chunk : Buffer.from(String(chunk)));
+  }
+
+  return Buffer.concat(chunks).toString('utf8');
+}
+
+const cases = JSON.parse(await standardInput()) as ValidatorCase[];
 const output = mkdtempSync(join(tmpdir(), 'cms-validators-'));
 
 try {

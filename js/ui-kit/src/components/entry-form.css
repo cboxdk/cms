@@ -1,0 +1,160 @@
+@layer cms.kit {
+  .cms-entry-form {
+    display: grid;
+    gap: var(--cms-space-6);
+    min-inline-size: 0;
+    container-type: inline-size;
+  }
+
+  /* The main column and the sidebar beside it; the sidebar goes below on a narrow form. */
+  .cms-entry-form__layout {
+    display: grid;
+    gap: var(--cms-space-6);
+    min-inline-size: 0;
+  }
+
+  .cms-entry-form__main,
+  .cms-entry-form__sidebar,
+  .cms-entry-form__tab {
+    display: grid;
+    gap: var(--cms-space-6);
+    align-content: start;
+    min-inline-size: 0;
+  }
+
+  @container (min-width: 56rem) {
+    .cms-entry-form__layout[data-sidebar='true'] {
+      grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);
+    }
+  }
+
+  .cms-entry-form__section {
+    display: grid;
+    gap: var(--cms-space-3);
+    min-inline-size: 0;
+  }
+
+  .cms-entry-form__section-title {
+    margin: 0;
+    font-size: var(--cms-font-size-lg);
+    font-weight: var(--cms-font-weight-semibold);
+    line-height: var(--cms-line-height-tight);
+  }
+
+  .cms-entry-form__instructions {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+
+  /* A button that shows or hides a section or an item, with its chevron. */
+  .cms-entry-form__toggle {
+    display: inline-flex;
+    align-items: center;
+    gap: var(--cms-space-2);
+    min-block-size: var(--cms-target-size);
+    padding: 0;
+    border: 0;
+    border-radius: var(--cms-radius-sm);
+    background: transparent;
+    color: inherit;
+    font: inherit;
+    text-align: start;
+    cursor: pointer;
+  }
+
+  .cms-entry-form__toggle:focus-visible {
+    outline: 2px solid transparent;
+    box-shadow: var(--cms-focus-ring);
+  }
+
+  /* The row of a section: six columns, which a placement's width takes all, half, a third or two. */
+  .cms-entry-form__grid {
+    display: grid;
+    grid-template-columns: repeat(6, minmax(0, 1fr));
+    gap: var(--cms-space-4);
+    min-inline-size: 0;
+  }
+
+  .cms-entry-form__grid[hidden] {
+    display: none;
+  }
+
+  .cms-entry-form__cell {
+    grid-column: span 6;
+    min-inline-size: 0;
+  }
+
+  @container (min-width: 40rem) {
+    .cms-entry-form__cell[data-width='half'] {
+      grid-column: span 3;
+    }
+
+    .cms-entry-form__cell[data-width='third'] {
+      grid-column: span 2;
+    }
+
+    .cms-entry-form__cell[data-width='two_thirds'] {
+      grid-column: span 4;
+    }
+  }
+
+  .cms-entry-form__fields {
+    display: grid;
+    gap: var(--cms-space-4);
+    min-inline-size: 0;
+  }
+
+  .cms-entry-form__choices {
+    display: grid;
+    gap: var(--cms-space-2);
+  }
+
+  .cms-entry-form__choices[data-display='buttons'] {
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cms-space-4);
+  }
+
+  .cms-entry-form__items {
+    display: grid;
+    gap: var(--cms-space-3);
+    margin: 0;
+    padding: 0;
+    list-style: none;
+  }
+
+  .cms-entry-form__item {
+    display: grid;
+    gap: var(--cms-space-3);
+    padding: var(--cms-space-3);
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-md);
+    background: var(--cms-color-surface);
+    min-inline-size: 0;
+  }
+
+  .cms-entry-form__item-header {
+    display: flex;
+    align-items: center;
+    justify-content: space-between;
+    gap: var(--cms-space-2);
+    min-inline-size: 0;
+  }
+
+  .cms-entry-form__item-title {
+    font-weight: var(--cms-font-weight-semibold);
+  }
+
+  .cms-entry-form__item-actions {
+    display: flex;
+    flex-shrink: 0;
+    gap: var(--cms-space-1);
+  }
+
+  .cms-entry-form__empty {
+    margin: 0;
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-md);
+  }
+}
