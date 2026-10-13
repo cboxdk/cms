@@ -107,6 +107,16 @@ final readonly class Screenshots
                 'tests/Browser/Panel/ContentListTest.php',
             ),
             new BrowserScreenshot(
+                'entry-editor',
+                'The entry editor on a desktop: the entry by its title with its state and the status of the last save, the Save button with its shortcut, and the form of its type with its tabs and sidebar.',
+                'tests/Browser/Panel/EntryEditorTest.php',
+            ),
+            new BrowserScreenshot(
+                'entry-editor-mobile',
+                'The entry editor on a phone: the title, the state and the Save button above the form, whose fields fill the width and whose sidebar follows the tabs.',
+                'tests/Browser/Panel/EntryEditorTest.php',
+            ),
+            new BrowserScreenshot(
                 'access-roles',
                 'The roles page on a desktop: every role with its handle, classification ceiling and permissions, read with role.list, and the button that creates one.',
                 'tests/Browser/Panel/RolesAndGrantsTest.php',

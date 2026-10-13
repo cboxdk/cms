@@ -1,7 +1,7 @@
 ---
 title: Working with content
 weight: 17
-description: Find the entries you can reach in the content list, across every type or one type at a time, by their titles, states and last changes, with filters, two densities and pages.
+description: Find the entries you can reach in the content list, across every type or one type at a time, by their titles, states and last changes, with filters, two densities and pages, and create and edit an entry in the entry editor.
 ---
 
 # Working with content
@@ -10,7 +10,7 @@ The content list shows the entries you can reach, the newest first. Open it from
 
 ![The content list on a desktop: the Content section of the navigation with an entry per type, the filter chips, the density switch, and the entries by their titles with their types, states and last changes.](../screenshots/content-list.png)
 
-Each row shows the entry by its title, the field its type names as its title, and below it the type. An entry whose draft has no title yet shows as Untitled. The pill says the entry's state: Draft until its shared version is released, Released once it is, and Withdrawn when the release was taken back; an archived or removed entry says so instead. The last change is the newest of when the entry was created, revised, released or withdrawn, in your time zone.
+Each row shows the entry by its title, which opens the entry in the [entry editor](#editing-an-entry), the field its type names as its title, and below it the type. An entry whose draft has no title yet shows as Untitled. The pill says the entry's state: Draft until its shared version is released, Released once it is, and Withdrawn when the release was taken back; an archived or removed entry says so instead. The last change is the newest of when the entry was created, revised, released or withdrawn, in your time zone.
 
 ## Narrowing the list
 
@@ -28,4 +28,22 @@ On a phone the navigation folds away behind the menu button, and the list shows 
 
 ## When the list is empty or cannot be read
 
-A type without entries, or a filter that keeps none, shows an empty list. When you may create entries, it offers New entry, which opens the form that creates one; otherwise it says how to get access. When the server refuses to read the list, the page says why and what to do, with the error's code; when it gets no answer it can read, it asks you to reload.
+A type without entries, or a filter that keeps none, shows an empty list. When you may create entries, it offers New entry: in the list of one type it opens the entry editor of a new entry of that type, and across every type the form that creates one; otherwise it says how to get access. When the server refuses to read the list, the page says why and what to do, with the error's code; when it gets no answer it can read, it asks you to reload.
+
+## Editing an entry
+
+The entry editor shows an entry by its title, with its state and what happened to your last save beside it, and below them the form of the entry's type: its tabs, its sections and, on a wide screen, its sidebar. Open an entry from the content list by its title, or start a new one with New entry in the list of its type.
+
+![The entry editor on a desktop: the entry by its title with its state and the status of the last save, the Save button with its shortcut, and the form of its type with its tabs and sidebar.](../screenshots/entry-editor.png)
+
+A new entry first asks where in the site it belongs: choose the part of the site in the tree, and who may edit the entry follows from there. Fill in the fields; a field that needs a value or takes a certain form says so once you change it.
+
+Save, or press ⌘↵ on a Mac and Ctrl+Enter elsewhere, saves your changes. The status beside the entry's state says Saving while it runs, then Saved, or Saved with a note that the site is still being updated, which is no failure. A new entry's page becomes the page of the entry once it is saved. Saving the same change twice never makes two copies.
+
+When the entry cannot be saved, the status says Not saved, each problem is shown at its field and listed above the form with a link to the field, and nothing of what you typed is lost: correct what is marked and save again. When someone else saved the entry after you opened it, your save is refused rather than overwriting their change, and the page says so; reload it to see what it is now. When the panel gets no answer, it says so and keeps your changes, so you can save again.
+
+On a phone the form takes the whole width, the sidebar comes after the tabs, and the Save button sits below the title:
+
+![The entry editor on a phone: the title, the state and the Save button above the form, whose fields fill the width and whose sidebar follows the tabs.](../screenshots/entry-editor-mobile.png)
+
+When you may read an entry but not change it, the editor shows it and says who can give you the permission to save. An entry you cannot reach, or of a type you cannot see, is not shown; the page says why and leads back to the list. A type that keeps a version of each entry per language is edited with the commands for languages until the editor has its language tabs.

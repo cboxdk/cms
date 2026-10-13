@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\ReleaseState;
 use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
+use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\PanelPoints\Confirm;
 use Cbox\Cms\Contracts\PanelPoints\ContributionId;
 use Cbox\Cms\Contracts\PanelPoints\Multiplicity;
@@ -40,6 +41,7 @@ use Cbox\Cms\Panel\Domain\Dto\AddonProp;
 use Cbox\Cms\Panel\Domain\Dto\AddonTextsProp;
 use Cbox\Cms\Panel\Domain\Dto\CheckProp;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
+use Cbox\Cms\Panel\Domain\Dto\ContentEditorPage;
 use Cbox\Cms\Panel\Domain\Dto\ContentListPage;
 use Cbox\Cms\Panel\Domain\Dto\ContributionsProp;
 use Cbox\Cms\Panel\Domain\Dto\DecoratorProp;
@@ -61,6 +63,7 @@ use Cbox\Cms\Panel\Domain\Dto\PanelBrandLogo;
 use Cbox\Cms\Panel\Domain\Dto\PickerRead;
 use Cbox\Cms\Panel\Domain\Dto\PointFillsProp;
 use Cbox\Cms\Panel\Domain\Dto\PrefillProp;
+use Cbox\Cms\Panel\Domain\Dto\ReadAnswer;
 use Cbox\Cms\Panel\Domain\Dto\ReplacementProp;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ResetPasswordRefusals;
@@ -89,7 +92,9 @@ use Cbox\Cms\Panel\Domain\SignInReason;
  * palette.v1.json the prop `palette` every page behind the login shares, the read
  * of action.list the command palette is built from, content-list.v1.json the props of the content
  * list, which reads entry.list, and types.v1.json the prop `types` every page behind the login
- * shares, the read of type.list the navigation's Content section is built from. Types go one way, from PHP and the schema to
+ * shares, the read of type.list the navigation's Content section is built from, and
+ * content-editor.v1.json the props of the entry editor, which reads type.describe, entry.get and
+ * node.list. Types go one way, from PHP and the schema to
  * TypeScript; no page declares its props by hand.
  *
  * composer generate:protocol writes, from these bindings, the PHP codecs into PHP_DIRECTORY and,
@@ -124,13 +129,14 @@ final readonly class PanelPageSchemas
      * the host answers with its receipt and, for a rejection, the problem details; the result of
      * actor.me, which the who-am-I page reads from its props; the result of action.list, which the
      * command palette reads; the results of role.list, grant.list, actor.list and node.list,
-     * which the roles and grants pages and the pickers of the grants page read; and the results of
+     * which the roles and grants pages and the pickers of the grants page read; the results of
      * entry.list and type.list, with the type editor descriptor type.list embeds, which the content
-     * list and the navigation read.
+     * list and the navigation read; and the results of entry.get and type.describe with the
+     * documents of entry.create and entry.revise version 1, which the entry editor reads and sends.
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'DryRunSummaryCodecV1', 'EntryListCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1', 'RoleListCodecV1', 'TypeEditorCodecV1', 'TypeListCodecV1'];
+    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'CreateEntryCodecV1', 'DryRunSummaryCodecV1', 'EntryDetailCodecV1', 'EntryListCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1', 'ReviseEntryCodecV1', 'RoleListCodecV1', 'TypeDescriptionCodecV1', 'TypeEditorCodecV1', 'TypeListCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;
@@ -183,6 +189,12 @@ final readonly class PanelPageSchemas
                 '#/properties/rejection' => ValueBinding::document(JsonDocument::class),
                 '#/properties/result' => ValueBinding::document(JsonDocument::class),
                 '#/properties/state' => ValueBinding::enum(ReleaseState::class),
+                '#/properties/type' => ValueBinding::value(TypeName::class),
+            ]),
+            self::page('content-editor.v1.json', 'ContentEditorPageCodecV1', ['#' => ContentEditorPage::class, '#/$defs/read' => ReadAnswer::class], [
+                '#/$defs/read/properties/rejection' => ValueBinding::document(JsonDocument::class),
+                '#/$defs/read/properties/result' => ValueBinding::document(JsonDocument::class),
+                '#/properties/entry' => ValueBinding::id(EntryId::class),
                 '#/properties/type' => ValueBinding::value(TypeName::class),
             ]),
             self::page('contributions.v1.json', 'ContributionsCodecV1', [

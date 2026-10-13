@@ -79,6 +79,12 @@ enum PanelRoute: string
     /** GET <prefix>/content/{type}: the content list of one type, which reads entry.list as the person (PRD 5.4, 13.4). */
     case ContentListOfType = 'cbox-cms.panel.content-list.type';
 
+    /** GET <prefix>/content/{type}/new: the entry editor of a new entry of the type, which reads type.describe and node.list as the person (PRD 5.4, 11.12, 13.4). */
+    case ContentEditorNew = 'cbox-cms.panel.content-editor.new';
+
+    /** GET <prefix>/content/{type}/{entry}: the entry editor of an entry, which reads type.describe and entry.get as the person (PRD 5.4, 11.12, 13.4). */
+    case ContentEditor = 'cbox-cms.panel.content-editor';
+
     /**
      * Whether a page of the route loads the addons' panel UI (PRD 13.4, decision D13 of the
      * panel extension architecture): a credential page, where a person types a password or
@@ -89,7 +95,7 @@ enum PanelRoute: string
     public function allowsAddons(): bool
     {
         return match ($this) {
-            self::Home, self::Command, self::CommandForm, self::AddonPage, self::AccountMe, self::AccessRoles, self::AccessGrants, self::ContentList, self::ContentListOfType => true,
+            self::Home, self::Command, self::CommandForm, self::AddonPage, self::AccountMe, self::AccessRoles, self::AccessGrants, self::ContentList, self::ContentListOfType, self::ContentEditorNew, self::ContentEditor => true,
             self::Login, self::LoginSubmit, self::ForgotPassword, self::ForgotPasswordSubmit, self::ResetPassword, self::ResetPasswordSubmit, self::Logout, self::Theme, self::Brand, self::AddonAsset, self::CspReport => false,
         };
     }

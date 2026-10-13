@@ -4,8 +4,9 @@
 // field its type's descriptor names, with the type's label from the shared prop `types`, a pill of
 // its state and its last change; the Content section of the navigation, one entry per type; the
 // filter chips, which open the address of the filtered list; the density, kept in the browser;
-// the create action of an empty list when the palette lists entry.create; and the rejected and
-// unreadable states of the list.
+// the create action of an empty list when the palette lists entry.create, which on the list of
+// one type opens the entry editor of a new entry; each title, which opens the entry editor; and
+// the rejected and unreadable states of the list.
 
 import { rejectedProblem } from '@cboxdk/cms-panel/testing';
 import { fireEvent, screen, waitFor, within } from '@testing-library/react';
@@ -253,6 +254,30 @@ describe('the list', () => {
     fireEvent.click(empty as HTMLElement);
 
     expect(inertia.router.visit).toHaveBeenCalledWith('/cms/commands/entry.create/v2');
+  });
+
+  test('opens each entry of a type it shows in the entry editor, and the editor of a new entry from the list of one type', () => {
+    const actions = palette('entry.list', 'entry.create');
+    const create = actions.actions.find((action) => action.name === 'entry.create');
+
+    if (create === undefined) {
+      throw new Error('The palette lists entry.create.');
+    }
+
+    renderList(
+      { type: 'app:story' },
+      { ...actions, actions: [...actions.actions, { ...create, version: 1 }] },
+    );
+
+    expect(screen.getByRole('link', { name: /^Harbour opens/ }).getAttribute('href')).toBe(
+      `/cms/content/app:story/${HARBOUR.id}`,
+    );
+
+    const [header] = screen.getAllByRole('button', { name: t('panel.content.create') });
+
+    fireEvent.click(header as HTMLElement);
+
+    expect(inertia.router.visit).toHaveBeenCalledWith('/cms/content/app:story/new');
   });
 
   test('says so to a person who may not create entries', () => {

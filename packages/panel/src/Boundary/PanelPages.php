@@ -16,6 +16,7 @@ use Cbox\Cms\Panel\Boundary\Generated\AccessRolesPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\ContentEditorPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ContentListPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\HomePageCodecV1;
@@ -23,6 +24,7 @@ use Cbox\Cms\Panel\Boundary\Generated\LoginPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\NotFoundPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ResetPasswordPageCodecV1;
 use Cbox\Cms\Panel\Content\Domain\Dto\ContentTarget;
+use Cbox\Cms\Panel\Content\Domain\Dto\EditorTarget;
 use Cbox\Cms\Panel\Contributions\Boundary\SharedProps;
 use Cbox\Cms\Panel\Contributions\Domain\Dto\ActiveFill;
 use Cbox\Cms\Panel\Domain\Dto\AccessGrantsPage;
@@ -30,6 +32,7 @@ use Cbox\Cms\Panel\Domain\Dto\AccessRolesPage;
 use Cbox\Cms\Panel\Domain\Dto\AccountMePage;
 use Cbox\Cms\Panel\Domain\Dto\AddonPage;
 use Cbox\Cms\Panel\Domain\Dto\CommandFormPage;
+use Cbox\Cms\Panel\Domain\Dto\ContentEditorPage;
 use Cbox\Cms\Panel\Domain\Dto\ContentListPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordPage;
 use Cbox\Cms\Panel\Domain\Dto\ForgotPasswordRefusals;
@@ -98,7 +101,11 @@ use LogicException;
  *   and the optional prop of the form's pickers (AccessGrantsRequest::pickers());
  * - the content list (PRD 5.4), at `<prefix>/content` and `<prefix>/content/<owner>:<handle>`,
  *   with the address of the logout, the type it lists and the release state it is filtered by, as
- *   the address names them, and the read of entry.list as the person, beside its contributions.
+ *   the address names them, and the read of entry.list as the person, beside its contributions;
+ * - the entry editor (PRD 5.4, 11.12), at `<prefix>/content/<owner>:<handle>/new` and
+ *   `<prefix>/content/<owner>:<handle>/<entry>`, with the address of the logout, the type and the
+ *   entry the address names, the address of the type's content list and the reads of
+ *   type.describe, entry.get and node.list as the person, beside its contributions.
  */
 #[Internal]
 final readonly class PanelPages
@@ -126,6 +133,9 @@ final readonly class PanelPages
 
     /** The content list, in js/panel/src/pages, which lists the entries across types or of one (PRD 5.4). */
     public const string CONTENT_LIST = 'Content/List';
+
+    /** The entry editor, in js/panel/src/pages, which creates an entry of a type or edits one (PRD 5.4, 11.12). */
+    public const string CONTENT_EDITOR = 'Content/Editor';
 
     /** An addon's page, in js/panel/src/pages, which renders the addon's component of the page. */
     public const string ADDON = 'Addon';
@@ -157,6 +167,7 @@ final readonly class PanelPages
         private AccessRolesPageCodecV1 $accessRolesPage,
         private AccessGrantsPageCodecV1 $accessGrantsPage,
         private ContentListPageCodecV1 $contentListPage,
+        private ContentEditorPageCodecV1 $contentEditorPage,
         private Application $app,
     ) {}
 
@@ -291,6 +302,20 @@ final readonly class PanelPages
     {
         return $this->unstored($this->render($request, self::CONTENT_LIST, $this->contentListPage->encode(
             new ContentListPage($this->urls->route(PanelRoute::Logout->value, [], false), $target->type?->name, $target->state, $read->result, $read->rejection),
+            ClassificationAccess::Public,
+        ), $contributions));
+    }
+
+    /**
+     * The entry editor, with what the address asks for, the address of the type's content list,
+     * the reads of type.describe, of entry.get for an entry and of node.list for a new entry as the
+     * person, each the result or the problem, and the contributions active on it (PRD 5.4, 11.12,
+     * 13.4).
+     */
+    public function contentEditor(Request $request, EditorTarget $target, string $list, ReadAnswer $type, ?ReadAnswer $entry, ?ReadAnswer $nodes, SharedProps $contributions): Response|JsonResponse
+    {
+        return $this->unstored($this->render($request, self::CONTENT_EDITOR, $this->contentEditorPage->encode(
+            new ContentEditorPage($this->urls->route(PanelRoute::Logout->value, [], false), $target->type->name, $target->entry, $list, $type, $entry, $nodes),
             ClassificationAccess::Public,
         ), $contributions));
     }

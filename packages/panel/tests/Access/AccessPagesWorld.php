@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Ids\ActorId;
 use Cbox\Cms\Contracts\Ids\CommandName;
 use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Pipeline\Query;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Access\Actions\AssignGrantAction;
 use Cbox\Cms\Core\Access\Actions\CreateRoleAction;
 use Cbox\Cms\Core\Access\Actions\ListGrantsAction;
@@ -30,7 +31,9 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
+use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
@@ -42,7 +45,9 @@ use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
 use Cbox\Cms\Core\Registry\Domain\Queries\ListActions;
+use Cbox\Cms\Core\Schema\Actions\DescribeTypeAction;
 use Cbox\Cms\Core\Schema\Actions\ListTypesAction;
+use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
 use Cbox\Cms\Core\Schema\Domain\Queries\ListTypes;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
 use Cbox\Cms\Core\Structure\Domain\Dto\NodeList;
@@ -61,14 +66,16 @@ use Cbox\Cms\Testkit\Identity\FakeIdentity;
  * The roles and grants pages' reads over fakes (GUARDRAILS 9, PRD 5.10, 13.4): the real
  * QueryPipeline of an ActionListWorld with the actions of role.list, grant.list, actor.list and
  * node.list over the ListingWorld's roles, grants, actors and nodes in memory, of entry.list over
- * the EntryListingWorld's entries as its administrator reads them and of type.list over the
- * workbench's editor descriptors, for the content list and the prop `types` every page shares, read as the person
+ * the EntryListingWorld's entries as its administrator reads them, of entry.get over the same
+ * entries and of type.list and type.describe over the workbench's editor descriptors, for the
+ * content list, the entry editor and the prop `types` every page shares, read as the person
  * who signed in, whose session credential the login world's verifier verifies, with regions over
  * the root at personal classification access and a role on it whose permissions a test gives,
  * the access commands and queries by default; and action.list over a registry that exposes the
  * access commands and queries on REST and Inertia, so the shared prop `palette` says what the
  * person may do. The authorizer decides as the kernel's does from those grants, so a read the
- * person holds no permission for is refused; refusing() gives a pipeline that refuses every read,
+ * person holds no permission for is refused, and the fields of a read of content are kept by the
+ * workbench's type catalog; refusing() gives a pipeline that refuses every read,
  * and without() one that cannot make the reads given, for the pickers' unavailable state.
  */
 final class AccessPagesWorld
@@ -97,7 +104,7 @@ final class AccessPagesWorld
      */
     public function pipeline(): QueryPipeline
     {
-        return $this->actions->pipeline(more: $this->bindings());
+        return $this->actions->pipeline(more: $this->bindings(), types: app(TypeCatalog::class));
     }
 
     /**
@@ -105,7 +112,7 @@ final class AccessPagesWorld
      */
     public function refusing(): QueryPipeline
     {
-        return $this->actions->pipeline(new FakeQueryAuthorizer('The test refuses every read.'), $this->bindings());
+        return $this->actions->pipeline(new FakeQueryAuthorizer('The test refuses every read.'), $this->bindings(), app(TypeCatalog::class));
     }
 
     /**
@@ -121,7 +128,7 @@ final class AccessPagesWorld
             unset($bindings[$query]);
         }
 
-        return $this->actions->pipeline(more: $bindings);
+        return $this->actions->pipeline(more: $bindings, types: app(TypeCatalog::class));
     }
 
     /**
@@ -240,6 +247,8 @@ final class AccessPagesWorld
             ListActors::class => ProbeQueryBinding::of(new ListActorsAction($actors), 'actor.list', 1),
             ListNodes::class => ProbeQueryBinding::of(new ListNodesAction(ListingWorld::nodeListing(ListingWorld::ADMIN)), 'node.list', 1),
             ListEntries::class => ProbeQueryBinding::of(new ListEntriesAction(EntryListingWorld::listing(EntryListingWorld::ADMIN)), 'entry.list', 1),
+            GetEntry::class => ProbeQueryBinding::of(new GetEntryAction(EntryListingWorld::listing(EntryListingWorld::ADMIN)), 'entry.get', 1),
+            DescribeType::class => ProbeQueryBinding::of(new DescribeTypeAction(app(TypeEditors::class)), 'type.describe', 1),
             ListTypes::class => ProbeQueryBinding::of(new ListTypesAction(app(TypeEditors::class)), 'type.list', 1),
         ];
     }

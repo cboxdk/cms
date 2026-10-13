@@ -10,6 +10,7 @@ use Cbox\Cms\Contracts\PanelPoints\PageName;
 use Cbox\Cms\Panel\Access\Domain\AccessGrants;
 use Cbox\Cms\Panel\Access\Domain\AccessRoles;
 use Cbox\Cms\Panel\Account\Domain\AccountMe;
+use Cbox\Cms\Panel\Content\Domain\ContentEditor;
 use Cbox\Cms\Panel\Content\Domain\ContentList;
 use Cbox\Cms\Panel\Domain\PanelRoute;
 
@@ -40,11 +41,21 @@ enum OwnPage: string
     /** The content list, `<prefix>/content`, which reads entry.list (PRD 5.4); the list of one type is below it. */
     case ContentList = ContentList::PAGE;
 
+    /**
+     * The entry editor, `<prefix>/content/<type>/new` and `<prefix>/content/<type>/<entry>`, which
+     * reads type.describe, entry.get and, for a new entry, node.list (PRD 5.4, 11.12). Its address
+     * names a type and an entry, so no link or nav entry of its own opens it (linkable()).
+     */
+    case ContentEditor = ContentEditor::PAGE;
+
     public function name(): PageName
     {
         return new PageName($this->value);
     }
 
+    /**
+     * The route that serves the page.
+     */
     public function route(): PanelRoute
     {
         return match ($this) {
@@ -53,7 +64,18 @@ enum OwnPage: string
             self::AccessRoles => PanelRoute::AccessRoles,
             self::AccessGrants => PanelRoute::AccessGrants,
             self::ContentList => PanelRoute::ContentList,
+            self::ContentEditor => PanelRoute::ContentEditor,
         };
+    }
+
+    /**
+     * Whether the page has an address of its own, which a link or a nav entry opens: false for a
+     * page whose address names what it shows, such as the entry editor, which is reached from a
+     * page that names the entry.
+     */
+    public function linkable(): bool
+    {
+        return $this !== self::ContentEditor;
     }
 
     /**
@@ -67,12 +89,14 @@ enum OwnPage: string
             self::AccessRoles => AccessRoles::query(),
             self::AccessGrants => AccessGrants::query(),
             self::ContentList => ContentList::query(),
+            self::ContentEditor => ContentEditor::entryQuery(),
         };
     }
 
     /**
      * Every query the page reads as the person: the one its props come from, and those of the
-     * pickers of its forms, each of which is on REST too (QueryPageParity).
+     * other reads of its props and of the pickers of its forms, each of which is on REST too
+     * (QueryPageParity).
      *
      * @return list<CommandRef>
      */
@@ -84,6 +108,7 @@ enum OwnPage: string
             ...($query instanceof CommandRef ? [$query] : []),
             ...match ($this) {
                 self::AccessGrants => AccessGrants::pickers(),
+                self::ContentEditor => [ContentEditor::typeQuery(), ContentEditor::nodesQuery()],
                 default => [],
             },
         ];

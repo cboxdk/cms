@@ -27,7 +27,7 @@ use Pest\Browser\Api\PendingAwaitablePage;
  * by its title field with its type, state and last change, pages through it with Next and
  * Previous, filters it by state and by type with the filter chips, both kept in the address,
  * switches between comfortable and compact rows, and finds the empty list of a type without
- * entries with the create action. While another page loads, the table says so; a read the query
+ * entries with the create action, which opens the entry editor of a new entry of the type. While another page loads, the table says so; a read the query
  * pipeline rejects shows the problem details with what the code means. Every page and state makes
  * the shared assertions at the three widths of a phone, a tablet and a desktop: the translated
  * texts, an empty console, no script error, no axe finding at any impact, every WCAG 2.2 AA rule,
@@ -245,7 +245,7 @@ it('shows the empty list of a type without entries with the create action', func
         ->and($page->script('document.querySelector(\'nav a[aria-current="page"]\')?.textContent'))->toBe('Fixture measurement');
 
     $page->click('main [role="grid"] button:has-text("'.PanelPage::text('panel.content.create').'")');
-    contentWaitUntil($page, 'location.pathname.startsWith("/cms/commands/entry.create/v")');
+    contentWaitUntil($page, 'location.pathname === "/cms/content/app:fixture_measurement/new"');
 });
 
 it('says what it waits for while another page loads', function (): void {

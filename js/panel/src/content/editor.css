@@ -1,0 +1,28 @@
+/*
+ * The entry editor (js/panel/src/pages/Content/Editor.tsx): the status of the last save beside the
+ * entry's state in the header, in the mono face as the design's save state is, the shortcut of
+ * the Save button, which a phone leaves out, and the place of a
+ * new entry in the site, whose fieldset only disables the picker while a save runs and adds no box
+ * of its own.
+ */
+@layer cms.panel {
+  .cms-panel-editor__status {
+    color: var(--cms-color-text-muted);
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-sm);
+  }
+
+  /* A phone has no keys for the shortcut, so the Save button leaves it out there. */
+  @media (max-width: 40rem) {
+    .cms-panel-editor__shortcut {
+      display: none;
+    }
+  }
+
+  .cms-panel-editor__home {
+    border: 0;
+    margin: 0;
+    min-inline-size: 0;
+    padding: 0;
+  }
+}

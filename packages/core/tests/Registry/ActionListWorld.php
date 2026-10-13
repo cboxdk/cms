@@ -27,6 +27,7 @@ use Cbox\Cms\Contracts\PanelPoints\Scope;
 use Cbox\Cms\Contracts\Pipeline\Query;
 use Cbox\Cms\Contracts\Pipeline\QueryCost;
 use Cbox\Cms\Contracts\Results\QueryResult;
+use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Access\Actions\CreateRoleAction;
 use Cbox\Cms\Core\Access\Domain\Commands\CreateRole;
 use Cbox\Cms\Core\Access\Domain\Dto\Grant;
@@ -214,11 +215,12 @@ final class ActionListWorld
     /**
      * The query pipeline over the world's fakes, which a surface test binds in the container, with
      * the authorizer deciding from the world's grants as the kernel's does unless a test gives one,
-     * and the bindings of other queries a test's pages read beside action.list.
+     * the bindings of other queries a test's pages read beside action.list, and the type catalog
+     * the fields of a read of content are kept by, none unless a test gives one.
      *
      * @param  array<class-string<Query>, QueryBinding>  $more
      */
-    public function pipeline(?FakeQueryAuthorizer $authorizer = null, array $more = []): QueryPipeline
+    public function pipeline(?FakeQueryAuthorizer $authorizer = null, array $more = [], ?TypeCatalog $types = null): QueryPipeline
     {
         return new QueryPipeline(
             new FakeQueryActions([ListActions::class => ProbeQueryBinding::of($this->action(), 'action.list', 1), ...$more]),
@@ -226,7 +228,7 @@ final class ActionListWorld
             $this->access,
             $authorizer ?? FakeQueryAuthorizer::granting($this->permissions),
             new QuerySettings(new QueryCost(200), new QueryCost(1000)),
-            new ReadableFields(new FakeTypeCatalog),
+            new ReadableFields($types ?? new FakeTypeCatalog),
             new FakeReadAudit,
             new FakeQueryTransaction(sessions: $this->access),
             new PipelineTelemetry(new FakeTelemetry, $this->clock, new FakeStopwatch),

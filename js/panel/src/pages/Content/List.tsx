@@ -14,6 +14,7 @@ import {
   RowTitle,
   SegmentedControl,
   Stack,
+  TextLink,
   Timestamp,
   type TableDensity,
 } from '@cboxdk/cms-ui-kit';
@@ -33,7 +34,8 @@ import {
   statusOf,
   titleOf,
 } from '../../content/list';
-import { typesById, typesOf } from '../../content/types';
+import { CREATE, entryUrl, mayRun, newEntryUrl } from '../../content/editor';
+import { typesById, typeListUrl, typesOf } from '../../content/types';
 import type { ContentListPageV1 } from '../../generated/pages/ContentListPageV1';
 import { validateEntryListV1, type ListedEntryV1 } from '../../generated/protocol/EntryListV1';
 import type { TypeEditorV1 } from '../../generated/protocol/TypeEditorV1';
@@ -46,10 +48,13 @@ import { commandFormUrl, PanelShell } from '../../shell/PanelShell';
  * The content list (PRD 5.4, 13.4): the entries the person reaches, newest first, across every type
  * or of the type the address names, read with entry.list as the person a keyset page at a time.
  * Each row shows the entry's title, the title field its type's editor descriptor names, below it the
- * type's label, a pill of its state and its last change. The filter chips choose the type, which
+ * type's label, a pill of its state and its last change, and the title opens the entry in the
+ * entry editor. The filter chips choose the type, which
  * opens that type's list, and the release state of the shared variant, both kept in the address,
  * and the density, comfortable or compact, is the reader's own setting, kept in this browser. With
- * no entries the page offers the first action, the form of entry.create when the person may run it;
+ * no entries the page offers the first action when the person may run entry.create: the entry
+ * editor of a new entry of the type the list shows, or the form of entry.create across every type
+ * and for a type with a variant per language;
  * while another page loads, the table says so; a rejected read shows the problem details with what
  * the code means, and an answer the panel cannot read says what to do. The types come from the
  * shared prop `types`, the read of type.list, and the props are ContentListPageV1, generated from
@@ -92,13 +97,19 @@ export default function List({ logout, rejection, result, state, type }: Content
     router.visit(url, { onStart: visit.onStart, onFinish: visit.onFinish });
   }
 
+  // The list of a type the editor edits opens the editor of a new entry of the type; the list of
+  // every type, and a type with a variant per language, open the form of entry.create.
+  const editorCreate =
+    shown !== undefined && shown.capabilities.localization === 'none' && mayRun(palette, CREATE)
+      ? newEntryUrl(typeListUrl(content, shown.name))
+      : null;
   const createButton =
     create === null ? undefined : (
       <Button
         variant="primary"
         icon="plus"
         onClick={() => {
-          router.visit(commandFormUrl(contributions.commands, create));
+          router.visit(editorCreate ?? commandFormUrl(contributions.commands, create));
         }}
       >
         {t('panel.content.create')}
@@ -182,7 +193,7 @@ export default function List({ logout, rejection, result, state, type }: Content
                       const entryType = typeOf(entry);
                       const text = titleOf(entry, entryType);
 
-                      return (
+                      const title = (
                         <RowTitle
                           title={text ?? t('panel.content.untitled')}
                           fallback={text === null}
@@ -192,6 +203,15 @@ export default function List({ logout, rejection, result, state, type }: Content
                               : undefined
                           }
                         />
+                      );
+
+                      // An entry of a type the person sees opens in the entry editor.
+                      return entryType === undefined ? (
+                        title
+                      ) : (
+                        <TextLink href={entryUrl(typeListUrl(content, entryType.name), entry.id)}>
+                          {title}
+                        </TextLink>
                       );
                     },
                   },

@@ -15,6 +15,7 @@ use Cbox\Cms\Panel\Assets\BrandController;
 use Cbox\Cms\Panel\Assets\ThemeController;
 use Cbox\Cms\Panel\Boundary\HandlePanelRequests;
 use Cbox\Cms\Panel\Branding\Domain\Dto\BrandFile;
+use Cbox\Cms\Panel\Content\Domain\ContentEditor;
 use Cbox\Cms\Panel\Content\Domain\ContentList;
 use Cbox\Cms\Panel\Domain\BundleHash;
 use Cbox\Cms\Panel\Domain\Dto\PanelBuild;
@@ -30,6 +31,7 @@ use Cbox\Cms\Panel\Pages\AccessRolesController;
 use Cbox\Cms\Panel\Pages\AccountMeController;
 use Cbox\Cms\Panel\Pages\AddonPageController;
 use Cbox\Cms\Panel\Pages\CommandFormController;
+use Cbox\Cms\Panel\Pages\ContentEditorController;
 use Cbox\Cms\Panel\Pages\ContentListController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordController;
 use Cbox\Cms\Panel\Pages\ForgotPasswordPageController;
@@ -84,7 +86,10 @@ use Illuminate\Routing\Route;
  *     `GET <prefix>/access/grants`, the roles and grants pages, which read role.list and
  *     grant.list as the person (PanelRoute::AccessRoles, AccessGrants), `GET <prefix>/content` and
  *     `GET <prefix>/content/{type}`, the content list across every type and of one, which reads
- *     entry.list as the person (PanelRoute::ContentList, ContentListOfType), and
+ *     entry.list as the person (PanelRoute::ContentList, ContentListOfType), `GET
+ *     <prefix>/content/{type}/new` and `GET <prefix>/content/{type}/{entry}`, the entry editor,
+ *     which reads type.describe, entry.get and node.list as the person (PanelRoute::ContentEditorNew,
+ *     ContentEditor), and
  *     `GET <prefix>/x/{namespace}/{path}`, a page of an addon, its PageContribution at the path,
  *     with its data query's result as its props (PanelRoute::AddonPage), or the page for a path the
  *     panel does not have when no addon has such a page or the person may not open it;
@@ -167,6 +172,10 @@ final readonly class PanelRoutes
                     self::page($router->get(ContentList::PATH, ContentListController::class), PanelRoute::ContentList);
                     self::page($router->get(ContentList::TYPE_PATH, ContentListController::class)
                         ->where('type', ContentList::TYPE_SEGMENT), PanelRoute::ContentListOfType);
+                    self::page($router->get(ContentEditor::NEW_PATH, ContentEditorController::class)
+                        ->where('type', ContentList::TYPE_SEGMENT), PanelRoute::ContentEditorNew);
+                    self::page($router->get(ContentEditor::ENTRY_PATH, ContentEditorController::class)
+                        ->where(['type' => ContentList::TYPE_SEGMENT, 'entry' => ContentEditor::ENTRY_SEGMENT]), PanelRoute::ContentEditor);
                     self::page($router->get(PanelRoute::ADDON_PAGES_PATH.'/{namespace}/{path}', AddonPageController::class)
                         ->where(['namespace' => self::NAMESPACE_SEGMENT, 'path' => self::PAGE_PATH]), PanelRoute::AddonPage);
                 });

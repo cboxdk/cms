@@ -52,7 +52,7 @@ use Cbox\Cms\Panel\Shell\Domain\Shell;
  *    name; an action must also be of a command the viewer may run, so no action is shown that the
  *    server would refuse (section 3.3 of the panel extension architecture); and a nav entry must
  *    link to a page the viewer gets, an addon's page among the active ones or one of the panel's
- *    own pages (OwnPage), whose own permission the entry's scope requires, so no entry leads to a
+ *    own pages (OwnPage) with an address of their own, whose own permission the entry's scope requires, so no entry leads to a
  *    page the viewer may not open. A fill the viewer may not see is never listed and never handed
  *    anything.
  * 4. Access: each fill is handed the point's props, and runs its data query, at the lower of the
@@ -149,7 +149,7 @@ final readonly class ResolveContributions
         foreach ($resolved as [$candidate, $active]) {
             $active = array_values(array_filter(
                 $active,
-                static fn (ActiveFill $fill): bool => ! $fill->fill->declaration instanceof NavContribution || isset($pages[$fill->fill->declaration->page]) || OwnPage::named($fill->fill->declaration->page) instanceof OwnPage,
+                static fn (ActiveFill $fill): bool => ! $fill->fill->declaration instanceof NavContribution || isset($pages[$fill->fill->declaration->page]) || OwnPage::named($fill->fill->declaration->page)?->linkable() === true,
             ));
 
             if ($active !== []) {

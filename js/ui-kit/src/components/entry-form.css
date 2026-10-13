@@ -22,6 +22,14 @@
     min-inline-size: 0;
   }
 
+  /*
+   * The sidebar is a container of its own, so the widths of its placements follow the sidebar's
+   * width and not the form's: a half in an 18rem sidebar would be too narrow for its label.
+   */
+  .cms-entry-form__sidebar {
+    container-type: inline-size;
+  }
+
   @container (min-width: 56rem) {
     .cms-entry-form__layout[data-sidebar='true'] {
       grid-template-columns: minmax(0, 1fr) minmax(14rem, 18rem);

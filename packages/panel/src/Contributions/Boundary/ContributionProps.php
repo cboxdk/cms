@@ -273,8 +273,8 @@ final readonly class ContributionProps
     }
 
     /**
-     * The pages a contribution may navigate to, sorted by page id: the panel's own pages (OwnPage),
-     * each at its route, and every page of an addon the viewer may open, at
+     * The pages a contribution may navigate to, sorted by page id: the panel's own pages (OwnPage)
+     * that have an address of their own (linkable()), each at its route, and every page of an addon the viewer may open, at
      * `<prefix>/x/<namespace>/<path>`.
      *
      * @return list<PageLinkProp>
@@ -284,7 +284,9 @@ final readonly class ContributionProps
         $pages = [];
 
         foreach (OwnPage::cases() as $own) {
-            $pages[$own->value] = new PageLinkProp($own->value, rtrim($this->urls->route($own->route()->value, [], false), '/'));
+            if ($own->linkable()) {
+                $pages[$own->value] = new PageLinkProp($own->value, rtrim($this->urls->route($own->route()->value, [], false), '/'));
+            }
         }
 
         foreach ($active->pages() as $page) {

@@ -11,7 +11,9 @@ use Cbox\Cms\Core\Access\Actions\ListGrantsAction;
 use Cbox\Cms\Core\Access\Actions\ListRolesAction;
 use Cbox\Cms\Core\Access\Domain\Queries\ListGrants;
 use Cbox\Cms\Core\Access\Domain\Queries\ListRoles;
+use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
 use Cbox\Cms\Core\Identity\Actions\WhoAmIAction;
@@ -20,6 +22,8 @@ use Cbox\Cms\Core\Identity\Domain\Queries\WhoAmI;
 use Cbox\Cms\Core\Registry\Domain\ActionKind;
 use Cbox\Cms\Core\Registry\Domain\Dto\ActionEntry;
 use Cbox\Cms\Core\Registry\Domain\Dto\CompiledRegistry;
+use Cbox\Cms\Core\Schema\Actions\DescribeTypeAction;
+use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
 use Cbox\Cms\Core\Structure\Actions\ListNodesAction;
 use Cbox\Cms\Core\Structure\Domain\Queries\ListNodes;
 use Cbox\Cms\Panel\Account\Domain\AccountMe;
@@ -29,7 +33,8 @@ use Cbox\Cms\Panel\Shell\Domain\QueryPageParity;
 /*
  * The panel's own pages that read stay in parity with REST (decided by Sylvester on 29 September
  * 2026): the who-am-I page reads actor.me, the roles page role.list and the grants page grant.list
- * and, for its pickers, actor.list, role.list and node.list, so the registry must expose each on
+ * and, for its pickers, actor.list, role.list and node.list, the content list entry.list and the
+ * entry editor entry.get, type.describe and node.list, so the registry must expose each on
  * REST, or the page is an Inertia query page without a REST route, which SurfaceParityTest fails
  * on. A planted registry whose actor.me is on Inertia alone, or which lacks the queries, names
  * every page and query it fails; one with every query on REST and Inertia is not named, and the
@@ -45,7 +50,7 @@ function actorMeEntry(array $surfaces): ActionEntry
 }
 
 /**
- * The query actions of the access pages and of the content list, each on REST and Inertia.
+ * The query actions of the access pages, the content list and the entry editor, each on REST and Inertia.
  *
  * @return list<ActionEntry>
  */
@@ -59,21 +64,23 @@ function accessEntries(): array
         new ActionEntry(ListActorsAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('actor.list'), 1, ListActors::class, $panel),
         new ActionEntry(ListNodesAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('node.list'), 1, ListNodes::class, $panel),
         new ActionEntry(ListEntriesAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('entry.list'), 1, ListEntries::class, $panel),
+        new ActionEntry(GetEntryAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('entry.get'), 1, GetEntry::class, $panel),
+        new ActionEntry(DescribeTypeAction::class, 'cboxdk/cms', ActionKind::Query, new CommandName('type.describe'), 1, DescribeType::class, $panel),
     ];
 }
 
 /** Every query of every own page, as broken() names them for a registry without any. */
-const EVERY_PAGE_QUERY = ['account.me reads actor.me@1', 'access.roles reads role.list@1', 'access.grants reads grant.list@1', 'access.grants reads actor.list@1', 'access.grants reads role.list@1', 'access.grants reads node.list@1', 'content.list reads entry.list@1'];
+const EVERY_PAGE_QUERY = ['account.me reads actor.me@1', 'access.roles reads role.list@1', 'access.grants reads grant.list@1', 'access.grants reads actor.list@1', 'access.grants reads role.list@1', 'access.grants reads node.list@1', 'content.list reads entry.list@1', 'content.editor reads entry.get@1', 'content.editor reads type.describe@1', 'content.editor reads node.list@1'];
 
 it('names the who-am-I page when its query is planted on Inertia alone, and every page and query of a registry without them', function (): void {
     expect(QueryPageParity::broken(new CompiledRegistry([], [], [actorMeEntry([Surface::Inertia]), ...accessEntries()]), OwnPage::cases()))->toBe(['account.me reads actor.me@1'])
         ->and(QueryPageParity::broken(CompiledRegistry::empty(), OwnPage::cases()))->toBe(EVERY_PAGE_QUERY);
 });
 
-it('names the grants page for each picker query the registry lacks', function (): void {
+it('names the grants page and the entry editor for each query of theirs the registry lacks', function (): void {
     $withoutNodes = array_values(array_filter(accessEntries(), static fn (ActionEntry $entry): bool => $entry->command->value !== 'node.list'));
 
-    expect(QueryPageParity::broken(new CompiledRegistry([], [], [actorMeEntry([Surface::Rest, Surface::Inertia]), ...$withoutNodes]), OwnPage::cases()))->toBe(['access.grants reads node.list@1']);
+    expect(QueryPageParity::broken(new CompiledRegistry([], [], [actorMeEntry([Surface::Rest, Surface::Inertia]), ...$withoutNodes]), OwnPage::cases()))->toBe(['access.grants reads node.list@1', 'content.editor reads node.list@1']);
 });
 
 it('accepts a registry with every query on REST, and the start page reads nothing', function (): void {
@@ -85,10 +92,13 @@ it('accepts a registry with every query on REST, and the start page reads nothin
         ->and(OwnPage::AccessGrants->query()?->toString())->toBe('grant.list@1')
         ->and(OwnPage::ContentList->query()?->toString())->toBe('entry.list@1')
         ->and(OwnPage::ContentList->queries())->toHaveCount(1)
+        ->and(OwnPage::ContentEditor->query()?->toString())->toBe('entry.get@1')
+        ->and(array_map(static fn (CommandRef $query): string => $query->toString(), OwnPage::ContentEditor->queries()))->toBe(['entry.get@1', 'type.describe@1', 'node.list@1'])
         ->and(array_map(static fn (CommandRef $query): string => $query->toString(), OwnPage::AccessGrants->queries()))->toBe(['grant.list@1', 'actor.list@1', 'role.list@1', 'node.list@1'])
         ->and(OwnPage::named('account.me'))->toBe(OwnPage::AccountMe)
         ->and(OwnPage::named('access.roles'))->toBe(OwnPage::AccessRoles)
         ->and(OwnPage::named('access.grants'))->toBe(OwnPage::AccessGrants)
         ->and(OwnPage::named('content.list'))->toBe(OwnPage::ContentList)
+        ->and(OwnPage::named('content.editor'))->toBe(OwnPage::ContentEditor)
         ->and(OwnPage::named('tally.board'))->toBeNull();
 });

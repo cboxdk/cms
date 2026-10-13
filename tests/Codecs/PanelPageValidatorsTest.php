@@ -35,6 +35,7 @@ use Cbox\Cms\Panel\Boundary\Generated\AccessRolesPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AccountMePageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\AddonPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\CommandFormPageCodecV1;
+use Cbox\Cms\Panel\Boundary\Generated\ContentEditorPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ContentListPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\ForgotPasswordPageCodecV1;
 use Cbox\Cms\Panel\Boundary\Generated\GrantPickersCodecV1;
@@ -111,6 +112,7 @@ final class PanelPageValidatorsTest extends TestCase
         PanelPages::ACCESS_ROLES => ['module' => 'pages/AccessRolesPageV1', 'validator' => 'validateAccessRolesPageV1'],
         PanelPages::ACCESS_GRANTS => ['module' => 'pages/AccessGrantsPageV1', 'validator' => 'validateAccessGrantsPageV1'],
         PanelPages::CONTENT_LIST => ['module' => 'pages/ContentListPageV1', 'validator' => 'validateContentListPageV1'],
+        PanelPages::CONTENT_EDITOR => ['module' => 'pages/ContentEditorPageV1', 'validator' => 'validateContentEditorPageV1'],
     ];
 
     /** The generated module and validator of the grants page's optional prop, the pickers. */
@@ -195,8 +197,8 @@ final class PanelPageValidatorsTest extends TestCase
             self::assertSame(['valid' => true], $verdicts[$index], sprintf('%s %s: %s', $page['state'], $page['component'], $page['props']));
 
             self::assertSame(
-                json_decode($page['props'], true, 16, JSON_THROW_ON_ERROR),
-                json_decode($this->readBack($page['component'], $page['props']), true, 16, JSON_THROW_ON_ERROR),
+                json_decode($page['props'], true, 64, JSON_THROW_ON_ERROR),
+                json_decode($this->readBack($page['component'], $page['props']), true, 64, JSON_THROW_ON_ERROR),
                 sprintf('%s %s reads back through its PHP codec.', $page['state'], $page['component']),
             );
         }
@@ -209,6 +211,8 @@ final class PanelPageValidatorsTest extends TestCase
         self::assertContains('grants with the read refused', $states);
         self::assertContains('content of a type in a state after an entry', $states);
         self::assertContains('content with the read refused', $states);
+        self::assertContains('new entry', $states);
+        self::assertContains('entry with the reads refused', $states);
         self::assertStringContainsString('"code":"unauthorized"', $rendered[array_search('grants with the read refused', $states, true)]['props'] ?? '');
     }
 
@@ -429,10 +433,13 @@ final class PanelPageValidatorsTest extends TestCase
         $page('grants', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/grants'));
         $page('content', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content'));
         $page('content of a type in a state after an entry', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content/app:fixture_article?state=released&after='.EntryListingWorld::THIRD));
+        $page('new entry', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content/app:fixture_article/new'));
+        $page('entry', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content/app:fixture_article/'.EntryListingWorld::FIRST));
         $this->readWith($access->refusing());
         $page('roles with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/roles'));
         $page('grants with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/access/grants'));
         $page('content with the read refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content'));
+        $page('entry with the reads refused', $this->withUnencryptedCookie($this->cookieName(), $session)->get('/cms/content/app:fixture_article/'.EntryListingWorld::FIRST));
         $page('not found', $this->get('/cms/no-such-page'));
 
         return $pages;
@@ -545,6 +552,7 @@ final class PanelPageValidatorsTest extends TestCase
             PanelPages::ACCESS_ROLES => $this->through(new AccessRolesPageCodecV1, $props),
             PanelPages::ACCESS_GRANTS => $this->through(new AccessGrantsPageCodecV1, $props),
             PanelPages::CONTENT_LIST => $this->through(new ContentListPageCodecV1, $props),
+            PanelPages::CONTENT_EDITOR => $this->through(new ContentEditorPageCodecV1, $props),
             default => self::fail('No codec for the page '.$component.'.'),
         };
     }
