@@ -123,6 +123,7 @@ use Cbox\Cms\Core\Egress\Domain\Dto\EgressSettings;
 use Cbox\Cms\Core\Entries\Adapter\EntryCreatedWriter;
 use Cbox\Cms\Core\Entries\Adapter\HeadMovedWriter;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryListing;
+use Cbox\Cms\Core\Entries\Adapter\PostgresEntryPreviews;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryReader;
 use Cbox\Cms\Core\Entries\Adapter\PostgresEntryVersionLock;
 use Cbox\Cms\Core\Entries\Adapter\PostgresRelationTargets;
@@ -134,6 +135,7 @@ use Cbox\Cms\Core\Entries\Adapter\VariantReleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantUnreleasedWriter;
 use Cbox\Cms\Core\Entries\Adapter\VariantWithdrawnWriter;
 use Cbox\Cms\Core\Entries\Domain\EntryListing;
+use Cbox\Cms\Core\Entries\Domain\EntryPreviews;
 use Cbox\Cms\Core\Entries\Domain\EntryReader;
 use Cbox\Cms\Core\Fragments\Adapter\PostgresSubtreeNodes;
 use Cbox\Cms\Core\Fragments\Boundary\InvalidationConfig;
@@ -569,9 +571,10 @@ final class CoreServiceProvider extends ServiceProvider implements DeclaresScanR
         // published revision, the release log and the type table's rows (PRD 4.1, 11.6).
         $this->app->bind(EntryReader::class, PostgresEntryReader::class);
         $this->app->bind(RevisionContents::class, PostgresRevisionContents::class);
-        // entry.get and entry.list (PRD 5.4, 5.7, 8.8): what the entry reads read, under the read's
-        // actor context and the explicit access predicate.
+        // entry.get, entry.list and entry.preview (PRD 5.4, 5.7, 8.8, 8.9): what the entry reads
+        // read, under the read's actor context and the explicit access predicate.
         $this->app->bind(EntryListing::class, PostgresEntryListing::class);
+        $this->app->bind(EntryPreviews::class, PostgresEntryPreviews::class);
         $this->app->bind(PublicPlacements::class, ReaderPublicPlacements::class);
         $this->app->bind(RelationTargets::class, PostgresRelationTargets::class);
         $this->app->tag([EntryCreatedWriter::class, RevisionCreatedWriter::class, HeadMovedWriter::class, VariantReleasedWriter::class], MutationWriters::TAG);

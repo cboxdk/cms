@@ -34,6 +34,7 @@ import type { ContentEditorPageV1 } from '../../src/generated/pages/ContentEdito
 import type { ActionListV1 } from '../../src/generated/protocol/ActionListV1';
 import { recoveryKey, RecoveryStore } from '../../src/content/recovery';
 import type { EntryDetailV1, EntryHeadV1 } from '../../src/generated/protocol/EntryDetailV1';
+import type { EntryPreviewV1 } from '../../src/generated/protocol/EntryPreviewV1';
 import { validateProblemV1, type ProblemV1 } from '../../src/generated/protocol/ProblemV1';
 import type { ReceiptV1 } from '../../src/generated/protocol/ReceiptV1';
 import { validateTypeEditorV1, type TypeEditorV1 } from '../../src/generated/protocol/TypeEditorV1';
@@ -130,6 +131,17 @@ const DETAIL: EntryDetailV1 = {
   version: 1,
 };
 
+const PREVIEW: EntryPreviewV1 = {
+  data: { cms_id: ENTRY, name: 'Oak table' },
+  draft: 2,
+  entry: ENTRY,
+  released: null,
+  revision: 2,
+  state: 'unreleased',
+  type: 'shop:product',
+  variant: 'shared',
+};
+
 function read(result: unknown) {
   return { rejection: null, result: result as Record<string, never> };
 }
@@ -140,7 +152,9 @@ function props(changes: Partial<ContentEditorPageV1> = {}): ContentEditorPageV1 
     entry_read: read(DETAIL),
     list: '/cms/content/shop:product',
     logout: '/cms/logout',
-    nodes_read: null,
+    nodes_read: read({ next: null, nodes: [] }),
+    preview_read: read(PREVIEW),
+    revision: null,
     type: 'shop:product',
     type_read: read({ type: PRODUCT }),
     ...changes,
@@ -225,23 +239,26 @@ beforeEach(() => {
 });
 
 describe('what the page reads', () => {
-  test('the form of an entry: the descriptor, the entry and its shared head', () => {
+  test('the form of an entry: the descriptor, the entry and its shared head, the nodes and the preview', () => {
     const state = editorStateOf(props());
 
     expect(state.status).toBe('ready');
     expect(state.status === 'ready' ? state.head?.version : null).toBe(4);
-    expect(state.status === 'ready' ? state.nodes : 'no').toBeNull();
+    expect(state.status === 'ready' ? [state.nodes.status, state.preview] : null).toEqual([
+      'ready',
+      { status: 'ready', value: PREVIEW },
+    ]);
+    expect(
+      editorStateOf(props({ preview_read: { rejection: null, result: { data: 'none' } } })),
+    ).toMatchObject({ status: 'ready', preview: { status: 'unreadable' } });
   });
 
   test('the form of a new entry with the nodes its home may be', () => {
-    const state = editorStateOf(
-      props({ entry: null, entry_read: null, nodes_read: read({ next: null, nodes: [] }) }),
-    );
+    const state = editorStateOf(props({ entry: null, entry_read: null, preview_read: null }));
 
-    expect(state.status === 'ready' ? [state.entry, state.nodes?.status] : null).toEqual([
-      null,
-      'ready',
-    ]);
+    expect(
+      state.status === 'ready' ? [state.entry, state.nodes.status, state.preview] : null,
+    ).toEqual([null, 'ready', null]);
   });
 
   test('no form for a type it has not, an entry of another type, a type with languages, a refusal or an answer it cannot read', () => {
@@ -424,6 +441,7 @@ describe('the page', () => {
       props({
         entry: null,
         entry_read: null,
+        preview_read: null,
         nodes_read: read({
           next: null,
           nodes: [

@@ -131,12 +131,15 @@ final readonly class PanelPageSchemas
      * command palette reads; the results of role.list, grant.list, actor.list and node.list,
      * which the roles and grants pages and the pickers of the grants page read; the results of
      * entry.list and type.list, with the type editor descriptor type.list embeds, which the content
-     * list and the navigation read; and the results of entry.get and type.describe with the
-     * documents of entry.create and entry.revise version 1, which the entry editor reads and sends.
+     * list and the navigation read; the results of entry.get, entry.preview and type.describe with
+     * the documents of entry.create and entry.revise version 1, which the entry editor reads and
+     * sends; and the documents of placement.create, entry.publish, variant.release,
+     * placement.set_window and entry.unpublish version 1 with the summary of a dry run, which the
+     * editor's publish panel sends and shows.
      *
      * @var list<string>
      */
-    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'CreateEntryCodecV1', 'DryRunSummaryCodecV1', 'EntryDetailCodecV1', 'EntryListCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'ReceiptCodecV1', 'ReviseEntryCodecV1', 'RoleListCodecV1', 'TypeDescriptionCodecV1', 'TypeEditorCodecV1', 'TypeListCodecV1'];
+    public const array PROTOCOL_CODECS = ['ActionListCodecV1', 'ActorListCodecV1', 'ActorMeCodecV1', 'CreateEntryCodecV1', 'CreatePlacementCodecV1', 'DryRunSummaryCodecV1', 'EntryDetailCodecV1', 'EntryListCodecV1', 'EntryPreviewCodecV1', 'GrantListCodecV1', 'NodeListCodecV1', 'ProblemCodecV1', 'PublishEntryCodecV1', 'ReceiptCodecV1', 'ReleaseVariantCodecV1', 'ReviseEntryCodecV1', 'RoleListCodecV1', 'SetPlacementWindowCodecV1', 'TypeDescriptionCodecV1', 'TypeEditorCodecV1', 'TypeListCodecV1', 'UnpublishEntryCodecV1'];
 
     /** The stability of the generated codecs: the pages' DTOs are the panel's own. */
     public const string ATTRIBUTE = Internal::class;

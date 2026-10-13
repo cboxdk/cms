@@ -20,12 +20,15 @@ use Illuminate\Http\Response;
  * The entry editor of a person who logged in (PRD 5.4, 11.12, 13.4), at
  * `<prefix>/content/<owner>:<handle>/new` for a new entry of the type and
  * `<prefix>/content/<owner>:<handle>/<entry>` for an entry: the type's editor descriptor read with
- * type.describe, the entry read with entry.get and, for a new entry, the nodes its home may be
- * read with node.list, each through the QueryPipeline as the person, from the session credential,
+ * type.describe, the nodes a new entry's home and an entry's placements may be below read with
+ * node.list, and for an entry the entry read with entry.get and the preview of its draft, or of
+ * the revision the address names, read with entry.preview, each through the QueryPipeline as the
+ * person, from the session credential,
  * with the result codec's document in the page's props, and the contributions active for the
  * person on the points it renders; an address that names a type the installation does not have,
  * or an entry that is no id, is the page for a path the panel does not have. A save is a command
- * the page posts to the Inertia profile, which answers with a redirect back here. It holds no
+ * the page posts to the Inertia profile, which answers with a redirect back here, as do the
+ * commands of the publish panel. It holds no
  * logic of its own: ContentEditorRequest reads the request, and PanelPages answers it.
  */
 #[Internal]
@@ -49,6 +52,7 @@ final readonly class ContentEditorController
         }
 
         $active = $this->resolve->resolve($this->page->view($request));
+        $revision = $this->page->revision($request);
 
         return $this->pages->contentEditor(
             $request,
@@ -56,7 +60,9 @@ final readonly class ContentEditorController
             $this->page->list($target),
             $this->page->type($request, $target, $this->pipeline->run(...)),
             $this->page->entry($request, $target, $this->pipeline->run(...)),
-            $this->page->nodes($request, $target, $this->pipeline->run(...)),
+            $this->page->nodes($request, $this->pipeline->run(...)),
+            $this->page->preview($request, $target, $revision, $this->pipeline->run(...)),
+            $revision,
             $this->contributions->props($request, $active, $this->data->run(...), $this->data->refused(...)),
         );
     }

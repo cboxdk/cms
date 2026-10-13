@@ -1,7 +1,7 @@
 ---
 title: Working with content
 weight: 17
-description: Find the entries you can reach in the content list, across every type or one type at a time, by their titles, states and last changes, with filters, two densities and pages, and create and edit an entry in the entry editor.
+description: Find the entries you can reach in the content list, across every type or one type at a time, by their titles, states and last changes, with filters, two densities and pages, create and edit an entry in the entry editor, place and publish it, and preview it as the site would show it.
 ---
 
 # Working with content
@@ -32,7 +32,7 @@ A type without entries, or a filter that keeps none, shows an empty list. When y
 
 ## Editing an entry
 
-The entry editor shows an entry by its title, with its state and what happened to your last save beside it, and below them the form of the entry's type: its tabs, its sections and, on a wide screen, its sidebar. Open an entry from the content list by its title, or start a new one with New entry in the list of its type.
+The entry editor shows an entry by its title, with its state and what happened to your last save beside it, and below them the form of the entry's type: its tabs, its sections and, on a wide screen, its sidebar. Once the entry is saved, the editor has three views of it: Content, the form; [Publishing](#publishing-an-entry), where it is shown and when; and [Preview](#previewing-an-entry), what the site would show. Open an entry from the content list by its title, or start a new one with New entry in the list of its type.
 
 ![The entry editor on a desktop: the entry by its title with its state and the status of the last save, the Save button with its shortcut, and the form of its type with its tabs and sidebar.](../screenshots/entry-editor.png)
 
@@ -57,3 +57,19 @@ On a phone the form takes the whole width, the sidebar comes after the tabs, and
 ![The entry editor on a phone: the title, the state and the Save button above the form, whose fields fill the width and whose sidebar follows the tabs.](../screenshots/entry-editor-mobile.png)
 
 When you may read an entry but not change it, the editor shows it and says who can give you the permission to save. An entry you cannot reach, or of a type you cannot see, is not shown; the page says why and leads back to the list. A type that keeps a version of each entry per language is edited with the commands for languages until the editor has its language tabs.
+
+## Publishing an entry
+
+Publishing shows whether the entry is released, and every placement of it: an address on a site, written as the part of the site it sits under and its slug, in a language. Each placement says whether it is live, scheduled, hidden, expired or withdrawn, and when it is live. The placement below the entry's own place in the site is marked Home, and the one search engines are told to use is marked Canonical.
+
+![The publish panel of the entry editor: the released revision, the placement by its path with its language, its visibility and its window, the Publish and Schedule buttons, and the form that adds a placement.](../screenshots/entry-publish.png)
+
+To give the entry an address, use Add a placement: choose the part of a site in the tree, give a slug, the last part of the address, and the language, such as da or en. A slug that another entry already has there is refused, and the page says so.
+
+Publish puts a placement live from now and releases the draft with it, so the site shows what you saved last. Schedule asks for a start, an end or both, in your own time zone, and keeps the placement hidden until the start. Unpublish takes the release back and closes every placement that shows the entry, now or later. Each of them is tried first, and nothing changes until you confirm: the page lists the addresses that would become visible and how many things the change touches. When the change is refused, the page says why; when it gets no answer, trying again never makes the change twice.
+
+## Previewing an entry
+
+Preview shows the entry as the site would send it once released: only the fields the public may see, labelled and written in the language you choose, at a phone's width, at reading width or wide. It shows the draft, with a note when the site still shows an earlier revision, and Revision shows any earlier one. Below the document is the record itself, the JSON the site's API answers with. Previewing saves nothing, publishes nothing and changes nothing the site shows.
+
+![The Preview of the entry editor: the revision, language and width switches, a note that the draft is not released, and the record as the site would send it, at reading width.](../screenshots/entry-preview.png)

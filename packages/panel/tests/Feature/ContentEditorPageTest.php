@@ -45,19 +45,20 @@ use PHPUnit\Framework\Attributes\Test;
 use Symfony\Component\HttpFoundation\Response;
 
 /**
- * The entry editor's page props over HTTP (PRD 5.4, 11.12, 13.4), in the workbench, which mounts
+ * The entry editor's page props over HTTP (PRD 5.4, 8.9, 11.12, 13.4), in the workbench, which mounts
  * the panel at /cms, over the fakes of AccessPagesWorld: a person who signed in gets, at
  * /cms/content/<type>/new, the page Content/Editor with the type the address names, no entry, the
  * address of the type's list, the read of type.describe, the type's editor descriptor as the
  * result codec writes it, and the read of node.list, the nodes the new entry's home may be; at
- * /cms/content/<type>/<entry> the same type read and the read of entry.get of the entry as the
- * result codec writes it, without the nodes, with the address's entry in lower case; each read
+ * /cms/content/<type>/<entry> the same type and nodes reads, the read of entry.get of the entry as
+ * the result codec writes it, with the address's entry in lower case, and the read of entry.preview,
+ * the record of its draft, or of the revision the query parameter revision names; each read
  * through the QueryPipeline as the person from the session credential. A rejected read gives the
  * problem details in its place; an address of a type the installation does not have, or of an
  * entry that is no UUIDv7, is the page for a path the panel does not have; the page is never
  * stored; without a session the panel sends the browser to the login. The page reads entry.get,
- * type.describe and node.list, which QueryPageParity holds to REST, and has no address of its own a
- * link or a nav entry opens.
+ * type.describe, node.list and entry.preview, which QueryPageParity holds to REST, and has no
+ * address of its own a link or a nav entry opens.
  */
 final class ContentEditorPageTest extends TestCase
 {
@@ -124,10 +125,14 @@ final class ContentEditorPageTest extends TestCase
         self::assertSame(['rejection' => null, 'result' => $this->typeDocument()], $props['type_read'] ?? null);
         self::assertNull($this->at($props, 'nodes_read', 'rejection'));
         self::assertSame(json_decode(AccessPagesWorld::documents()['node.list'], true, 32, JSON_THROW_ON_ERROR), $this->at($props, 'nodes_read', 'result'));
+        self::assertArrayHasKey('preview_read', $props);
+        self::assertNull($props['preview_read']);
+        self::assertArrayHasKey('revision', $props);
+        self::assertNull($props['revision']);
     }
 
     #[Test]
-    public function the_page_of_an_entry_carries_the_entry_as_entry_get_reads_it_and_no_nodes(): void
+    public function the_page_of_an_entry_carries_the_entry_as_entry_get_reads_it_the_nodes_and_the_preview_of_its_draft(): void
     {
         $props = $this->propsOf($this->page($this->visitSignedIn('/cms/content/'.self::ARTICLE.'/'.strtoupper(EntryListingWorld::FIRST))->assertOk()));
         $entry = json_decode(new EntryDetailCodecV1()->encode(EntryListingWorld::detail(EntryListingWorld::FIRST), ClassificationAccess::Personal), true, 32, JSON_THROW_ON_ERROR);
@@ -135,10 +140,35 @@ final class ContentEditorPageTest extends TestCase
         self::assertSame(EntryListingWorld::FIRST, $props['entry'] ?? null);
         self::assertSame(['rejection' => null, 'result' => $entry], $props['entry_read'] ?? null);
         self::assertSame(['rejection' => null, 'result' => $this->typeDocument()], $props['type_read'] ?? null);
-        self::assertArrayHasKey('nodes_read', $props);
-        self::assertNull($props['nodes_read']);
+        self::assertSame(json_decode(AccessPagesWorld::documents()['node.list'], true, 32, JSON_THROW_ON_ERROR), $this->at($props, 'nodes_read', 'result'));
         self::assertSame('First', $this->at($props, 'entry_read', 'result', 'heads', 0, 'fields', EntryListingWorld::TITLE));
         self::assertSame(1, $this->at($props, 'entry_read', 'result', 'heads', 0, 'version'));
+        self::assertArrayHasKey('revision', $props);
+        self::assertNull($props['revision']);
+        self::assertNull($this->at($props, 'preview_read', 'rejection'));
+        self::assertSame(1, $this->at($props, 'preview_read', 'result', 'revision'));
+        self::assertSame('app:fixture_article', $this->at($props, 'preview_read', 'result', 'type'));
+        self::assertSame('First', $this->at($props, 'preview_read', 'result', 'data', EntryListingWorld::TITLE));
+        self::assertSame(EntryListingWorld::FIRST, $this->at($props, 'preview_read', 'result', 'data', 'cms_id'));
+    }
+
+    #[Test]
+    public function the_page_previews_the_revision_its_address_names_and_the_draft_for_a_parameter_that_is_no_revision(): void
+    {
+        $released = $this->propsOf($this->page($this->visitSignedIn('/cms/content/'.self::ARTICLE.'/'.EntryListingWorld::SECOND.'?revision=2')->assertOk()));
+        $missing = $this->propsOf($this->page($this->visitSignedIn('/cms/content/'.self::ARTICLE.'/'.EntryListingWorld::SECOND.'?revision=9')->assertOk()));
+
+        self::assertSame(2, $released['revision'] ?? null);
+        self::assertSame('Second, released', $this->at($released, 'preview_read', 'result', 'data', EntryListingWorld::TITLE));
+        self::assertSame('revision_not_found', $this->at($missing, 'preview_read', 'rejection', 'code'));
+
+        foreach (['0', 'two', '-1', '1e3'] as $parameter) {
+            $draft = $this->propsOf($this->page($this->visitSignedIn('/cms/content/'.self::ARTICLE.'/'.EntryListingWorld::SECOND.'?revision='.$parameter)->assertOk()));
+
+            self::assertArrayHasKey('revision', $draft, $parameter);
+            self::assertNull($draft['revision'], $parameter);
+            self::assertSame('Second', $this->at($draft, 'preview_read', 'result', 'data', EntryListingWorld::TITLE), $parameter);
+        }
     }
 
     #[Test]
@@ -161,6 +191,7 @@ final class ContentEditorPageTest extends TestCase
         self::assertNull($this->at($props, 'type_read', 'result'));
         self::assertSame('unauthorized', $this->at($props, 'type_read', 'rejection', 'code'));
         self::assertSame('unauthorized', $this->at($props, 'entry_read', 'rejection', 'code'));
+        self::assertSame('unauthorized', $this->at($props, 'preview_read', 'rejection', 'code'));
     }
 
     #[Test]
@@ -182,7 +213,7 @@ final class ContentEditorPageTest extends TestCase
     }
 
     #[Test]
-    public function the_page_is_served_by_its_controller_reads_its_three_queries_and_has_no_address_of_its_own(): void
+    public function the_page_is_served_by_its_controller_reads_its_four_queries_and_has_no_address_of_its_own(): void
     {
         $router = app(Router::class)->getRoutes();
         $new = $router->getByName(PanelRoute::ContentEditorNew->value);
@@ -195,7 +226,7 @@ final class ContentEditorPageTest extends TestCase
         self::assertSame(ContentEditorController::class, $new->getActionName());
         self::assertSame(ContentEditorController::class, $entry->getActionName());
         self::assertSame(ContentEditor::PAGE, OwnPage::ContentEditor->value);
-        self::assertSame(['entry.get@1', 'type.describe@1', 'node.list@1'], array_map(static fn (CommandRef $query): string => $query->toString(), OwnPage::ContentEditor->queries()));
+        self::assertSame(['entry.get@1', 'type.describe@1', 'node.list@1', 'entry.preview@1'], array_map(static fn (CommandRef $query): string => $query->toString(), OwnPage::ContentEditor->queries()));
         self::assertFalse(OwnPage::ContentEditor->linkable());
         self::assertTrue(OwnPage::ContentList->linkable());
     }

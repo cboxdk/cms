@@ -18,6 +18,7 @@ import {
   ProblemDetails,
   Section,
   Stack,
+  Tabs,
   TextLink,
   validateEntry,
   type EntryFormErrors,
@@ -67,6 +68,8 @@ import { useHostRuntime } from '../../host/runtime';
 import { useTranslation, type Translate } from '../../i18n/translations';
 import { paletteOf } from '../../shell/palette';
 import { nodeTree } from '../Access/Grants';
+import { PreviewPanel } from './Preview';
+import { PublishPanel } from './Publish';
 
 import '../../content/editor.css';
 import { commandFormUrl, PanelShell } from '../../shell/PanelShell';
@@ -297,10 +300,11 @@ function EntryEditor({
       : (title ?? t('panel.content.untitled'));
   const nodes = state.nodes;
   const tree = useMemo(
-    () => (nodes?.status === 'ready' ? nodeTree(nodes.value.nodes) : []),
+    () => (nodes.status === 'ready' ? nodeTree(nodes.value.nodes) : []),
     [nodes],
   );
-  const homeUnavailable = entry === null && (nodes?.status !== 'ready' || tree.length === 0);
+  const homeUnavailable = entry === null && (nodes.status !== 'ready' || tree.length === 0);
+  const [tab, setTab] = useState('content');
   const disabled = saving || !allowed || homeUnavailable;
   const dirtyRef = useRef(dirty);
   const bypass = useRef(false);
@@ -618,19 +622,74 @@ function EntryEditor({
               }}
             />
           ) : null}
-          <EntryForm
-            descriptor={descriptor}
-            value={fields}
-            onChange={(next) => {
-              setFields(next);
-              setEdited(true);
-            }}
-            locale={locale}
-            showErrors={showErrors}
-            errors={shownErrors}
-            idPrefix="entry"
-            disabled={saving || !allowed}
-          />
+          {entry === null || head === null ? (
+            <EntryForm
+              descriptor={descriptor}
+              value={fields}
+              onChange={(next) => {
+                setFields(next);
+                setEdited(true);
+              }}
+              locale={locale}
+              showErrors={showErrors}
+              errors={shownErrors}
+              idPrefix="entry"
+              disabled={saving || !allowed}
+            />
+          ) : (
+            <Tabs
+              label={t('panel.editor.tabs')}
+              selected={tab}
+              onChange={setTab}
+              tabs={[
+                {
+                  id: 'content',
+                  label: t('panel.editor.tab.content'),
+                  content: (
+                    <EntryForm
+                      descriptor={descriptor}
+                      value={fields}
+                      onChange={(next) => {
+                        setFields(next);
+                        setEdited(true);
+                      }}
+                      locale={locale}
+                      showErrors={showErrors}
+                      errors={shownErrors}
+                      idPrefix="entry"
+                      disabled={saving || !allowed}
+                    />
+                  ),
+                },
+                {
+                  id: 'publish',
+                  label: t('panel.editor.tab.publish'),
+                  content: (
+                    <PublishPanel
+                      descriptor={descriptor}
+                      entry={entry}
+                      head={head}
+                      nodes={nodes.status === 'ready' ? nodes.value.nodes : []}
+                    />
+                  ),
+                },
+                {
+                  id: 'preview',
+                  label: t('panel.editor.tab.preview'),
+                  content: (
+                    <PreviewPanel
+                      descriptor={descriptor}
+                      entry={entry.id}
+                      head={head}
+                      list={props.list}
+                      preview={state.preview ?? { status: 'unreadable' }}
+                      revision={props.revision}
+                    />
+                  ),
+                },
+              ]}
+            />
+          )}
           <Inline gap="sm" justify="between" wrap>
             <TextLink href={props.list}>{t('panel.editor.back')}</TextLink>
             <Form
@@ -890,7 +949,7 @@ function HomeField({
   const { t, locale } = useTranslation();
   const nodes = state.nodes;
 
-  if (nodes?.status === 'rejected') {
+  if (nodes.status === 'rejected') {
     return (
       <ProblemDetails
         problem={nodes.problem}
@@ -899,7 +958,7 @@ function HomeField({
     );
   }
 
-  if (nodes?.status !== 'ready') {
+  if (nodes.status !== 'ready') {
     return (
       <ErrorState
         title={t('panel.editor.nodes_unavailable_title')}

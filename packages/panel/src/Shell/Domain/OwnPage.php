@@ -43,7 +43,7 @@ enum OwnPage: string
 
     /**
      * The entry editor, `<prefix>/content/<type>/new` and `<prefix>/content/<type>/<entry>`, which
-     * reads type.describe, entry.get and, for a new entry, node.list (PRD 5.4, 11.12). Its address
+     * reads type.describe, entry.get, node.list and entry.preview (PRD 5.4, 8.9, 11.12). Its address
      * names a type and an entry, so no link or nav entry of its own opens it (linkable()).
      */
     case ContentEditor = ContentEditor::PAGE;
@@ -108,7 +108,7 @@ enum OwnPage: string
             ...($query instanceof CommandRef ? [$query] : []),
             ...match ($this) {
                 self::AccessGrants => AccessGrants::pickers(),
-                self::ContentEditor => [ContentEditor::typeQuery(), ContentEditor::nodesQuery()],
+                self::ContentEditor => [ContentEditor::typeQuery(), ContentEditor::nodesQuery(), ContentEditor::previewQuery()],
                 default => [],
             },
         ];

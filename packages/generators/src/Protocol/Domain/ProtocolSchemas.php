@@ -118,6 +118,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacement;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryPlacementLocale;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryPreview;
 use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Entries\Domain\Dto\LocaleFields;
@@ -125,6 +126,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\TranslatedFrom;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantRevision;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
+use Cbox\Cms\Core\Entries\Domain\Queries\PreviewEntry;
 use Cbox\Cms\Core\Identity\Domain\Commands\ActivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\DeactivateActor;
 use Cbox\Cms\Core\Identity\Domain\Commands\RegisterActor;
@@ -671,6 +673,28 @@ final readonly class ProtocolSchemas
                     '#/$defs/listed_entry/properties/state' => ValueBinding::enum(ReleaseState::class),
                     '#/$defs/listed_entry/properties/type' => $id(TypeId::class),
                     '#/$defs/listed_entry/properties/version' => $version,
+                ],
+            ),
+            ...self::query(
+                'entry.preview',
+                PreviewEntry::class,
+                'PreviewEntryCodecV1',
+                [
+                    '#/properties/entry' => $id(EntryId::class),
+                    '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                    '#/properties/variant' => ValueBinding::value(VariantKey::class),
+                ],
+                'EntryPreviewCodecV1',
+                ['#' => EntryPreview::class],
+                [
+                    '#/properties/data' => ValueBinding::document(JsonDocument::class),
+                    '#/properties/draft' => ValueBinding::value(RevisionNumber::class),
+                    '#/properties/entry' => $id(EntryId::class),
+                    '#/properties/released' => ValueBinding::value(RevisionNumber::class),
+                    '#/properties/revision' => ValueBinding::value(RevisionNumber::class),
+                    '#/properties/state' => ValueBinding::enum(ReleaseState::class),
+                    '#/properties/type' => ValueBinding::value(TypeName::class),
+                    '#/properties/variant' => ValueBinding::value(VariantKey::class),
                 ],
             ),
             ...self::query(

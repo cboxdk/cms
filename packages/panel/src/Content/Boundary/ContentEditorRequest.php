@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Content\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Editors\TypeEditor;
 use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -15,6 +16,7 @@ use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
+use Cbox\Cms\Core\Entries\Domain\Queries\PreviewEntry;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\ListLimit;
 use Cbox\Cms\Core\Schema\Domain\Queries\DescribeType;
@@ -36,9 +38,11 @@ use LogicException;
  * asks for, the type its segment names, by the installation's editor descriptors (TypeEditors),
  * and the entry it names, or none for the page of a new entry; the view of the page, which renders
  * the shell's points; the address of the type's content list; and the page's reads as the person
- * who signed in, from the session credential (PanelReads): type.describe of the type, entry.get of
- * the entry, and for a new entry node.list of the nodes its home may be, each answered as the page
- * shows it, the result's document or the problem details of a rejection. The controller holds no
+ * who signed in, from the session credential (PanelReads): type.describe of the type, node.list of
+ * the nodes a new entry's home and an entry's placements may be below, and for an entry entry.get of
+ * the entry and entry.preview of the revision the address's query parameter `revision` names, or of
+ * the draft, each answered as the page shows it, the result's document or the problem details of
+ * a rejection. The controller holds no
  * logic, so what the page is made of is named here.
  */
 #[Internal]
@@ -131,18 +135,47 @@ final readonly class ContentEditorRequest
     }
 
     /**
-     * The read of node.list as the person, the nodes a new entry's home may be, or null for the
-     * page of an entry, whose home is set.
+     * The read of node.list as the person: the nodes a new entry's home may be, and those an
+     * entry's new placement may sit under.
      *
      * @param  Closure(QueryCall): QueryResult  $run
      *
      * @throws LogicException for a request the panel did not authenticate
      */
-    public function nodes(Request $request, EditorTarget $target, Closure $run): ?ReadAnswer
+    public function nodes(Request $request, Closure $run): ReadAnswer
+    {
+        return $this->read($request, new ListNodes(limit: ListLimit::MAX), ContentEditor::nodesQuery(), $run);
+    }
+
+    /**
+     * The revision the address's query parameter `revision` names, or null for the draft: a
+     * parameter that is missing, or that is not a whole number of 1 or more, previews the draft.
+     */
+    public function revision(Request $request): ?RevisionNumber
+    {
+        $value = $request->query(ContentEditor::REVISION_PARAMETER);
+
+        if (! is_string($value) || preg_match('/\A[1-9][0-9]{0,8}\z/', $value) !== 1) {
+            return null;
+        }
+
+        return new RevisionNumber((int) $value);
+    }
+
+    /**
+     * The read of entry.preview as the person, the record of the entry's shared variant at the
+     * revision, or its draft for null, as the delivery API would send it; null for the page of a
+     * new entry.
+     *
+     * @param  Closure(QueryCall): QueryResult  $run
+     *
+     * @throws LogicException for a request the panel did not authenticate
+     */
+    public function preview(Request $request, EditorTarget $target, ?RevisionNumber $revision, Closure $run): ?ReadAnswer
     {
         return $target->entry instanceof EntryId
-            ? null
-            : $this->read($request, new ListNodes(limit: ListLimit::MAX), ContentEditor::nodesQuery(), $run);
+            ? $this->read($request, new PreviewEntry($target->entry, revision: $revision), ContentEditor::previewQuery(), $run)
+            : null;
     }
 
     /**

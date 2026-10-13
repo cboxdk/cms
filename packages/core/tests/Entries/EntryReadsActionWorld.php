@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Core\Tests\Entries;
 
+use Cbox\Cms\Contracts\Codecs\RecordCodecs;
 use Cbox\Cms\Contracts\Identity\AccessRegion;
 use Cbox\Cms\Contracts\Identity\ActorClass;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -16,8 +17,10 @@ use Cbox\Cms\Contracts\Results\QueryResult;
 use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Actions\PreviewEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
+use Cbox\Cms\Core\Entries\Domain\Queries\PreviewEntry;
 use Cbox\Cms\Core\Reads\Actions\QueryPipeline;
 use Cbox\Cms\Core\Reads\Domain\Dto\QueryCall;
 use Cbox\Cms\Core\Reads\Domain\Dto\QuerySettings;
@@ -25,6 +28,7 @@ use Cbox\Cms\Core\Reads\Domain\ReadableFields;
 use Cbox\Cms\Core\Telemetry\Domain\PipelineTelemetry;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakeAccessResolver;
 use Cbox\Cms\Core\Tests\Access\Fakes\FakePermissions;
+use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryPreviews;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeStopwatch;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use Cbox\Cms\Core\Tests\Reads\Fakes\FakeQueryActions;
@@ -39,11 +43,11 @@ use Cbox\Cms\Testkit\Telemetry\FakeTelemetry;
 use DateInterval;
 
 /**
- * entry.get and entry.list through the real QueryPipeline with fakes for its ports (GUARDRAILS 9):
+ * entry.get, entry.list and entry.preview through the real QueryPipeline with fakes for its ports (GUARDRAILS 9):
  * the identity, the access resolver, the read audit and the read transaction, the query
  * authorizer deciding from FakePermissions as the Postgres one does, the workbench's type catalog
- * for the stripping of fields, and the two actions over the EntryListingWorld's fake as ADMIN
- * reads it. A reader is a service actor with a sensitive ceiling whose regions reach NORTH and
+ * for the stripping of fields and the workbench's record codecs for the preview, and the three
+ * actions over the EntryListingWorld's fakes as ADMIN reads them. A reader is a service actor with a sensitive ceiling whose regions reach NORTH and
  * SOUTH and whose classification access a test gives; it holds no role, because every actor may
  * run the entry reads. The read audit keeps what the reads record.
  */
@@ -79,12 +83,18 @@ final readonly class EntryReadsActionWorld
         return $this->identity->issue(new ServiceCredentialSpec($actor, IssuerKind::Service, ClassificationAccess::Sensitive, $this->clock->now()->add(new DateInterval('P1D'))));
     }
 
-    public function read(Query $query, ?TransportCredential $credential): QueryResult
+    /**
+     * @param  FakeEntryPreviews|null  $previews  what entry.preview reads; null for the EntryListingWorld's as ADMIN reads it
+     */
+    public function read(Query $query, ?TransportCredential $credential, ?FakeEntryPreviews $previews = null): QueryResult
     {
-        return $this->pipeline()->run(new QueryCall($query, $credential));
+        return $this->pipeline($previews)->run(new QueryCall($query, $credential));
     }
 
-    public function pipeline(): QueryPipeline
+    /**
+     * @param  FakeEntryPreviews|null  $previews  what entry.preview reads; null for the EntryListingWorld's as ADMIN reads it
+     */
+    public function pipeline(?FakeEntryPreviews $previews = null): QueryPipeline
     {
         $listing = EntryListingWorld::listing(EntryListingWorld::ADMIN);
 
@@ -92,6 +102,11 @@ final readonly class EntryReadsActionWorld
             new FakeQueryActions([
                 GetEntry::class => ProbeQueryBinding::of(new GetEntryAction($listing), 'entry.get', 1),
                 ListEntries::class => ProbeQueryBinding::of(new ListEntriesAction($listing), 'entry.list', 1),
+                PreviewEntry::class => ProbeQueryBinding::of(
+                    new PreviewEntryAction($previews ?? EntryListingWorld::previews(EntryListingWorld::ADMIN), app(TypeCatalog::class), app(RecordCodecs::class)),
+                    'entry.preview',
+                    1,
+                ),
             ]),
             $this->identity,
             $this->access,

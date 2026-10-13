@@ -1,6 +1,8 @@
-// What the entry editor works with (PRD 5.4, 11.12, 13.4): the page's reads, type.describe for the
-// type's editor descriptor, entry.get for the entry it edits and, for a new entry, node.list for
-// the nodes its home may be, each checked by its generated validator; the documents a save sends,
+// What the entry editor works with (PRD 5.4, 8.9, 11.12, 13.4): the page's reads, type.describe for
+// the type's editor descriptor, entry.get for the entry it edits, node.list for the nodes a new
+// entry's home and an entry's placements may be below, and entry.preview for the record of the
+// draft, or of a revision, as the delivery API would send it, each checked by its generated
+// validator; the documents a save sends,
 // entry.create or entry.revise version 1, checked the same way before they go; the errors of a
 // rejected save at the fields they are about; and what a save's receipt says. Nothing here names a
 // type or a field (GUARDRAILS 2.4): the form is the descriptor's.
@@ -14,6 +16,7 @@ import {
   type EntryDetailV1,
   type EntryHeadV1,
 } from '../generated/protocol/EntryDetailV1';
+import { validateEntryPreviewV1, type EntryPreviewV1 } from '../generated/protocol/EntryPreviewV1';
 import { validateNodeListV1, type NodeListV1 } from '../generated/protocol/NodeListV1';
 import type { ProblemV1 } from '../generated/protocol/ProblemV1';
 import type { ReceiptV1 } from '../generated/protocol/ReceiptV1';
@@ -46,8 +49,10 @@ export type EditorState =
       readonly entry: EntryDetailV1 | null;
       /** The shared variant's head of the entry, whose draft the form shows, or null for a new entry. */
       readonly head: EntryHeadV1 | null;
-      /** The nodes a new entry's home may be, or null for the page of an entry. */
-      readonly nodes: ReadState<NodeListV1> | null;
+      /** The nodes the person reaches: a new entry's home is one, and a placement sits under one. */
+      readonly nodes: ReadState<NodeListV1>;
+      /** The record of the draft, or of the revision the page previews, or null for a new entry. */
+      readonly preview: ReadState<EntryPreviewV1> | null;
     }
   /** The installation has no type of the address's name the person may see. */
   | { readonly status: 'missing_type' }
@@ -97,17 +102,10 @@ export function editorStateOf(props: ContentEditorPageV1): EditorState {
     return { status: 'localized', descriptor };
   }
 
+  const nodes = readOf(props.nodes_read.result, props.nodes_read.rejection, validateNodeListV1);
+
   if (props.entry_read === null) {
-    return {
-      status: 'ready',
-      descriptor,
-      entry: null,
-      head: null,
-      nodes:
-        props.nodes_read === null
-          ? { status: 'unreadable' }
-          : readOf(props.nodes_read.result, props.nodes_read.rejection, validateNodeListV1),
-    };
+    return { status: 'ready', descriptor, entry: null, head: null, nodes, preview: null };
   }
 
   const read = readOf(props.entry_read.result, props.entry_read.rejection, validateEntryDetailV1);
@@ -122,9 +120,14 @@ export function editorStateOf(props: ContentEditorPageV1): EditorState {
 
   const head = read.value.heads.find((candidate) => candidate.variant === SHARED);
 
+  const preview =
+    props.preview_read === null
+      ? ({ status: 'unreadable' } as const)
+      : readOf(props.preview_read.result, props.preview_read.rejection, validateEntryPreviewV1);
+
   return head === undefined
     ? { status: 'unreadable' }
-    : { status: 'ready', descriptor, entry: read.value, head, nodes: null };
+    : { status: 'ready', descriptor, entry: read.value, head, nodes, preview };
 }
 
 /** The address of the editor of an entry of the type, below the address of the type's list. */

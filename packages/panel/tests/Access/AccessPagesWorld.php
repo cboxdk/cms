@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Panel\Tests\Access;
 
 use Cbox\Cms\Contracts\Attributes\Surface;
+use Cbox\Cms\Contracts\Codecs\RecordCodecs;
 use Cbox\Cms\Contracts\Editors\TypeEditors;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\CredentialVerifier;
@@ -33,8 +34,10 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
 use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Actions\PreviewEntryAction;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
+use Cbox\Cms\Core\Entries\Domain\Queries\PreviewEntry;
 use Cbox\Cms\Core\Identity\Actions\ListActorsAction;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
@@ -66,8 +69,8 @@ use Cbox\Cms\Testkit\Identity\FakeIdentity;
  * The roles and grants pages' reads over fakes (GUARDRAILS 9, PRD 5.10, 13.4): the real
  * QueryPipeline of an ActionListWorld with the actions of role.list, grant.list, actor.list and
  * node.list over the ListingWorld's roles, grants, actors and nodes in memory, of entry.list over
- * the EntryListingWorld's entries as its administrator reads them, of entry.get over the same
- * entries and of type.list and type.describe over the workbench's editor descriptors, for the
+ * the EntryListingWorld's entries as its administrator reads them, of entry.get and entry.preview
+ * over the same entries and of type.list and type.describe over the workbench's editor descriptors, for the
  * content list, the entry editor and the prop `types` every page shares, read as the person
  * who signed in, whose session credential the login world's verifier verifies, with regions over
  * the root at personal classification access and a role on it whose permissions a test gives,
@@ -248,6 +251,7 @@ final class AccessPagesWorld
             ListNodes::class => ProbeQueryBinding::of(new ListNodesAction(ListingWorld::nodeListing(ListingWorld::ADMIN)), 'node.list', 1),
             ListEntries::class => ProbeQueryBinding::of(new ListEntriesAction(EntryListingWorld::listing(EntryListingWorld::ADMIN)), 'entry.list', 1),
             GetEntry::class => ProbeQueryBinding::of(new GetEntryAction(EntryListingWorld::listing(EntryListingWorld::ADMIN)), 'entry.get', 1),
+            PreviewEntry::class => ProbeQueryBinding::of(new PreviewEntryAction(EntryListingWorld::previews(EntryListingWorld::ADMIN), app(TypeCatalog::class), app(RecordCodecs::class)), 'entry.preview', 1),
             DescribeType::class => ProbeQueryBinding::of(new DescribeTypeAction(app(TypeEditors::class)), 'type.describe', 1),
             ListTypes::class => ProbeQueryBinding::of(new ListTypesAction(app(TypeEditors::class)), 'type.list', 1),
         ];

@@ -140,6 +140,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/DryRunSummaryV1.ts',
             'written: resources/js/cms/generated/protocol/EntryDetailV1.ts',
             'written: resources/js/cms/generated/protocol/EntryListV1.ts',
+            'written: resources/js/cms/generated/protocol/EntryPreviewV1.ts',
             'written: resources/js/cms/generated/protocol/EnvelopeV1.ts',
             'written: resources/js/cms/generated/protocol/ExplainedPathV1.ts',
             'written: resources/js/cms/generated/protocol/GetEntryV1.ts',
@@ -157,6 +158,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/PanelBundleSignatureV1.ts',
             'written: resources/js/cms/generated/protocol/PanelBundleV1.ts',
             'written: resources/js/cms/generated/protocol/PathExplanationV1.ts',
+            'written: resources/js/cms/generated/protocol/PreviewEntryV1.ts',
             'written: resources/js/cms/generated/protocol/ProblemV1.ts',
             'written: resources/js/cms/generated/protocol/PublishEntryV1.ts',
             'written: resources/js/cms/generated/protocol/PublishEntryV2.ts',
@@ -185,10 +187,10 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'written: resources/js/cms/generated/protocol/WhoAmIV1.ts',
             'written: resources/js/cms/generated/records/AppPageV1.ts',
             'written: resources/js/cms/generated/validation.ts',
-            'Generated 88 files: 88 written, 0 unchanged, 0 stale removed.',
+            'Generated 90 files: 90 written, 0 unchanged, 0 stale removed.',
         ])
         ->and($second)->toBe(0)
-        ->and($secondOutput)->toBe(['Generated 88 files: 0 written, 88 unchanged, 0 stale removed.'])
+        ->and($secondOutput)->toBe(['Generated 90 files: 0 written, 90 unchanged, 0 stale removed.'])
         ->and(array_map(static fn (string $file): string => (string) hash_file('sha256', $root.'/'.$file), SchemaFixtures::files($root)))->toBe($hashes)
         ->and(SchemaFixtures::files($root))->toBe([
             'app/Cms/Generated/Boundary/AppPageCodecV1.php',
@@ -234,6 +236,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'resources/js/cms/generated/protocol/DryRunSummaryV1.ts',
             'resources/js/cms/generated/protocol/EntryDetailV1.ts',
             'resources/js/cms/generated/protocol/EntryListV1.ts',
+            'resources/js/cms/generated/protocol/EntryPreviewV1.ts',
             'resources/js/cms/generated/protocol/EnvelopeV1.ts',
             'resources/js/cms/generated/protocol/ExplainedPathV1.ts',
             'resources/js/cms/generated/protocol/GetEntryV1.ts',
@@ -251,6 +254,7 @@ it('writes the PHP enum, the record DTO and codec, the validator, the TypeScript
             'resources/js/cms/generated/protocol/PanelBundleSignatureV1.ts',
             'resources/js/cms/generated/protocol/PanelBundleV1.ts',
             'resources/js/cms/generated/protocol/PathExplanationV1.ts',
+            'resources/js/cms/generated/protocol/PreviewEntryV1.ts',
             'resources/js/cms/generated/protocol/ProblemV1.ts',
             'resources/js/cms/generated/protocol/PublishEntryV1.ts',
             'resources/js/cms/generated/protocol/PublishEntryV2.ts',
@@ -344,7 +348,7 @@ it('generates when a module release adds a type with the handle of an app type, 
             'written: database/migrations/cms/acme__page_0001_create.php',
             'written: resources/js/cms/generated/index.ts',
             'written: resources/js/cms/generated/records/AcmePageV1.ts',
-            'Generated 101 files: 20 written, 81 unchanged, 0 stale removed.',
+            'Generated 103 files: 20 written, 83 unchanged, 0 stale removed.',
         ])
         ->and(is_file($root.'/app/Cms/Generated/Validators/AppPageValidator.php'))->toBeTrue()
         ->and((string) file_get_contents($root.'/app/Cms/Generated/TypeHandle.php'))->toContain("    case AcmePage = 'acme:page';\n    case AppPage = 'app:page';\n")

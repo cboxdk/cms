@@ -258,6 +258,8 @@ enum ErrorCode: string
     case RegistryUnknownLane = 'registry_unknown_lane';
     case RegistryUnknownSurface = 'registry_unknown_surface';
     case RequestHeaderInvalid = 'request_header_invalid';
+    case RevisionNotFound = 'revision_not_found';
+    case RevisionUnreadable = 'revision_unreadable';
     case ScimInvalidValue = 'scim_invalid_value';
     case ScimMutability = 'scim_mutability';
     case ScimReactivationRefused = 'scim_reactivation_refused';
@@ -1151,6 +1153,16 @@ enum ErrorCode: string
                 McpResponse::ToolError,
                 false,
                 'A header of the envelope of a REST command, Cbox-Wait-Level, Cbox-Dry-Run or Cbox-Correlation-Id, does not hold what the envelope allows (PRD 6.1): a wait level other than commit, origin, edge, verified or propagated, a dry run other than true or false, or a correlation id that is not 1 to 128 visible ASCII characters. Nothing ran. Correct the header the error names, or leave it out for its default.',
+            ),
+            self::RevisionNotFound => $this->caller(
+                HttpStatus::NotFound,
+                ExitCode::NoInput,
+                'The entry is within the reader\'s reach, but its variant has no head, or no revision with the number the read asked for (PRD 5.4, 5.6). Revision numbers count from 1 per variant, and a type whose history is audit-only or none keeps only its current revision. Leave the revision out to read the draft, or ask for a number entry.get lists.',
+            ),
+            self::RevisionUnreadable => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'The revision exists, but its fields cannot be written as the record of its type (PRD 8.9, 11.12): it was written under another schema version than the type has now, which needs an upcaster (PRD 11.11), or its values do not satisfy the type\'s record contract. Nothing was written. Read the draft or a revision written under the current schema version.',
             ),
             self::ScimInvalidValue => $this->caller(
                 HttpStatus::BadRequest,

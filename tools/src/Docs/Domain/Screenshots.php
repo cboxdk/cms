@@ -122,6 +122,16 @@ final readonly class Screenshots
                 'tests/Browser/Panel/EntryEditorConflictTest.php',
             ),
             new BrowserScreenshot(
+                'entry-publish',
+                'The publish panel of the entry editor: the released revision, the placement by its path with its language, its visibility and its window, the Publish and Schedule buttons, and the form that adds a placement.',
+                'tests/Browser/Panel/EntryPublishTest.php',
+            ),
+            new BrowserScreenshot(
+                'entry-preview',
+                'The Preview of the entry editor: the revision, language and width switches, a note that the draft is not released, and the record as the site would send it, at reading width.',
+                'tests/Browser/Panel/EntryPublishTest.php',
+            ),
+            new BrowserScreenshot(
                 'access-roles',
                 'The roles page on a desktop: every role with its handle, classification ceiling and permissions, read with role.list, and the button that creates one.',
                 'tests/Browser/Panel/RolesAndGrantsTest.php',

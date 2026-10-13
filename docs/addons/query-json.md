@@ -22,6 +22,7 @@ A caller sends a query to a surface as a JSON document: the query parameter `que
 | `node.list` | `node.list.v1.json`, `node.list.result.v1.json` | `ListNodesCodecV1`, `NodeListCodecV1` | `ListNodes` and `NodeList` |
 | `entry.get` | `entry.get.v1.json`, `entry.get.result.v1.json` | `GetEntryCodecV1`, `EntryDetailCodecV1` | `GetEntry` and `EntryDetail` |
 | `entry.list` | `entry.list.v1.json`, `entry.list.result.v1.json` | `ListEntriesCodecV1`, `EntryListCodecV1` | `ListEntries` and `EntryList` |
+| `entry.preview` | `entry.preview.v1.json`, `entry.preview.result.v1.json` | `PreviewEntryCodecV1`, `EntryPreviewCodecV1` | `PreviewEntry` and `EntryPreview` |
 | `type.list` | `type.list.v1.json`, `type.list.result.v1.json` | `ListTypesCodecV1`, `TypeListCodecV1` | `ListTypes` and `TypeList` |
 | `type.describe` | `type.describe.v1.json`, `type.describe.result.v1.json` | `DescribeTypeCodecV1`, `TypeDescriptionCodecV1` | `DescribeType` and `TypeDescription` |
 

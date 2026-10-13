@@ -62,3 +62,145 @@
     font-style: italic;
   }
 }
+
+/*
+ * The publish panel (js/panel/src/pages/Content/Publish.tsx): each locale of a placement as a row
+ * with its path in the mono face, its labels and window, and its actions, which wrap below it on a
+ * narrow screen; the form that adds a placement, whose fieldset adds no box of its own.
+ */
+@layer cms.panel {
+  .cms-panel-publish__heading {
+    font-size: var(--cms-font-size-md);
+    font-weight: var(--cms-font-weight-semibold);
+    margin: 0;
+  }
+
+  .cms-panel-publish__status,
+  .cms-panel-preview__status {
+    color: var(--cms-color-text-muted);
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-sm);
+  }
+
+  .cms-panel-publish__rows,
+  .cms-panel-publish__visible {
+    display: grid;
+    gap: var(--cms-space-3);
+    list-style: none;
+    margin: 0;
+    padding: 0;
+  }
+
+  .cms-panel-publish__row {
+    align-items: center;
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-md);
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cms-space-3);
+    justify-content: space-between;
+    padding: var(--cms-space-3);
+  }
+
+  .cms-panel-publish__path {
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-sm);
+    overflow-wrap: anywhere;
+  }
+
+  .cms-panel-publish__window {
+    color: var(--cms-color-text-muted);
+    display: flex;
+    flex-wrap: wrap;
+    font-size: var(--cms-font-size-sm);
+    gap: var(--cms-space-3);
+  }
+
+  .cms-panel-publish__place {
+    border: 0;
+    margin: 0;
+    min-inline-size: 0;
+    padding: 0;
+  }
+}
+
+/*
+ * The Preview (js/panel/src/pages/Content/Preview.tsx): its switches in a row that wraps, and the
+ * document in a frame of the width chosen, a phone's, reading width or wide, never wider than the
+ * page, with each field's label above its value.
+ */
+@layer cms.panel {
+  .cms-panel-preview__controls {
+    align-items: end;
+    display: flex;
+    flex-wrap: wrap;
+    gap: var(--cms-space-4);
+  }
+
+  .cms-panel-preview__frame {
+    background: var(--cms-color-surface-raised);
+    border: 1px solid var(--cms-color-border);
+    border-radius: var(--cms-radius-lg);
+    box-sizing: border-box;
+    inline-size: 100%;
+    margin-inline: auto;
+    max-inline-size: 42rem;
+    padding: var(--cms-space-6);
+  }
+
+  .cms-panel-preview__frame[data-width='phone'] {
+    max-inline-size: 24rem;
+  }
+
+  .cms-panel-preview__frame[data-width='wide'] {
+    max-inline-size: 64rem;
+  }
+
+  .cms-panel-preview__document {
+    display: grid;
+    gap: var(--cms-space-4);
+    line-height: var(--cms-line-height);
+  }
+
+  .cms-panel-preview__title {
+    font-family: var(--cms-font-family-display);
+    font-size: var(--cms-font-size-lg);
+    line-height: var(--cms-line-height-tight);
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cms-panel-preview__items {
+    display: grid;
+    gap: var(--cms-space-3);
+    margin: 0;
+  }
+
+  .cms-panel-preview__item dt {
+    color: var(--cms-color-text-muted);
+    font-size: var(--cms-font-size-sm);
+    font-weight: var(--cms-font-weight-medium);
+  }
+
+  .cms-panel-preview__item dd {
+    margin: 0;
+    overflow-wrap: anywhere;
+  }
+
+  .cms-panel-preview__item dd p {
+    margin: 0;
+  }
+
+  .cms-panel-preview__list {
+    margin: 0;
+    padding-inline-start: var(--cms-space-6);
+  }
+
+  .cms-panel-preview__json pre {
+    font-family: var(--cms-font-family-mono);
+    font-size: var(--cms-font-size-sm);
+    max-inline-size: 100%;
+    overflow: auto;
+    white-space: pre-wrap;
+  }
+}

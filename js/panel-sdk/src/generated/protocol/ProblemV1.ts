@@ -241,6 +241,8 @@ export type ErrorCode =
   | 'registry_unknown_lane'
   | 'registry_unknown_surface'
   | 'request_header_invalid'
+  | 'revision_not_found'
+  | 'revision_unreadable'
   | 'scim_invalid_value'
   | 'scim_mutability'
   | 'scim_reactivation_refused'
@@ -584,6 +586,8 @@ const catalogErrorV1Rule: ObjectRule = {
           'registry_unknown_lane',
           'registry_unknown_surface',
           'request_header_invalid',
+          'revision_not_found',
+          'revision_unreadable',
           'scim_invalid_value',
           'scim_mutability',
           'scim_reactivation_refused',
@@ -891,6 +895,8 @@ const problemV1Rule: ObjectRule = {
           'registry_unknown_lane',
           'registry_unknown_surface',
           'request_header_invalid',
+          'revision_not_found',
+          'revision_unreadable',
           'scim_invalid_value',
           'scim_mutability',
           'scim_reactivation_refused',

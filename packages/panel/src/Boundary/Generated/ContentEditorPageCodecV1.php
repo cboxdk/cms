@@ -68,7 +68,9 @@ final readonly class ContentEditorPageCodecV1 implements JsonCodec
         $json->entry_read = $object->entryRead instanceof ReadAnswer ? $this->encodeReadAnswer($object->entryRead) : null;
         $json->list = $object->list;
         $json->logout = $object->logout;
-        $json->nodes_read = $object->nodesRead instanceof ReadAnswer ? $this->encodeReadAnswer($object->nodesRead) : null;
+        $json->nodes_read = $this->encodeReadAnswer($object->nodesRead);
+        $json->preview_read = $object->previewRead instanceof ReadAnswer ? $this->encodeReadAnswer($object->previewRead) : null;
+        $json->revision = $object->revision;
         $json->type = $object->type->value;
         $json->type_read = $this->encodeReadAnswer($object->typeRead);
 
@@ -77,7 +79,7 @@ final readonly class ContentEditorPageCodecV1 implements JsonCodec
 
     private function decodeContentEditorPage(stdClass $value): ContentEditorPage
     {
-        $object = JsonValues::object($value, null, ['entry', 'entry_read', 'list', 'logout', 'nodes_read', 'type', 'type_read']);
+        $object = JsonValues::object($value, null, ['entry', 'entry_read', 'list', 'logout', 'nodes_read', 'preview_read', 'revision', 'type', 'type_read']);
 
         return JsonValues::build(null, fn (): ContentEditorPage => new ContentEditorPage(
             logout: JsonValues::required($object, 'logout', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 500)),
@@ -86,7 +88,9 @@ final readonly class ContentEditorPageCodecV1 implements JsonCodec
             list: JsonValues::required($object, 'list', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 500)),
             typeRead: JsonValues::required($object, 'type_read', null, $this->decodeReadAnswer(...)),
             entryRead: JsonValues::present($object, 'entry_read', null, $this->decodeReadAnswer(...)),
-            nodesRead: JsonValues::present($object, 'nodes_read', null, $this->decodeReadAnswer(...)),
+            nodesRead: JsonValues::required($object, 'nodes_read', null, $this->decodeReadAnswer(...)),
+            previewRead: JsonValues::present($object, 'preview_read', null, $this->decodeReadAnswer(...)),
+            revision: JsonValues::present($object, 'revision', null, static fn (mixed $value, FieldPath $at): int => JsonValues::integer($value, $at, min: 1)),
         ));
     }
 

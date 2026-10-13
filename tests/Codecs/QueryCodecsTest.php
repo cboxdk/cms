@@ -5,8 +5,11 @@ declare(strict_types=1);
 namespace Cbox\Cms\Tests\Codecs\Queries;
 
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
+use Cbox\Cms\Contracts\Codecs\JsonDocument;
 use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\ReleaseState;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
+use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\DisplayName;
 use Cbox\Cms\Contracts\Ids\ActorId;
@@ -29,6 +32,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ActorMeCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\DescribeTypeCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\EntryDetailCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\EntryListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\EntryPreviewCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GetEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\GrantListCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\KernelQueryCodecs;
@@ -40,6 +44,7 @@ use Cbox\Cms\Core\Codecs\Boundary\Generated\ListNodesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListRolesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ListTypesCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\NodeListCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PreviewEntryCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvedPathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\ResolvePathCodecV1;
 use Cbox\Cms\Core\Codecs\Boundary\Generated\RoleListCodecV1;
@@ -51,9 +56,11 @@ use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryDetail;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryHead;
 use Cbox\Cms\Core\Entries\Domain\Dto\EntryList;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryPreview;
 use Cbox\Cms\Core\Entries\Domain\Dto\HeadChange;
 use Cbox\Cms\Core\Entries\Domain\Queries\GetEntry;
 use Cbox\Cms\Core\Entries\Domain\Queries\ListEntries;
+use Cbox\Cms\Core\Entries\Domain\Queries\PreviewEntry;
 use Cbox\Cms\Core\Identity\Domain\Dto\ActorList;
 use Cbox\Cms\Core\Identity\Domain\Dto\ListedActor;
 use Cbox\Cms\Core\Identity\Domain\Queries\ListActors;
@@ -232,6 +239,30 @@ function queryFixtures(): array
 
             foreach ([new EntryList(EntryListingWorld::listed(), EntryId::fromString(EntryListingWorld::FIRST)), new EntryList([], null)] as $index => $result) {
                 queryRoundTrip(new EntryListCodecV1, $result, 'entry.list.result.v1.json', 'result '.$index);
+            }
+        },
+        'entry.preview v1' => static function (QueryCodec $codec): void {
+            expect($codec->query)->toBeInstanceOf(PreviewEntryCodecV1::class)
+                ->and($codec->result)->toBeInstanceOf(EntryPreviewCodecV1::class)
+                ->and(new PreviewEntryCodecV1()->encode(new PreviewEntry(EntryId::fromString(EntryListingWorld::SECOND)), ClassificationAccess::Public))
+                ->toBe('{"entry":"'.EntryListingWorld::SECOND.'","revision":null,"variant":null}')
+                ->and(queryRefusedAt(new PreviewEntryCodecV1, '{"entry":"'.EntryListingWorld::SECOND.'","revision":0}'))->toBe('revision')
+                ->and(queryRefusedAt(new PreviewEntryCodecV1, '{"entry":"'.EntryListingWorld::SECOND.'","variant":"Shared!"}'))->toBe('variant');
+
+            foreach ([
+                new PreviewEntry(EntryId::fromString(EntryListingWorld::SECOND)),
+                new PreviewEntry(EntryId::fromString(EntryListingWorld::SECOND), VariantKey::fromString('da'), new RevisionNumber(2)),
+            ] as $index => $query) {
+                queryRoundTrip(new PreviewEntryCodecV1, $query, 'entry.preview.v1.json', 'query '.$index);
+            }
+
+            // The record is the document a type's record codec wrote, embedded as it is.
+            foreach ([
+                new EntryPreview(EntryId::fromString(EntryListingWorld::SECOND), new TypeName('app:fixture_article'), VariantKey::shared(), RevisionNumber::first(), RevisionNumber::first(), new RevisionNumber(2), ReleaseState::Released, new JsonDocument('{"cms_id":"'.EntryListingWorld::SECOND.'","fixture_title":"Second"}')),
+                new EntryPreview(EntryId::fromString(EntryListingWorld::FIRST), new TypeName('app:fixture_article'), VariantKey::fromString('da'), new RevisionNumber(3), new RevisionNumber(3), null, ReleaseState::Unreleased, new JsonDocument('{"cms_id":"'.EntryListingWorld::FIRST.'"}')),
+            ] as $index => $result) {
+                queryRoundTrip(new EntryPreviewCodecV1, $result, 'entry.preview.result.v1.json', 'result '.$index);
+                expect(new EntryPreviewCodecV1()->encode($result, ClassificationAccess::Public))->toBe(new EntryPreviewCodecV1()->encode($result, ClassificationAccess::Sensitive), 'result '.$index.' at public access');
             }
         },
         'grant.list v1' => static function (QueryCodec $codec): void {

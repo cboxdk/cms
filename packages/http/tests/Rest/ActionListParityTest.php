@@ -109,7 +109,7 @@ final class ActionListParityTest extends TestCase
 
         $rest->assertOk()->assertHeader('Content-Type', 'application/json')->assertHeader('Cache-Control', RestResponse::CACHE_CONTROL);
         self::assertIsArray($document);
-        self::assertSame(['action.list@1 query', 'actor.me@1 query', 'entry.get@1 query', 'entry.list@1 query', 'grant.list@1 query', 'node.list@1 query', 'role.create@1 command', 'type.describe@1 query', 'type.list@1 query'], $this->listed($document));
+        self::assertSame(['action.list@1 query', 'actor.me@1 query', 'entry.get@1 query', 'entry.list@1 query', 'entry.preview@1 query', 'grant.list@1 query', 'node.list@1 query', 'role.create@1 command', 'type.describe@1 query', 'type.list@1 query'], $this->listed($document));
         self::assertSame(['cms.account-me', 'cms.grants'], array_column(is_array($document['navigation'] ?? null) ? $document['navigation'] : [], 'id'));
         self::assertSame(self::PATH, $this->restPath());
 

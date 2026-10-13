@@ -6,6 +6,7 @@ namespace Cbox\Cms\Panel\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Content\RevisionNumber;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Identity\PasswordResetToken;
 use Cbox\Cms\Contracts\PanelPoints\PanelLocale;
@@ -104,8 +105,9 @@ use LogicException;
  *   the address names them, and the read of entry.list as the person, beside its contributions;
  * - the entry editor (PRD 5.4, 11.12), at `<prefix>/content/<owner>:<handle>/new` and
  *   `<prefix>/content/<owner>:<handle>/<entry>`, with the address of the logout, the type and the
- *   entry the address names, the address of the type's content list and the reads of
- *   type.describe, entry.get and node.list as the person, beside its contributions.
+ *   entry the address names, the address of the type's content list, the revision it previews and
+ *   the reads of type.describe, entry.get, node.list and entry.preview as the person, beside its
+ *   contributions.
  */
 #[Internal]
 final readonly class PanelPages
@@ -308,14 +310,14 @@ final readonly class PanelPages
 
     /**
      * The entry editor, with what the address asks for, the address of the type's content list,
-     * the reads of type.describe, of entry.get for an entry and of node.list for a new entry as the
-     * person, each the result or the problem, and the contributions active on it (PRD 5.4, 11.12,
-     * 13.4).
+     * the reads of type.describe and node.list, and for an entry of entry.get and of entry.preview
+     * at the revision previewed, as the person, each the result or the problem, and the
+     * contributions active on it (PRD 5.4, 8.9, 11.12, 13.4).
      */
-    public function contentEditor(Request $request, EditorTarget $target, string $list, ReadAnswer $type, ?ReadAnswer $entry, ?ReadAnswer $nodes, SharedProps $contributions): Response|JsonResponse
+    public function contentEditor(Request $request, EditorTarget $target, string $list, ReadAnswer $type, ?ReadAnswer $entry, ReadAnswer $nodes, ?ReadAnswer $preview, ?RevisionNumber $revision, SharedProps $contributions): Response|JsonResponse
     {
         return $this->unstored($this->render($request, self::CONTENT_EDITOR, $this->contentEditorPage->encode(
-            new ContentEditorPage($this->urls->route(PanelRoute::Logout->value, [], false), $target->type->name, $target->entry, $list, $type, $entry, $nodes),
+            new ContentEditorPage($this->urls->route(PanelRoute::Logout->value, [], false), $target->type->name, $target->entry, $list, $type, $entry, $nodes, $preview, $revision?->value),
             ClassificationAccess::Public,
         ), $contributions));
     }

@@ -1,7 +1,7 @@
 ---
 title: Entry queries
 weight: 45
-description: "The kernel's entry reads entry.get and entry.list: what each gives, who may run them, how a page is read, how a head's fields are stripped to the reader's classification access, and how an entry out of reach is rejected."
+description: "The kernel's entry reads entry.get, entry.list and entry.preview: what each gives, who may run them, how a page is read, how a head's fields are stripped to the reader's classification access, how a preview writes the record the delivery API would send, and how an entry out of reach is rejected."
 ---
 
 # Entry queries
@@ -10,15 +10,18 @@ description: "The kernel's entry reads entry.get and entry.list: what each gives
 <!-- extension-point: packages/core/resources/schemas/queries/entry.get.result.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/queries/entry.list.v1.json -->
 <!-- extension-point: packages/core/resources/schemas/queries/entry.list.result.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/queries/entry.preview.v1.json -->
+<!-- extension-point: packages/core/resources/schemas/queries/entry.preview.result.v1.json -->
 
-The editor opens an entry and the content list reads a page with two queries of the kernel, version 1 of each (PRD 5.4, 5.7, 8.8, 13.4). They run through the [query pipeline](queries.md) like every other read, on REST, in the panel's Inertia pages and as MCP tools, and each has a JSON Schema for its document and one for its result in `packages/core/resources/schemas/queries`, read and written by generated codecs (see [query JSON](query-json.md)). The queries and their results are `#[Experimental]`.
+The editor opens an entry, the content list reads a page and the editor's Preview reads a record with three queries of the kernel, version 1 of each (PRD 5.4, 5.7, 8.8, 8.9, 13.4). They run through the [query pipeline](queries.md) like every other read, on REST, in the panel's Inertia pages and as MCP tools, and each has a JSON Schema for its document and one for its result in `packages/core/resources/schemas/queries`, read and written by generated codecs (see [query JSON](query-json.md)). The queries and their results are `#[Experimental]`.
 
 | Query | What it gives | Who may run it |
 |---|---|---|
 | `entry.get` | one entry: its type, home node, lifecycle and version; every variant head, the shared variant first, each with its version, the numbers of its draft, highest and released revision, its release state, the schema version its draft was written under, the draft's fields, the variant and revision it was translated from with whether that translation is stale (PRD 10.3), and who changed the head last and when; and every placement of the entry the reader reaches, each with its node, version and locales, a locale with its slug, stored visibility, window and whether it is canonical | every actor; the anonymous principal may not |
 | `entry.list` | a page of the entries the reader reaches, across types, newest first, each with its system columns: type, home node, lifecycle, the shared variant's release state, the last change and the version; and, as its fields, the title field its type's editor descriptor names with its value in the shared head's draft | every actor; the anonymous principal may not |
+| `entry.preview` | the record of one variant's draft, or of the revision asked for, as the delivery API would send it once released, under `data`; the type's name, the variant, the number of the revision previewed, the numbers of the draft and the released revision, and the release state | every actor; the anonymous principal may not |
 
-Both implement `Cbox\Cms\Contracts\Pipeline\ActorQuery`: what they read is bounded by the actor's own context, so they need no permission. An entry is within reach when the actor owns it or one of its regions reaches its home node, the same test as the entries table's own policy, and the kernel's reader adds it as the explicit access predicate of every statement (PRD 5.10), so an entry the actor sees only because it is released somewhere live is neither listed nor given. `entry.get` rejects an entry that is absent or out of reach with `entry_not_found`, at `entry`, and tells the two apart for no one. The kernel reads each head through the same reader the [variant head reader](contracts/variant-head-reader.md) contract gives addons.
+All three implement `Cbox\Cms\Contracts\Pipeline\ActorQuery`: what they read is bounded by the actor's own context, so they need no permission. An entry is within reach when the actor owns it or one of its regions reaches its home node, the same test as the entries table's own policy, and the kernel's reader adds it as the explicit access predicate of every statement (PRD 5.10), so an entry the actor sees only because it is released somewhere live is neither listed nor given. `entry.get` rejects an entry that is absent or out of reach with `entry_not_found`, at `entry`, and tells the two apart for no one. The kernel reads each head through the same reader the [variant head reader](contracts/variant-head-reader.md) contract gives addons.
 
 ## Fields and classification
 
@@ -93,5 +96,51 @@ it('reads entry.list with its filters and writes a page of system columns and ti
         ->and($page->entries[0]->changedAt->format('H:i'))->toBe('13:00')
         ->and(array_map(static fn (FieldHandle $handle): string => $handle->value, $page->entries[0]->fields->own->handles()))->toBe(['title'])
         ->and(new EntryListCodecV1()->encode($page, ClassificationAccess::Public))->toBe(EXAMPLE_PAGE);
+});
+```
+
+## Previews
+
+`entry.preview` takes the `entry`, the `variant`, `shared` when it is null or left out, and the `revision`, the draft when it is null or left out. It reads the head and the revision in one statement, whatever the number of revisions, placements or other variants the entry has, and writes the revision's fields as the record of the entry's type through the installation's record codecs (`Cbox\Cms\Contracts\Codecs\RecordCodecs`) at the public classification access, exactly as the [delivery API](../developers/delivery.md) writes a released row. So `data` holds no field above public whoever reads it (invariant 10), and the result needs no stripping and no read audit. A preview writes nothing: it builds and stores no fragment and no cache depends on it, so its answer carries no content keys.
+
+An entry that is absent, out of reach or without a head of the variant is `entry_not_found` at `entry`. A revision the variant does not have is `revision_not_found` at `revision`; a type whose history is audit-only or none keeps only its current revision. A revision written under another schema version than the type's, which needs an upcaster (B3), or whose values the record contract refuses, is `revision_unreadable` at `revision`. The example is in the `Unit` suite:
+
+<!-- example: examples/Unit/Entries/EntryPreviewTest.php -->
+```php
+<?php
+
+declare(strict_types=1);
+
+use Cbox\Cms\Contracts\Content\ReleaseState;
+use Cbox\Cms\Contracts\Identity\ClassificationAccess;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\EntryPreviewCodecV1;
+use Cbox\Cms\Core\Codecs\Boundary\Generated\PreviewEntryCodecV1;
+use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
+use Cbox\Cms\Core\Entries\Domain\Dto\EntryPreview;
+use Cbox\Cms\Core\Entries\Domain\Queries\PreviewEntry;
+
+// The editor's Preview reads entry.preview: the draft of a variant, or the revision a caller names,
+// as the record the delivery API would send once it is released. The record is under data, as the
+// type's generated codec wrote it at the public classification access, so the result is the same
+// for every reader who may read the entry.
+
+const EXAMPLE_PREVIEW = '{"data":{"cms_id":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","title":"Harbour, with gulls"},"draft":3,'
+    .'"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","released":2,"revision":3,"state":"released","type":"app:story","variant":"shared"}';
+
+it('reads entry.preview from JSON, the draft when no revision is named, and writes the record as the delivery API holds it', function (): void {
+    $codec = new PreviewEntryCodecV1;
+    $draft = $codec->decode('{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41"}', ClassificationAccess::Public);
+    $released = $codec->decode('{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","revision":2}', ClassificationAccess::Public);
+    $preview = new EntryPreviewCodecV1()->decode(EXAMPLE_PREVIEW, ClassificationAccess::Public);
+
+    expect($draft)->toBeInstanceOf(PreviewEntry::class)
+        ->and([$draft->variant, $draft->revision])->toBe([null, null])
+        ->and($released->revision?->value)->toBe(2)
+        ->and($codec->encode($draft, ClassificationAccess::Public))->toBe('{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","revision":null,"variant":null}')
+        ->and($preview)->toBeInstanceOf(EntryPreview::class)
+        ->and([$preview->revision->value, $preview->released?->value, $preview->state])->toBe([3, 2, ReleaseState::Released])
+        ->and(json_decode($preview->data->value, true, flags: JSON_THROW_ON_ERROR))->toBe(['cms_id' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41', 'title' => 'Harbour, with gulls'])
+        ->and(new EntryPreviewCodecV1()->encode($preview, ClassificationAccess::Public))->toBe(EXAMPLE_PREVIEW)
+        ->and(static fn (): PreviewEntry => $codec->decode('{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a41","revision":0}', ClassificationAccess::Public))->toThrow(DecodingFailed::class);
 });
 ```

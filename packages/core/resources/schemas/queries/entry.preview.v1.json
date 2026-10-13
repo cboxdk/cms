@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.preview, contract version 1",
+  "description": "Previews one revision of an entry as the delivery API would send it (PRD 5.4, 8.9, 13.4): the draft of a variant, or the revision with the number given, written as the record of the entry's type through the record codecs at the public classification access. Every actor may run it; the anonymous principal may not. It writes nothing and never touches the fragment store. An entry that is absent, whose home the reader neither reaches nor owns or that has no head of the variant is rejected with entry_not_found, a revision the variant does not have with revision_not_found, and one whose fields cannot be written as the record with revision_unreadable. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Queries\\PreviewEntry, and the generated codec reads it and writes its canonical JSON: every key, sorted, no whitespace. Its result is entry.preview.result.v1.json.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "entry"
+  ],
+  "properties": {
+    "entry": {
+      "description": "The entry to preview.",
+      "$ref": "#/$defs/id"
+    },
+    "revision": {
+      "description": "The number of the revision to preview, an integer of 1 or more, or null, or missing, for the variant's draft.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1,
+      "default": null
+    },
+    "variant": {
+      "description": "The variant to preview: shared, or a locale for a type with localization variants. Null, or missing, is shared.",
+      "anyOf": [
+        {
+          "$ref": "#/$defs/variant"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    },
+    "variant": {
+      "description": "A variant: shared, or a language tag such as da or en-GB.",
+      "type": "string",
+      "pattern": "^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$"
+    }
+  }
+}

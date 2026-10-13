@@ -246,6 +246,8 @@ Every error of the kernel has one of these codes. A code is stable and never ren
 | [`registry_unknown_lane`](#registry_unknown_lane) | 500 | 65 | internal_error | no |
 | [`registry_unknown_surface`](#registry_unknown_surface) | 500 | 65 | internal_error | no |
 | [`request_header_invalid`](#request_header_invalid) | 400 | 64 | tool_error | no |
+| [`revision_not_found`](#revision_not_found) | 404 | 66 | tool_error | no |
+| [`revision_unreadable`](#revision_unreadable) | 422 | 65 | tool_error | no |
 | [`scim_invalid_value`](#scim_invalid_value) | 400 | 65 | tool_error | no |
 | [`scim_mutability`](#scim_mutability) | 400 | 65 | tool_error | no |
 | [`scim_reactivation_refused`](#scim_reactivation_refused) | 409 | 65 | tool_error | no |
@@ -2380,6 +2382,24 @@ A header of the envelope of a REST command, Cbox-Wait-Level, Cbox-Dry-Run or Cbo
 
 - HTTP status: 400 Bad Request
 - CLI exit code: 64 (EX_USAGE)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### revision_not_found
+
+The entry is within the reader's reach, but its variant has no head, or no revision with the number the read asked for (PRD 5.4, 5.6). Revision numbers count from 1 per variant, and a type whose history is audit-only or none keeps only its current revision. Leave the revision out to read the draft, or ask for a number entry.get lists.
+
+- HTTP status: 404 Not Found
+- CLI exit code: 66 (EX_NOINPUT)
+- MCP: a tool result with isError set
+- Retry: no, the same call gives the same answer until something changes
+
+### revision_unreadable
+
+The revision exists, but its fields cannot be written as the record of its type (PRD 8.9, 11.12): it was written under another schema version than the type has now, which needs an upcaster (PRD 11.11), or its values do not satisfy the type's record contract. Nothing was written. Read the draft or a revision written under the current schema version.
+
+- HTTP status: 422 Unprocessable Content
+- CLI exit code: 65 (EX_DATAERR)
 - MCP: a tool result with isError set
 - Retry: no, the same call gives the same answer until something changes
 

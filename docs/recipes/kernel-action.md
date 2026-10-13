@@ -772,10 +772,11 @@ final class SurfaceContractTest extends TestCase
         'type.list' => ['rest', 'inertia', 'mcp'],
     ];
 
-    /** The kernel's entry reads of B2, entry.get and entry.list, each on REST, Inertia and MCP, by name. */
+    /** The kernel's entry reads of B2, entry.get, entry.list and entry.preview, each on REST, Inertia and MCP, by name. */
     private const array ENTRY_QUERIES = [
         'entry.get' => ['rest', 'inertia', 'mcp'],
         'entry.list' => ['rest', 'inertia', 'mcp'],
+        'entry.preview' => ['rest', 'inertia', 'mcp'],
     ];
 
     /**

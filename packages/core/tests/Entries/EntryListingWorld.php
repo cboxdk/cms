@@ -32,6 +32,7 @@ use Cbox\Cms\Core\Entries\Domain\Dto\ListedEntry;
 use Cbox\Cms\Core\Placements\Domain\Visibility;
 use Cbox\Cms\Core\Routing\Domain\EntryLifecycle;
 use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryListing;
+use Cbox\Cms\Core\Tests\Entries\Fakes\FakeEntryPreviews;
 use Cbox\Cms\Core\Tests\Postgres\StorageTables;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -42,10 +43,11 @@ use LogicException;
  * section NORTH_SECTION below it, and SOUTH; three entries of the workbench's article type, in
  * the order of their ids: FIRST, homed on NORTH_SECTION, unreleased, with its draft revision 1;
  * SECOND, homed on NORTH, released, whose draft is revision 1 and whose release wrote revision 2
- * an hour after the rest, placed by PLACEMENT under NORTH_SECTION in da with a live window; and
+ * an hour after the rest with the title "Second, released", placed by PLACEMENT under
+ * NORTH_SECTION in da with a live window; and
  * THIRD, homed on SOUTH, unreleased. ADMIN's regions reach NORTH and SOUTH, EDITOR's NORTH alone,
  * and NOBODY reaches nothing. seed() writes it to Postgres as the superuser; listing() gives the
- * fake as a reader's context reads it.
+ * fake as a reader's context reads it, and previews() the fake of entry.preview's reads.
  */
 final class EntryListingWorld
 {
@@ -262,6 +264,9 @@ final class EntryListingWorld
                     'revision_id' => $published, 'entry_id' => $detail->id->toString(), 'variant' => 'shared', 'rev_no' => $head->released->value, 'kind' => 'published',
                     'schema_version' => $type->version, 'changeset_id' => StorageTables::CHANGESET, 'created_at' => self::RELEASED_AT,
                 ]);
+                $superuser->table('revision_payloads')->insert([
+                    'revision_id' => $published, 'kind' => 'published', 'format_version' => StoredContent::FORMAT_VERSION, 'content' => StoredContent::payload(self::releasedFields($detail)),
+                ]);
             }
 
             $superuser->table('variant_heads')->insert([
@@ -290,6 +295,39 @@ final class EntryListingWorld
                 }
             }
         }
+    }
+
+    /**
+     * The fields of the released revision of an entry that has one: its draft's title, released.
+     */
+    public static function releasedFields(EntryDetail $detail): FieldValues
+    {
+        return self::fields(match ($detail->id->toString()) {
+            self::SECOND => 'Second, released',
+            default => throw new LogicException(sprintf('The entry listing world releases no revision of %s.', $detail->id->toString())),
+        });
+    }
+
+    /**
+     * EntryPreviews in memory as the reader's context reads it: the shared head of each entry,
+     * with its draft and, for the released entry, its released revision.
+     */
+    public static function previews(string $reader): FakeEntryPreviews
+    {
+        $previews = new FakeEntryPreviews(self::ANCESTRY, array_map(NodeId::fromString(...), self::READERS[$reader] ?? []));
+
+        foreach (self::details() as $detail) {
+            $head = $detail->heads[0];
+            $revisions = [$head->revision->value => $head->fields];
+
+            if ($head->released instanceof RevisionNumber) {
+                $revisions[$head->released->value] = self::releasedFields($detail);
+            }
+
+            $previews->add($detail->id, $head->variant, $detail->type, $detail->home, $head->revision, $head->released, $head->state, $revisions);
+        }
+
+        return $previews;
     }
 
     private static function head(ReleaseState $state, int $revision, int $latest, ?int $released, int $version, FieldValues $fields): EntryHead

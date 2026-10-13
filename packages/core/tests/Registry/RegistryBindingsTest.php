@@ -24,6 +24,7 @@ use Cbox\Cms\Core\Entries\Actions\CreateVariantFromAction;
 use Cbox\Cms\Core\Entries\Actions\DeleteVariantAction;
 use Cbox\Cms\Core\Entries\Actions\GetEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ListEntriesAction;
+use Cbox\Cms\Core\Entries\Actions\PreviewEntryAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseEntryVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReleaseVariantAction;
 use Cbox\Cms\Core\Entries\Actions\ReviseEntryAction;
@@ -218,6 +219,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
             'entry.create@2 '.CreateLocalizedEntryAction::class.' write',
             'entry.get@1 '.GetEntryAction::class.' query',
             'entry.list@1 '.ListEntriesAction::class.' query',
+            'entry.preview@1 '.PreviewEntryAction::class.' query',
             'entry.publish@1 '.PublishEntryAction::class.' write',
             'entry.publish@2 '.PublishLocalizedEntryAction::class.' write',
             'entry.revise@1 '.ReviseEntryAction::class.' write',
@@ -267,7 +269,7 @@ it('scans the packages\' own classes without a problem and registers the kernel\
         ->and($registry->actionFor(CreateEntry::class)?->class)->toBe(CreateEntryAction::class)
         ->and($registry->actionFor(ReviseEntry::class)?->class)->toBe(ReviseEntryAction::class)
         ->and($registry->actionFor(ListNodes::class)?->surfaces)->toBe([Surface::Rest, Surface::Inertia])
-        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([45, 0, 34, 0, 15, 39, 0, 1])
+        ->and(array_map($registry->count(...), RegistryName::cases()))->toBe([46, 0, 34, 0, 15, 40, 0, 1])
         ->and($registry->hooks)->toBe([])
         ->and(array_map(static fn (SubscriberEntry $entry): string => $entry->name->value.' '.$entry->class.' '.$entry->lane->value.' '.$entry->projection?->value, $registry->subscribers))
         ->toBe(['fragments.invalidate '.InvalidateFragments::class.' critical origin'])

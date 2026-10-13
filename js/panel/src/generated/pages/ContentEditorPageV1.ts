@@ -8,13 +8,15 @@
 import { validate, type ObjectRule, type JsonObject, type Validation } from '../validation';
 
 /**
- * The props of the panel's entry editor, Content/Editor (PRD 5.4, 11.12, 13.4), the page for a new
- * entry of a type and the page of an entry: the address the logout posts to, the name of the type
- * the address names, the entry the page edits or null for a new entry, the address of the type's
- * content list, and the reads as the person: of type.describe, the type's editor descriptor the
- * page renders its form from; of entry.get, the entry the page edits, or null for a new entry; and
- * of node.list, the nodes a new entry's home may be, or null for the page of an entry. Each read is
- * its result as the query's result codec wrote it at the person's classification access, or the
+ * The props of the panel's entry editor, Content/Editor (PRD 5.4, 8.9, 11.12, 13.4), the page for a
+ * new entry of a type and the page of an entry: the address the logout posts to, the name of the
+ * type the address names, the entry the page edits or null for a new entry, the address of the
+ * type's content list, the revision the page previews, and the reads as the person: of
+ * type.describe, the type's editor descriptor the page renders its form from; of entry.get, the
+ * entry the page edits, or null for a new entry; of node.list, the nodes a new entry's home may be
+ * and an entry's placements may sit under; and of entry.preview, the record of the entry's draft or
+ * of the revision asked for as the delivery API would send it, or null for a new entry. Each read
+ * is its result as the query's result codec wrote it at the person's classification access, or the
  * problem details (problem.v1.json) of a rejected read, one of the two and never both. The PHP form
  * is Cbox\Cms\Panel\Domain\Dto\ContentEditorPage, and the generated codec ContentEditorPageCodecV1
  * writes its canonical JSON: keys sorted, no whitespace.
@@ -35,11 +37,21 @@ export interface ContentEditorPageV1 {
   /** The address the logout posts to. */
   logout: string;
   /**
-   * The read of node.list, the nodes the person reaches, one of which a new entry's home is;
-   * validate its result with the validator of NodeListV1. Null for the page of an entry, whose home
-   * is set.
+   * The read of node.list, the nodes the person reaches: one of them is a new entry's home, and an
+   * entry's new placement sits under one; validate its result with the validator of NodeListV1.
    */
-  nodes_read: ReadAnswerV1 | null;
+  nodes_read: ReadAnswerV1;
+  /**
+   * The read of entry.preview, the record of the entry's draft, or of the revision named by
+   * revision, as the delivery API would send it; validate its result with the validator of
+   * EntryPreviewV1. Null for the page of a new entry.
+   */
+  preview_read: ReadAnswerV1 | null;
+  /**
+   * The number of the revision the page previews, from the address's query parameter revision, or
+   * null for the draft.
+   */
+  revision: number | null;
   /** The name of the type the address names, <owner>:<handle>, such as app:blog_post. */
   type: string;
   /**
@@ -95,7 +107,17 @@ const contentEditorPageV1Rule: ObjectRule = {
     { key: 'list', presence: 'required', value: { kind: 'text', minLength: 1, maxLength: 500 } },
     { key: 'type_read', presence: 'required', value: { kind: 'object', object: readAnswerV1Rule } },
     { key: 'entry_read', presence: 'present', value: { kind: 'object', object: readAnswerV1Rule } },
-    { key: 'nodes_read', presence: 'present', value: { kind: 'object', object: readAnswerV1Rule } },
+    {
+      key: 'nodes_read',
+      presence: 'required',
+      value: { kind: 'object', object: readAnswerV1Rule },
+    },
+    {
+      key: 'preview_read',
+      presence: 'present',
+      value: { kind: 'object', object: readAnswerV1Rule },
+    },
+    { key: 'revision', presence: 'present', value: { kind: 'integer', min: 1 } },
   ],
 };
 

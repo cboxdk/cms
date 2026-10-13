@@ -1,7 +1,7 @@
 {
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "title": "Entry editor page props, contract version 1",
-  "description": "The props of the panel's entry editor, Content/Editor (PRD 5.4, 11.12, 13.4), the page for a new entry of a type and the page of an entry: the address the logout posts to, the name of the type the address names, the entry the page edits or null for a new entry, the address of the type's content list, and the reads as the person: of type.describe, the type's editor descriptor the page renders its form from; of entry.get, the entry the page edits, or null for a new entry; and of node.list, the nodes a new entry's home may be, or null for the page of an entry. Each read is its result as the query's result codec wrote it at the person's classification access, or the problem details (problem.v1.json) of a rejected read, one of the two and never both. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContentEditorPage, and the generated codec ContentEditorPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
+  "description": "The props of the panel's entry editor, Content/Editor (PRD 5.4, 8.9, 11.12, 13.4), the page for a new entry of a type and the page of an entry: the address the logout posts to, the name of the type the address names, the entry the page edits or null for a new entry, the address of the type's content list, the revision the page previews, and the reads as the person: of type.describe, the type's editor descriptor the page renders its form from; of entry.get, the entry the page edits, or null for a new entry; of node.list, the nodes a new entry's home may be and an entry's placements may sit under; and of entry.preview, the record of the entry's draft or of the revision asked for as the delivery API would send it, or null for a new entry. Each read is its result as the query's result codec wrote it at the person's classification access, or the problem details (problem.v1.json) of a rejected read, one of the two and never both. The PHP form is Cbox\\Cms\\Panel\\Domain\\Dto\\ContentEditorPage, and the generated codec ContentEditorPageCodecV1 writes its canonical JSON: keys sorted, no whitespace.",
   "type": "object",
   "additionalProperties": false,
   "required": [
@@ -10,6 +10,8 @@
     "list",
     "logout",
     "nodes_read",
+    "preview_read",
+    "revision",
     "type",
     "type_read"
   ],
@@ -46,7 +48,11 @@
       "maxLength": 500
     },
     "nodes_read": {
-      "description": "The read of node.list, the nodes the person reaches, one of which a new entry's home is; validate its result with the validator of NodeListV1. Null for the page of an entry, whose home is set.",
+      "description": "The read of node.list, the nodes the person reaches: one of them is a new entry's home, and an entry's new placement sits under one; validate its result with the validator of NodeListV1.",
+      "$ref": "#/$defs/read"
+    },
+    "preview_read": {
+      "description": "The read of entry.preview, the record of the entry's draft, or of the revision named by revision, as the delivery API would send it; validate its result with the validator of EntryPreviewV1. Null for the page of a new entry.",
       "anyOf": [
         {
           "$ref": "#/$defs/read"
@@ -55,6 +61,14 @@
           "type": "null"
         }
       ]
+    },
+    "revision": {
+      "description": "The number of the revision the page previews, from the address's query parameter revision, or null for the draft.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
     },
     "type": {
       "description": "The name of the type the address names, <owner>:<handle>, such as app:blog_post.",

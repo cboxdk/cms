@@ -1,0 +1,71 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "entry.preview result, contract version 1",
+  "description": "The result of entry.preview (PRD 5.4, 8.9, 13.4): the entry, the name of its type, the variant and the number of the revision previewed, the numbers of the variant's draft and released revision and its release state, and under data the record exactly as the delivery API's answer holds it: what the type's generated codec wrote at the public classification access. The PHP form is Cbox\\Cms\\Core\\Entries\\Domain\\Dto\\EntryPreview, and the generated codec writes its canonical JSON: keys sorted, no whitespace.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "data",
+    "draft",
+    "entry",
+    "released",
+    "revision",
+    "state",
+    "type",
+    "variant"
+  ],
+  "properties": {
+    "data": {
+      "description": "The record, in the record contract of the type named by type, exactly as that type's generated codec wrote it at the public classification access: the entry's id under cms_id and each public field. Validate it with the validator of that type's record contract.",
+      "type": "object"
+    },
+    "draft": {
+      "description": "The number of the variant's current draft revision.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "entry": {
+      "description": "The entry.",
+      "$ref": "#/$defs/id"
+    },
+    "released": {
+      "description": "The number of the variant's released revision, or null when none is released.",
+      "type": [
+        "integer",
+        "null"
+      ],
+      "minimum": 1
+    },
+    "revision": {
+      "description": "The number of the revision the record is of.",
+      "type": "integer",
+      "minimum": 1
+    },
+    "state": {
+      "description": "The variant's release state (PRD 5.6, 6.4).",
+      "enum": [
+        "unreleased",
+        "released",
+        "withdrawn"
+      ]
+    },
+    "type": {
+      "description": "The name of the entry's type, <owner>:<handle>, such as app:blog_post; the record is in that type's record contract.",
+      "type": "string",
+      "maxLength": 84,
+      "pattern": "^[a-z][a-z0-9]{0,19}:[a-z][a-z0-9]*(_[a-z0-9]+)*$"
+    },
+    "variant": {
+      "description": "The variant previewed: shared, or a locale.",
+      "type": "string",
+      "pattern": "^(shared|[a-zA-Z]{2,3}(-[a-zA-Z]{4})?(-([a-zA-Z]{2}|[0-9]{3}))?)$"
+    }
+  },
+  "$defs": {
+    "id": {
+      "description": "A UUIDv7, such as 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01.",
+      "type": "string",
+      "pattern": "^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$"
+    }
+  }
+}
