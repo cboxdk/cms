@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Records\ShopProduct;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
@@ -61,6 +62,11 @@ interface ShopProductRecord
      * Launch date: The day the product went on sale.
      */
     public ?DateTimeImmutable $launchDate { get; }
+
+    /**
+     * Manual: Where the product's manual is, an entry of the shop or a page on the web.
+     */
+    public ?Link $manual { get; }
 
     /**
      * Name: The name of the product, as the shop shows it.

@@ -125,6 +125,10 @@ final readonly class TypeScriptEmitter
             $imports[] = 'type JsonObject';
         }
 
+        if (self::uses($objects, CodecKind::Link)) {
+            $imports[] = 'type Link';
+        }
+
         if (self::uses($objects, CodecKind::PortableText)) {
             $imports[] = 'type PortableText';
         }
@@ -304,6 +308,8 @@ final readonly class TypeScriptEmitter
                 return 'boolean';
             case CodecKind::PortableText:
                 return 'PortableText';
+            case CodecKind::Link:
+                return 'Link';
             case CodecKind::Fields:
                 return 'FieldValues';
             case CodecKind::Document:
@@ -515,6 +521,7 @@ final readonly class TypeScriptEmitter
                     [ValidationRuleName::Styles, ValidationRuleName::Marks, ValidationRuleName::Lists, ValidationRuleName::Links],
                 ),
             ],
+            CodecKind::Link => [$kind('link'), new Property('kinds', ArrayLiteral::strings(PhpSource::linkKinds($value)))],
             CodecKind::Object => [$kind('object'), new Property('object', new Reference(self::ruleName($names[self::object($value)->className])))],
             CodecKind::List => [
                 $kind('list'),

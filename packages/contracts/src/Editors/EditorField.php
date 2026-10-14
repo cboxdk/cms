@@ -50,8 +50,8 @@ use Cbox\Cms\Contracts\Validation\WhenHidden;
  * - `defaultValue` is the form's starting value from the blueprint's `default`, as one JSON
  *   document, or null: `{"kind":"constant","value":<the value in the record's JSON form>}` for a
  *   constant, or `{"kind":"token","token":"today"}` or `"now"` for a date or datetime the form
- *   takes from the clock. It is form only: a command never fills it in, and a group, rich text
- *   and a relation have none.
+ *   takes from the clock. It is form only: a command never fills it in, and a group, rich text,
+ *   a relation and a link have none.
  * - `when` is the condition a conditional field is shown on (gap G3), as one JSON document in the
  *   form of the generated validation runtime's ConditionRule, such as
  *   `{"op":"eq","field":{"up":0,"key":"kind"},"value":"external"}`: `field` names a sibling in the
@@ -185,7 +185,7 @@ final readonly class EditorField
             throw InvalidTypeEditor::summary($path);
         }
 
-        if ($defaultValue instanceof JsonDocument && in_array($base, [EditorBase::Group, EditorBase::RichText, EditorBase::Relation], true)) {
+        if ($defaultValue instanceof JsonDocument && in_array($base, [EditorBase::Group, EditorBase::RichText, EditorBase::Relation, EditorBase::Link], true)) {
             throw InvalidTypeEditor::defaultValue($path);
         }
 

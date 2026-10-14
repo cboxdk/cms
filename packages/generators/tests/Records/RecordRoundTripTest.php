@@ -15,7 +15,10 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkRel;
 use Cbox\Cms\Contracts\Fields\InvalidFieldValue;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\MapEntry;
@@ -78,6 +81,11 @@ function fullProduct(): FieldValues
             )),
             named('discontinued', new BooleanValue(false)),
             named('launch_date', new DateValue('2026-03-01')),
+            named('manual', new MapValue(
+                new MapEntry('kind', new TextValue('url')),
+                new MapEntry('rel', new ListValue(new TextValue('nofollow'))),
+                new MapEntry('url', new TextValue('https://example.com/scarf')),
+            )),
             named('name', new TextValue('Scarf')),
             named('price', new DecimalValue('129.5')),
             named('purchase_price', new DecimalValue('-0.25')),
@@ -107,7 +115,7 @@ function sparseProduct(): FieldValues
 {
     $fields = [];
 
-    foreach (['accessories', 'body', 'care', 'checked_at', 'dimensions', 'discontinued', 'launch_date', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight'] as $handle) {
+    foreach (['accessories', 'body', 'care', 'checked_at', 'dimensions', 'discontinued', 'launch_date', 'manual', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight'] as $handle) {
         $fields[] = named($handle, new NullValue);
     }
 
@@ -124,7 +132,7 @@ it('covers every core field type of the blueprint schema with the golden record'
         $types[] = $field->type;
     }
 
-    expect(array_values(array_unique($types)))->toEqualCanonicalizing(['boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'long_text', 'relation', 'rich_text', 'select', 'text']);
+    expect(array_values(array_unique($types)))->toEqualCanonicalizing(['boolean', 'date', 'datetime', 'decimal', 'group', 'integer', 'link', 'long_text', 'relation', 'rich_text', 'select', 'text']);
 });
 
 it('round-trips the generic values of every field type through the record', function (FieldValues $values): void {
@@ -157,6 +165,7 @@ it('reads each field type into its PHP value', function (): void {
         ->and($record->dimensions)->toEqual([new DimensionsItem(DimensionsSizeChoice::Small, 40), new DimensionsItem(DimensionsSizeChoice::Large, null)])
         ->and($record->accessories)->toEqual([EntryId::fromString(GLOVES), EntryId::fromString(HAT)])
         ->and($record->successor)->toEqual(EntryId::fromString(HAT))
+        ->and($record->manual)->toEqual(Link::toUrl('https://example.com/scarf', LinkRel::Nofollow))
         ->and($record->ext->app)->toEqual(new ShopProductAppFields('SCARF-01', 'DK25'));
 });
 
@@ -170,6 +179,7 @@ it('writes a record built in PHP and reads the same record back', function (): v
         dimensions: [],
         discontinued: true,
         launchDate: new DateTimeImmutable('2026-01-02T00:00:00+00:00'),
+        manual: Link::toEntry(EntryId::fromString(HAT), new Locale('da')),
         name: 'Mitten',
         price: '0.5',
         purchasePrice: null,
@@ -233,6 +243,18 @@ it('refuses generic values that do not fit the type, naming the field', function
     'an item of a relation that is no entry id' => [
         fn (): FieldValues => new FieldValues(new FieldMap(named('accessories', new ListValue(new TextValue(HAT), new TextValue('gloves'))), named('colour', new TextValue('red')), named('name', new TextValue('Hat')), named('price', new DecimalValue('1')))),
         'The relation "accessories.1" holds "gloves", which is not an entry\'s id, a UUIDv7.',
+    ],
+    'a link of no kind' => [
+        fn (): FieldValues => new FieldValues(new FieldMap(named('colour', new TextValue('red')), named('manual', new MapValue(new MapEntry('url', new TextValue('https://example.com')))), named('name', new TextValue('Hat')), named('price', new DecimalValue('1')))),
+        'The link "manual" holds no valid link.',
+    ],
+    'a link to an entry without the entry' => [
+        fn (): FieldValues => new FieldValues(new FieldMap(named('colour', new TextValue('red')), named('manual', new MapValue(new MapEntry('kind', new TextValue('entry')))), named('name', new TextValue('Hat')), named('price', new DecimalValue('1')))),
+        'The link "manual" holds no valid link.',
+    ],
+    'a link to a URL of another scheme' => [
+        fn (): FieldValues => new FieldValues(new FieldMap(named('colour', new TextValue('red')), named('manual', new MapValue(new MapEntry('kind', new TextValue('url')), new MapEntry('url', new TextValue('ftp://example.com')))), named('name', new TextValue('Hat')), named('price', new DecimalValue('1')))),
+        'The link "manual" holds no valid link.',
     ],
     'an extension field of another kind' => [
         fn (): FieldValues => new FieldValues(

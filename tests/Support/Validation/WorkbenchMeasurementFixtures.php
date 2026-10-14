@@ -44,10 +44,12 @@ final readonly class WorkbenchMeasurementFixtures
             ],
             'fixture_corrects' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03',
             'fixture_cited_in' => ['0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03'],
+            'fixture_source' => ['kind' => 'url', 'url' => 'https://example.com/feed/42', 'rel' => ['nofollow']],
             'fixture_sensor' => [
                 'fixture_sensor_calibration' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04',
                 'fixture_sensor_code' => 'S-7',
                 'fixture_sensor_contact' => 'sensors@example.com',
+                'fixture_sensor_datasheet' => ['kind' => 'url', 'url' => 'https://example.com/datasheet.pdf'],
                 'fixture_sensor_manual' => 'https://example.com/manual',
             ],
             'fixture_series' => [
@@ -147,6 +149,20 @@ final readonly class WorkbenchMeasurementFixtures
             'multiple relation: an item that is no entry id' => ['fixture_cited_in.1', 'x', 'fixture_cited_in[1]', 'validation_wrong_type'],
             'multiple relation: an entry twice, in another case' => ['fixture_cited_in.1', '0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A01', 'fixture_cited_in[1]', 'validation_duplicate_item'],
             'multiple relation: too many items' => ['fixture_cited_in', array_map(static fn (int $item): string => sprintf('0199a3c1-2b4d-7e5f-8a6b-%012x', $item), range(1, 201)), 'fixture_cited_in', 'validation_too_many_items'],
+            // link: fixture_source, an entry, a node or a URL
+            'link: wrong type' => ['fixture_source', 'https://example.com/feed/42', 'fixture_source', 'validation_wrong_type'],
+            'link: no kind' => ['fixture_source.kind', null, 'fixture_source.kind', 'validation_required'],
+            'link: a kind that is none' => ['fixture_source.kind', 'page', 'fixture_source.kind', 'validation_not_an_option'],
+            'link: a member of another kind' => ['fixture_source.entry', '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'fixture_source', 'validation_unknown_field'],
+            'link: a URL of another scheme' => ['fixture_source.url', 'ftp://example.com/feed', 'fixture_source.url', 'validation_invalid_format'],
+            'link: a URL over the length limit' => ['fixture_source.url', 'https://example.com/'.str_repeat('a', 2029), 'fixture_source.url', 'validation_too_long'],
+            'link: a rel that is none' => ['fixture_source.rel.0', 'external', 'fixture_source.rel[0]', 'validation_not_an_option'],
+            'link: a rel twice' => ['fixture_source.rel', ['ugc', 'ugc'], 'fixture_source.rel[1]', 'validation_duplicate_item'],
+            'link: an entry without the entry' => ['fixture_source', ['kind' => 'entry'], 'fixture_source.entry', 'validation_required'],
+            'link: an entry that is no entry id' => ['fixture_source', ['kind' => 'entry', 'entry' => 'DK-042'], 'fixture_source.entry', 'validation_wrong_type'],
+            'link: an entry in a locale that is none' => ['fixture_source', ['kind' => 'entry', 'entry' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'locale' => 'danish'], 'fixture_source.locale', 'validation_invalid_format'],
+            'link: a node that is no node id' => ['fixture_source', ['kind' => 'node', 'node' => 7], 'fixture_source.node', 'validation_wrong_type'],
+            'group: a nested link of a kind the field does not allow' => ['fixture_sensor.fixture_sensor_datasheet', ['kind' => 'node', 'node' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03'], 'fixture_sensor.fixture_sensor_datasheet.kind', 'validation_not_an_option'],
             'group: a nested relation that is no entry id' => ['fixture_sensor.fixture_sensor_calibration', 'S-7', 'fixture_sensor.fixture_sensor_calibration', 'validation_wrong_type'],
             // group once: fixture_sensor
             'group: wrong type' => ['fixture_sensor', ['S-7'], 'fixture_sensor', 'validation_wrong_type'],

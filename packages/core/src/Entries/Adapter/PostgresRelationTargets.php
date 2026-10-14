@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Entries\Adapter;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\EntryTypes;
 use Cbox\Cms\Core\Pipeline\Domain\RelationTargets;
@@ -18,7 +19,8 @@ use UnexpectedValueException;
  * The targets of a plan's relations on Postgres (PRD 5.11): one statement on `entries` by the ids,
  * as the app role under the call's actor context, on the default connection, or the one named,
  * on the write PDO, inside the command transaction. Row level security hides an entry the actor
- * cannot read, so it reads as absent; no read at all is made for no entries.
+ * cannot read, so it reads as absent; no read at all is made for no entries. The nodes of a plan's
+ * links are one statement on `nodes` the same way.
  */
 #[Internal]
 final readonly class PostgresRelationTargets implements RelationTargets
@@ -59,6 +61,28 @@ final readonly class PostgresRelationTargets implements RelationTargets
         }
 
         return new EntryTypes($types);
+    }
+
+    #[Override]
+    public function nodes(array $nodes): array
+    {
+        if ($nodes === []) {
+            return [];
+        }
+
+        $ids = $this->db()
+            ->table('nodes')
+            ->whereIn('id', array_map(static fn (NodeId $node): string => $node->toString(), $nodes))
+            ->useWritePdo()
+            ->pluck('id');
+
+        $found = [];
+
+        foreach ($ids as $id) {
+            $found[] = is_string($id) ? NodeId::fromString($id) : throw new UnexpectedValueException('The nodes table returned a row without its id.');
+        }
+
+        return $found;
     }
 
     private function db(): ConnectionInterface

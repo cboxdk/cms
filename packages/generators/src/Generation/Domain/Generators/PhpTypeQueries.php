@@ -103,6 +103,7 @@ final readonly class PhpTypeQueries implements Generator
         'decimal' => 'numeric-string, compared as a number',
         'group' => 'not queryable: the blueprint schema refuses a filterable or sortable group, and so does the generator, with generate_field_not_queryable',
         'integer' => 'int, compared as a number',
+        'link' => 'not queryable: the blueprint schema refuses a filterable or sortable link, and so does the generator, with generate_field_not_queryable',
         'long_text' => 'string, compared by the column\'s collation; the blueprint schema refuses a filterable or sortable long text',
         'relation' => 'EntryId, the target, through the kernel\'s relations table, with the target\'s filterable attributes compared by equality; the blueprint schema refuses a sortable relation, and so does the generator, with generate_field_not_queryable',
         'rich_text' => 'not queryable: the blueprint schema refuses a filterable or sortable rich text, and so does the generator, with generate_field_not_queryable',
@@ -253,12 +254,12 @@ final readonly class PhpTypeQueries implements Generator
     /**
      * Whether the builder can compare the field: a scalar field type other than long text, or a
      * select with one option, by the field's base. Blueprint v1 refuses a filterable or sortable
-     * long text, group, rich text or relation of the core; an addon's field type is held to its base here.
+     * long text, group, rich text, relation or link of the core; an addon's field type is held to its base here.
      */
     private function queryable(FieldDescriptor $field): bool
     {
         return match ($field->base) {
-            'group', 'long_text', 'relation', 'rich_text' => false,
+            'group', 'link', 'long_text', 'relation', 'rich_text' => false,
             'select' => $field->php->native !== 'array',
             default => true,
         };

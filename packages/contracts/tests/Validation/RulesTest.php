@@ -6,6 +6,7 @@ namespace Cbox\Cms\Contracts\Tests\Validation;
 
 use Cbox\Cms\Contracts\Errors\ErrorCode;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\FieldPath;
@@ -206,7 +207,7 @@ it('names the type rules and what may follow each', function (): void {
     $types = array_values(array_filter(RuleName::cases(), static fn (RuleName $name): bool => $name->isType()));
 
     expect(array_map(static fn (RuleName $name): string => $name->value, $types))
-        ->toBe(['string', 'integer', 'decimal', 'boolean', 'date', 'datetime', 'object', 'list', 'portable_text', 'relation', 'relations'])
+        ->toBe(['string', 'integer', 'decimal', 'boolean', 'date', 'datetime', 'object', 'list', 'portable_text', 'relation', 'relations', 'link'])
         ->and(RuleName::Boolean->modifiers())->toBe([])
         ->and(RuleName::Object->modifiers())->toBe([])
         ->and(RuleName::MaxLength->modifiers())->toBe([])
@@ -218,7 +219,20 @@ it('names the type rules and what may follow each', function (): void {
         ->and(RuleName::List->modifiers())->toBe([RuleName::Distinct, RuleName::ItemsIn, RuleName::MinItems, RuleName::MaxItems])
         ->and(RuleName::PortableText->modifiers())->toBe([RuleName::Styles, RuleName::Marks, RuleName::Lists, RuleName::Links])
         ->and(RuleName::Relation->modifiers())->toBe([RuleName::Targets])
-        ->and(RuleName::Relations->modifiers())->toBe([RuleName::Targets, RuleName::MaxItems]);
+        ->and(RuleName::Relations->modifiers())->toBe([RuleName::Targets, RuleName::MaxItems])
+        ->and(RuleName::Link->modifiers())->toBe([RuleName::Kinds]);
+});
+
+it('takes one or more link kinds as the kinds of a link, each once, and every kind without them', function (): void {
+    $rules = new FieldRules(new FieldHandle('source'), Presence::Optional, [new Rule(RuleName::Link), new Rule(RuleName::Kinds, ['entry', 'url'])]);
+
+    expect($rules->type)->toBe(RuleName::Link)
+        ->and($rules->linkKinds())->toBe([LinkKind::Entry, LinkKind::Url])
+        ->and(new FieldRules(new FieldHandle('source'), Presence::Optional, [new Rule(RuleName::Link)])->linkKinds())->toBe(LinkKind::cases())
+        ->and(static fn (): Rule => new Rule(RuleName::Kinds))->toThrow(InvalidRules::class)
+        ->and(static fn (): Rule => new Rule(RuleName::Kinds, ['url', 'url']))->toThrow(InvalidRules::class)
+        ->and(static fn (): Rule => new Rule(RuleName::Kinds, ['page']))->toThrow(InvalidRules::class, 'one of entry, node, url')
+        ->and(static fn (): FieldRules => new FieldRules(new FieldHandle('source'), Presence::Optional, [new Rule(RuleName::Link), new Rule(RuleName::MaxItems, ['5'])]))->toThrow(InvalidRules::class);
 });
 
 it('takes one or more type names as the targets of a relation, each once', function (): void {

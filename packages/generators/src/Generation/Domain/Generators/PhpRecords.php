@@ -12,6 +12,7 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -84,6 +85,7 @@ final readonly class PhpRecords implements Generator
         'decimal' => 'numeric-string in canonical form',
         'group' => 'a <Field>Group, or a list of <Field>Item when the group repeats',
         'integer' => 'int',
+        'link' => 'the contracts\' Link of its kind and its target',
         'long_text' => 'string',
         'relation' => 'the target\'s EntryId, or a list of them when the field holds several',
         'rich_text' => 'the kernel\'s ListValue of Portable Text blocks',
@@ -290,6 +292,7 @@ final readonly class PhpRecords implements Generator
             'date' => $this->scalar($field, 'DateTimeImmutable', null, 'date', DateTimeImmutable::class),
             'datetime' => $this->scalar($field, 'DateTimeImmutable', null, 'dateTime', DateTimeImmutable::class),
             'rich_text' => $this->scalar($field, 'ListValue', null, 'list', ListValue::class),
+            'link' => $this->scalar($field, 'Link', null, 'link', Link::class),
             'relation' => $this->hasRule($field, ValidationRuleName::Relations)
                 ? $this->scalar($field, 'array', 'list<EntryId>', 'entries', EntryId::class)
                 : $this->scalar($field, 'EntryId', null, 'entry', EntryId::class),

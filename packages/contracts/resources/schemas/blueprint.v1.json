@@ -389,7 +389,8 @@
                 "select",
                 "rich_text",
                 "group",
-                "relation"
+                "relation",
+                "link"
               ]
             },
             {
@@ -427,7 +428,7 @@
           "enum": ["clear", "keep"]
         },
         "default": {
-          "description": "The value the form starts the input with (gap G2), form only and never filled in by a command: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, a boolean for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, an option's value for select, or a list of them with multiple: true. A group, rich text and a relation take none. cms:generate refuses another kind with generate_default_wrong_kind.",
+          "description": "The value the form starts the input with (gap G2), form only and never filled in by a command: a string for text and long_text, an integer for integer, a decimal as a quoted string for decimal, a boolean for boolean, a quoted date or the token today for date, a quoted time with its offset or the token now for datetime, an option's value for select, or a list of them with multiple: true. A group, rich text, a relation and a link take none. cms:generate refuses another kind with generate_default_wrong_kind.",
           "type": ["string", "integer", "boolean", "array"],
           "maxItems": 500,
           "items": { "type": "string" }
@@ -459,6 +460,7 @@
         { "if": { "properties": { "type": { "const": "rich_text" } } }, "then": { "$ref": "#/$defs/richTextOptions" } },
         { "if": { "properties": { "type": { "const": "group" } } }, "then": { "$ref": "#/$defs/groupOptions" } },
         { "if": { "properties": { "type": { "const": "relation" } } }, "then": { "$ref": "#/$defs/relationOptions" } },
+        { "if": { "properties": { "type": { "const": "link" } } }, "then": { "$ref": "#/$defs/linkOptions" } },
         {
           "if": { "properties": { "type": { "type": "string", "pattern": ":" } } },
           "then": { "$ref": "#/$defs/addonOptions" }
@@ -675,6 +677,26 @@
           }
         ]
       }
+    },
+    "linkOptions": {
+      "description": "A link (B2-T76): one target, an entry by its id with an optional locale, a node of the structure by its id, or an absolute http or https URL of at most 2048 characters with its rels (nofollow, noopener, noreferrer, sponsored, ugc), stored as a jsonb object. A link to an entry or a node is also an edge of the kernel's relations, and the kernel refuses one that names an entry or a node that does not exist. A link is public or internal, because its edge cannot hold ciphertext (PRD 12.2), and it is neither filterable nor sortable.",
+      "properties": {
+        "kinds": {
+          "description": "The kinds of target the field allows, each once: entry, node and url. Every kind without it.",
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": { "enum": ["entry", "node", "url"] },
+          "default": ["entry", "node", "url"]
+        }
+      },
+      "allOf": [
+        {
+          "if": { "required": ["classification"] },
+          "then": { "properties": { "classification": { "enum": ["public", "internal"] } } }
+        }
+      ],
+      "not": { "anyOf": [{ "required": ["filterable"] }, { "required": ["sortable"] }] }
     },
     "addonOptions": {
       "description": "The choices of an addon's field type sit under `options`, so they never collide with a choice that version 1 adds to every field. The reader checks them against the JSON Schema that the addon contributes.",

@@ -9,8 +9,9 @@ capabilities:
   stages: none
   localization: none
 fields:
-  - handle: related
-    label: Related
-    description: A link to another note.
+  - handle: source
+    label: Source
+    description: Where the note comes from.
     type: link
     classification: public
+    kinds: [entry, page]

@@ -1040,6 +1040,47 @@
             "when_hidden": null
         },
         {
+            "agents": true,
+            "base": "link",
+            "choices": [],
+            "classification": "public",
+            "default": null,
+            "description": "Where the product's manual is, an entry of the shop or a page on the web.",
+            "descriptions": [],
+            "encrypted": false,
+            "fallback": "variant",
+            "handle": "manual",
+            "label": "Manual",
+            "labels": [],
+            "namespace": null,
+            "parent": null,
+            "path": "manual",
+            "presence": "optional",
+            "repeat": null,
+            "rule": {
+                "kind": "link",
+                "kinds": [
+                    "entry",
+                    "url"
+                ]
+            },
+            "targets": [],
+            "translatable": false,
+            "type": "link",
+            "ui": {
+                "display": null,
+                "hidden": false,
+                "input_hint": null,
+                "input_hint_by_locale": [],
+                "instructions": null,
+                "instructions_by_locale": [],
+                "read_only": false,
+                "summary": null
+            },
+            "when": null,
+            "when_hidden": null
+        },
+        {
             "agents": false,
             "base": "decimal",
             "choices": [],
@@ -1309,6 +1350,10 @@
                             },
                             {
                                 "path": "successor",
+                                "width": "full"
+                            },
+                            {
+                                "path": "manual",
                                 "width": "full"
                             }
                         ],

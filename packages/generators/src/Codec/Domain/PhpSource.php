@@ -5,6 +5,8 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Codec\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -30,6 +32,8 @@ final readonly class PhpSource
 
     public const string LIST_VALUE = ListValue::class;
 
+    public const string LINK = Link::class;
+
     /**
      * The native PHP type of a value, with classes by their short name.
      */
@@ -41,6 +45,7 @@ final readonly class PhpSource
             CodecKind::Boolean => 'bool',
             CodecKind::Date, CodecKind::Datetime => 'DateTimeImmutable',
             CodecKind::PortableText => 'ListValue',
+            CodecKind::Link => 'Link',
             CodecKind::Object => $value->object->className ?? self::missing($value, 'object'),
             CodecKind::List => 'array',
             CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document, CodecKind::Embedded => self::shortName($value->class ?? self::missing($value, 'class')),
@@ -88,11 +93,22 @@ final readonly class PhpSource
         return match ($value->kind) {
             CodecKind::Date, CodecKind::Datetime => [DateTimeImmutable::class],
             CodecKind::PortableText => [self::LIST_VALUE],
+            CodecKind::Link => [self::LINK],
             CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document, CodecKind::Embedded => [$value->class ?? self::missing($value, 'class')],
             CodecKind::Object => $value->object instanceof CodecObject && $value->object->class !== null ? [$value->object->class] : [],
             CodecKind::List => self::imports($value->item ?? self::missing($value, 'item')),
             default => [],
         };
+    }
+
+    /**
+     * The kinds a link allows: those of its `kinds` rule, or every LinkKind without one.
+     *
+     * @return list<string>
+     */
+    public static function linkKinds(CodecValue $value): array
+    {
+        return self::rule($value, ValidationRuleName::Kinds)->arguments ?? array_map(static fn (LinkKind $kind): string => $kind->value, LinkKind::cases());
     }
 
     /**

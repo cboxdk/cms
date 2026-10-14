@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Attributes\Command;
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Attributes\Query;
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Pipeline\Result;
@@ -1098,6 +1099,7 @@ final readonly class JsonSchemaContract
             CodecKind::Integer => 'int',
             CodecKind::Boolean => 'bool',
             CodecKind::Date, CodecKind::Datetime => DateTimeImmutable::class,
+            CodecKind::Link => Link::class,
             CodecKind::List, CodecKind::PortableText => 'array',
             CodecKind::Object => (string) $value->object?->class,
             CodecKind::Id, CodecKind::Enum, CodecKind::Value, CodecKind::IntegerValue, CodecKind::Fields, CodecKind::Document, CodecKind::Embedded => (string) $value->class,

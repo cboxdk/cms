@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Validation;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Schema\InvalidTypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 
@@ -21,7 +22,8 @@ use Cbox\Cms\Contracts\Schema\TypeName;
  * - `format` takes `email` or `url`;
  * - `in` and `items_in` take one or more options, `styles`, `marks`, `lists` and `links` any
  *   number of allowed values, each non-empty and each once;
- * - `targets` takes one or more type names, each `<owner>:<handle>` and each once.
+ * - `targets` takes one or more type names, each `<owner>:<handle>` and each once;
+ * - `kinds` takes one or more link kinds, each a LinkKind and each once.
  */
 #[Experimental]
 final readonly class Rule
@@ -54,6 +56,12 @@ final readonly class Rule
         } elseif ($name === RuleName::Targets) {
             $this->values(true);
             $this->typeNames();
+        } elseif ($name === RuleName::Kinds) {
+            $this->values(true);
+
+            foreach ($arguments as $argument) {
+                $this->oneOf($argument, array_map(static fn (LinkKind $kind): string => $kind->value, LinkKind::cases()));
+            }
         } else {
             $this->count(0);
         }

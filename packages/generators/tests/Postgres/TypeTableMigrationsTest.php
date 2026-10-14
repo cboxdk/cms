@@ -104,6 +104,7 @@ it('applies the comprehensive example\'s migration and reads its columns, indexe
             'ext__app__name text',
             'ext__app__tax_code text',
             'launch_date date',
+            'manual jsonb',
             'name text not null',
             'price numeric(10,2) not null',
             'purchase_price bytea',

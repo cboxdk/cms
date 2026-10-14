@@ -14,6 +14,8 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Fields\InvalidFieldValue;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\MapEntry;
@@ -31,6 +33,8 @@ use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\PortableText;
 use Cbox\Cms\Core\Codecs\Domain\TextFormats;
 use Cbox\Cms\Core\Pipeline\Boundary\FieldValuesInput;
+use Cbox\Cms\Core\Validation\Boundary\LinkInput;
+use Cbox\Cms\Core\Validation\Boundary\LinkProblem;
 use Closure;
 use DateTimeImmutable;
 use DateTimeZone;
@@ -529,6 +533,33 @@ final readonly class JsonValues
         PortableText::check($document, $at, $styles, $marks, $lists, $links);
 
         return $document;
+    }
+
+    /**
+     * A link (B2-T76) of one of the kinds given, as LinkInput reads it, which the input validator
+     * shares, so a codec refuses the values the validator refuses, at the same paths.
+     *
+     * @param  list<string>  $kinds  the LinkKind values the field allows
+     *
+     * @throws DecodingFailed with json_invalid
+     */
+    public static function link(mixed $value, FieldPath $at, array $kinds): Link
+    {
+        $read = LinkInput::read($value, array_map(LinkKind::from(...), $kinds));
+
+        if ($read instanceof LinkProblem) {
+            throw DecodingFailed::invalid($read->at($at), $read->reason);
+        }
+
+        return $read;
+    }
+
+    /**
+     * A link as JSON: `kind` and its target's members, the keys sorted (Link::toFieldValue()).
+     */
+    public static function encodeLink(Link $link): stdClass
+    {
+        return self::encodeMap($link->toFieldValue());
     }
 
     /**

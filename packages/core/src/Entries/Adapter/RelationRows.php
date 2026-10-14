@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Core\Entries\Boundary\RelationJson;
 use Cbox\Cms\Core\Entries\Domain\Dto\VariantEdges;
 use Cbox\Cms\Core\Entries\Domain\RelationSortKey;
@@ -20,7 +21,8 @@ use Illuminate\Database\ConnectionInterface;
  * written: the entry commands hand it the edges of each variant they write, in the stage they
  * write, and it never begins or ends a transaction.
  *
- * Each edge carries the attributes of its target (`meta`, as RelationJson writes them), the text
+ * An edge's target is an entry (`target_entry_id`) or, for a link to a node, a node
+ * (`target_node_id`). Each edge carries the attributes of its target (`meta`, as RelationJson writes them), the text
  * of its filterable attribute (`filter_key`) and, released, its relation's sort key (`sort_key`, as
  * RelationSortKey writes it) (PRD 5.11).
  *
@@ -41,7 +43,7 @@ final readonly class RelationRows
         with k as (
             select * from unnest(?::uuid[], ?::text[], ?::text[]) as k(entry_id, variant, stage)
         ), e as (
-            select * from unnest(?::uuid[], ?::text[], ?::text[], ?::text[], ?::integer[], ?::uuid[], ?::jsonb[], ?::text[], ?::text[]) as e(entry_id, variant, stage, field, ordinal, target_entry_id, meta, filter_key, sort_key)
+            select * from unnest(?::uuid[], ?::text[], ?::text[], ?::text[], ?::integer[], ?::uuid[], ?::uuid[], ?::jsonb[], ?::text[], ?::text[]) as e(entry_id, variant, stage, field, ordinal, target_entry_id, target_node_id, meta, filter_key, sort_key)
         ), gone as (
             delete from relations as r using k
             where r.source_entry_id = k.entry_id and r.variant = k.variant and r.stage = k.stage
@@ -51,11 +53,11 @@ final readonly class RelationRows
                     and e.field = r.field and e.ordinal = r.ordinal
               )
         )
-        insert into relations as r (source_entry_id, variant, stage, field, ordinal, target_entry_id, meta, filter_key, sort_key)
-        select entry_id, variant, stage, field, ordinal, target_entry_id, meta, filter_key, sort_key from e
+        insert into relations as r (source_entry_id, variant, stage, field, ordinal, target_entry_id, target_node_id, meta, filter_key, sort_key)
+        select entry_id, variant, stage, field, ordinal, target_entry_id, target_node_id, meta, filter_key, sort_key from e
         on conflict (source_entry_id, variant, stage, field, ordinal)
-            do update set target_entry_id = excluded.target_entry_id, meta = excluded.meta, filter_key = excluded.filter_key, sort_key = excluded.sort_key
-            where (r.target_entry_id, r.meta, r.filter_key, r.sort_key) is distinct from (excluded.target_entry_id, excluded.meta, excluded.filter_key, excluded.sort_key)
+            do update set target_entry_id = excluded.target_entry_id, target_node_id = excluded.target_node_id, meta = excluded.meta, filter_key = excluded.filter_key, sort_key = excluded.sort_key
+            where (r.target_entry_id, r.target_node_id, r.meta, r.filter_key, r.sort_key) is distinct from (excluded.target_entry_id, excluded.target_node_id, excluded.meta, excluded.filter_key, excluded.sort_key)
         SQL;
 
     public function __construct(private ConnectionInterface $db) {}
@@ -80,8 +82,8 @@ final readonly class RelationRows
         }
 
         $keys = [[], [], []];
-        $edges = [[], [], [], [], [], []];
-        $nullable = [[], [], []];
+        $edges = [[], [], [], [], []];
+        $nullable = [[], [], [], [], []];
 
         foreach ($byKey as $variant) {
             $keys[0][] = $variant->entry->toString();
@@ -94,10 +96,11 @@ final readonly class RelationRows
                 $edges[2][] = $variant->stage->value;
                 $edges[3][] = $edge->field;
                 $edges[4][] = (string) $edge->ordinal;
-                $edges[5][] = $edge->target->toString();
-                $nullable[0][] = RelationJson::meta($edge->meta);
-                $nullable[1][] = $edge->filterKey;
-                $nullable[2][] = $edge->sortKey instanceof FieldValue ? RelationSortKey::of($edge->sortKey) : null;
+                $nullable[0][] = $edge->target instanceof EntryId ? $edge->target->toString() : null;
+                $nullable[1][] = $edge->target instanceof NodeId ? $edge->target->toString() : null;
+                $nullable[2][] = RelationJson::meta($edge->meta);
+                $nullable[3][] = $edge->filterKey;
+                $nullable[4][] = $edge->sortKey instanceof FieldValue ? RelationSortKey::of($edge->sortKey) : null;
             }
         }
 

@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Validation\ValidationReport;
 use Cbox\Cms\Contracts\Validation\ValidationStage;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\LinkReference;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RelationReference;
 
 /**
@@ -21,7 +22,8 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RelationReference;
  * its path below $at.
  *
  * references() gives the targets of the revision's relation fields (RelationReferences), each with
- * the types its field allows, which the pipeline then reads through RelationTargets (PRD 5.11).
+ * the types its field allows, and of its link fields, each an entry or a node, which the pipeline
+ * then reads through RelationTargets (PRD 5.11).
  */
 #[Internal]
 interface FieldValidation
@@ -29,7 +31,7 @@ interface FieldValidation
     public function validate(TypeDefinition $type, VariantKey $variant, FieldValues $fields, ValidationStage $stage, FieldPath $at): ValidationReport;
 
     /**
-     * @return list<RelationReference>
+     * @return list<RelationReference|LinkReference>
      */
     public function references(TypeDefinition $type, VariantKey $variant, FieldValues $fields, FieldPath $at): array;
 }

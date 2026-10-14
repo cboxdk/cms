@@ -189,21 +189,21 @@ it('maps every core field type and every kind of the installed blueprint schema 
 
 it('fails when the schema gains a field type or a kind that a generator does not map', function (): void {
     $schema = changedSchemaCopy(static function (stdClass $schema): void {
-        enumHolder($schema, FIELD_TYPES_ENUM)->enum = [...schemaEnum($schema, FIELD_TYPES_ENUM), 'link'];
+        enumHolder($schema, FIELD_TYPES_ENUM)->enum = [...schemaEnum($schema, FIELD_TYPES_ENUM), 'geopoint'];
         enumHolder($schema, KINDS_ENUM)->enum = [...schemaEnum($schema, KINDS_ENUM), 'fieldset'];
     });
 
     expect(coverageProblems($schema, generatorMappings()))->toBe([
-        PhpRecordDtos::class.' has no mapping for the field type "link".',
-        PhpTypeHandleEnum::class.' has no mapping for the field type "link".',
-        PhpRecords::class.' has no mapping for the field type "link".',
-        PhpTypeCatalog::class.' has no mapping for the field type "link".',
-        PhpTypeEditors::class.' has no mapping for the field type "link".',
-        PhpTypeQueries::class.' has no mapping for the field type "link".',
-        PhpTypeValidators::class.' has no mapping for the field type "link".',
-        TypeScriptTypeHandles::class.' has no mapping for the field type "link".',
-        TypeScriptContracts::class.' has no mapping for the field type "link".',
-        TypeTableMigrations::class.' has no mapping for the field type "link".',
+        PhpRecordDtos::class.' has no mapping for the field type "geopoint".',
+        PhpTypeHandleEnum::class.' has no mapping for the field type "geopoint".',
+        PhpRecords::class.' has no mapping for the field type "geopoint".',
+        PhpTypeCatalog::class.' has no mapping for the field type "geopoint".',
+        PhpTypeEditors::class.' has no mapping for the field type "geopoint".',
+        PhpTypeQueries::class.' has no mapping for the field type "geopoint".',
+        PhpTypeValidators::class.' has no mapping for the field type "geopoint".',
+        TypeScriptTypeHandles::class.' has no mapping for the field type "geopoint".',
+        TypeScriptContracts::class.' has no mapping for the field type "geopoint".',
+        TypeTableMigrations::class.' has no mapping for the field type "geopoint".',
         PhpRecordDtos::class.' has no mapping for the kind "fieldset".',
         PhpTypeHandleEnum::class.' has no mapping for the kind "fieldset".',
         PhpRecords::class.' has no mapping for the kind "fieldset".',

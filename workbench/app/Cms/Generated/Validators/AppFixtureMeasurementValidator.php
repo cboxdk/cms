@@ -42,6 +42,7 @@ use Override;
  *   fixture_sensor.fixture_sensor_calibration: relation, optional
  *   fixture_sensor.fixture_sensor_code: text, required
  *   fixture_sensor.fixture_sensor_contact: text, optional
+ *   fixture_sensor.fixture_sensor_datasheet: link, optional
  *   fixture_sensor.fixture_sensor_manual: text, optional
  *   fixture_series: group, optional
  *   fixture_series[].fixture_series_check: text, required, shown on a condition, clear when hidden
@@ -50,6 +51,7 @@ use Override;
  *   fixture_series[].fixture_series_operator: text, required, shown on a condition, clear when hidden
  *   fixture_series[].fixture_series_taken_at: datetime, optional
  *   fixture_series[].fixture_series_value: decimal, required
+ *   fixture_source: link, optional
  *   fixture_station: text, optional
  */
 final readonly class AppFixtureMeasurementValidator implements TypeValidator
@@ -192,6 +194,14 @@ final readonly class AppFixtureMeasurementValidator implements TypeValidator
                             ],
                         ),
                         new FieldRules(
+                            new FieldHandle('fixture_sensor_datasheet'),
+                            Presence::Optional,
+                            [
+                                new Rule(RuleName::Link),
+                                new Rule(RuleName::Kinds, ['url']),
+                            ],
+                        ),
+                        new FieldRules(
                             new FieldHandle('fixture_sensor_manual'),
                             Presence::Optional,
                             [
@@ -273,6 +283,14 @@ final readonly class AppFixtureMeasurementValidator implements TypeValidator
                                 new Rule(RuleName::Max, ['1000.00']),
                             ],
                         ),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('fixture_source'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Link),
+                        new Rule(RuleName::Kinds, ['entry', 'node', 'url']),
                     ],
                 ),
                 new FieldRules(

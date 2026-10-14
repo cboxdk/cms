@@ -49,6 +49,7 @@ final readonly class TypeTableMigrations implements Generator
         'decimal' => 'a numeric column of its precision and scale',
         'group' => 'a jsonb column',
         'integer' => 'a bigint column',
+        'link' => 'a jsonb column of the link\'s kind and its target',
         'long_text' => 'a text column',
         'relation' => 'a uuid column with a foreign key to entries and its index, or a jsonb array of entry ids with multiple',
         'rich_text' => 'a jsonb column of Portable Text',

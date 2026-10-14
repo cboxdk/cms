@@ -200,7 +200,7 @@
         "base": {
           "description": "The core field type whose form the value takes: the field type itself for a core field type, and the base of its shape for an addon's. A form picks its input by it.",
           "type": "string",
-          "enum": ["boolean", "date", "datetime", "decimal", "group", "integer", "long_text", "relation", "rich_text", "select", "text"]
+          "enum": ["boolean", "date", "datetime", "decimal", "group", "integer", "link", "long_text", "relation", "rich_text", "select", "text"]
         },
         "choices": {
           "description": "The options of a select, in the blueprint's order, each value once; empty for any other base.",

@@ -232,15 +232,18 @@ export function EntryForm({
   for (const issue of issues) {
     const segments = issue.path === null ? [] : (parseEntryPath(issue.path) ?? []);
     const path = entryPathText(keyed(descriptor, keys, segments));
-    // An error is shown at a value the editor changed, and at a group or list the changed value
-    // is in, such as a repeated group with too few items, but not yet at the other values of an
-    // item the editor just added.
+    // An error is shown at a value the editor changed, at a group or list the changed value is
+    // in, such as a repeated group with too few items, and at a part of a changed leaf field's
+    // value, such as the URL of a link, but not yet at the other values of an item the editor
+    // just added.
     const visible =
       showErrors === 'all' ||
       [...touched].some(
         (done) =>
           done === path ||
-          (path !== '' && (done.startsWith(`${path}.`) || done.startsWith(`${path}[`))),
+          (path !== '' && (done.startsWith(`${path}.`) || done.startsWith(`${path}[`))) ||
+          ((path.startsWith(`${done}.`) || path.startsWith(`${done}[`)) &&
+            fieldAt(descriptor, fieldPathOf(parseEntryPath(done) ?? []))?.base !== 'group'),
       );
 
     if (visible && !shown.has(path)) {
@@ -510,7 +513,14 @@ function FieldView({ field, scopes, path, value, context, onChange }: FieldViewP
   const description =
     optionalEditorText(field.ui.instructions, field.ui.instructions_by_locale, context.locale) ??
     optionalEditorText(field.description, field.descriptions, context.locale);
-  const error = context.errors.get(name);
+  // A leaf field's input shows an error at a part of its value too, such as the URL of a link.
+  const error =
+    context.errors.get(name) ??
+    (field.base === 'group'
+      ? undefined
+      : [...context.errors.entries()].find(
+          ([path]) => path.startsWith(`${name}.`) || path.startsWith(`${name}[`),
+        )?.[1]);
   const changed = (next: JsonValue | undefined) => {
     context.touch(name);
     onChange(next);

@@ -14,6 +14,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldUi;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LayoutSection;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LinkOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\SchemaRoot;
@@ -153,6 +154,7 @@ it('fills in exactly the defaults of the blueprint schema', function (): void {
         '/$defs/groupOptions/properties/repeat/properties/max_items' => GroupRepeat::DEFAULT_MAX_ITEMS,
         '/$defs/relationOptions/properties/multiple' => RelationOptions::DEFAULT_MULTIPLE,
         '/$defs/relationOptions/properties/max_items' => RelationOptions::MAX_ITEMS,
+        '/$defs/linkOptions/properties/kinds' => LinkOptions::DEFAULT_KINDS,
         '/$defs/layoutSection/properties/collapsible' => LayoutSection::DEFAULT_COLLAPSIBLE,
         '/$defs/layoutField/properties/width' => LayoutWidth::DEFAULT->value,
         '/$defs/ui/properties/read_only' => FieldUi::DEFAULT_READ_ONLY,

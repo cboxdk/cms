@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Boundary;
 
 use Cbox\Cms\Contracts\Codecs\JsonCodec;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -106,6 +107,10 @@ final readonly class ShopProductCodecV1 implements JsonCodec
             $json->launch_date = $object->launchDate instanceof DateTimeImmutable ? JsonValues::encodeDate($object->launchDate) : null;
         }
 
+        if (! $object->manual instanceof Omitted) {
+            $json->manual = $object->manual instanceof Link ? JsonValues::encodeLink($object->manual) : null;
+        }
+
         $json->name = $object->name;
         $json->price = JsonValues::encodeDecimal($object->price, 10, 2);
 
@@ -146,7 +151,7 @@ final readonly class ShopProductCodecV1 implements JsonCodec
 
     private function decodeShopProductV1(stdClass $value, ClassificationAccess $access): ShopProductV1
     {
-        $object = JsonValues::object($value, null, ['accessories', 'body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'name', 'price', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight']);
+        $object = JsonValues::object($value, null, ['accessories', 'body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'manual', 'name', 'price', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight']);
 
         return new ShopProductV1(
             accessories: JsonValues::nullable($object, 'accessories', null, static fn (mixed $value, FieldPath $at): array => JsonValues::list($value, $at, static fn (mixed $item, FieldPath $itemAt): EntryId => JsonValues::id($item, $itemAt, EntryId::fromString(...)), maxItems: 20, distinct: true)),
@@ -159,6 +164,7 @@ final readonly class ShopProductCodecV1 implements JsonCodec
             discontinued: JsonValues::nullable($object, 'discontinued', null, static fn (mixed $value, FieldPath $at): bool => JsonValues::boolean($value, $at)),
             ext: JsonValues::required($object, 'ext', null, fn (mixed $value, FieldPath $at): ShopProductV1Ext => $this->decodeShopProductV1Ext($value, $at, $access)),
             launchDate: JsonValues::nullable($object, 'launch_date', null, static fn (mixed $value, FieldPath $at): DateTimeImmutable => JsonValues::date($value, $at, min: '2000-01-01', max: '2099-12-31')),
+            manual: JsonValues::nullable($object, 'manual', null, static fn (mixed $value, FieldPath $at): Link => JsonValues::link($value, $at, ['entry', 'url'])),
             name: JsonValues::required($object, 'name', null, static fn (mixed $value, FieldPath $at): string => JsonValues::text($value, $at, minLength: 1, maxLength: 120)),
             price: JsonValues::required($object, 'price', null, static fn (mixed $value, FieldPath $at): string => JsonValues::decimal($value, $at, 10, 2, min: '0.00', max: '99999999.99')),
             purchasePrice: JsonValues::nullableClassified($object, 'purchase_price', null, ClassificationAccess::Confidential, $access, static fn (mixed $value, FieldPath $at): string => JsonValues::decimal($value, $at, 10, 2)),

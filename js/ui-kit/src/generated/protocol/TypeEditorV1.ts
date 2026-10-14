@@ -19,6 +19,7 @@ export type EditorBase =
   | 'decimal'
   | 'group'
   | 'integer'
+  | 'link'
   | 'long_text'
   | 'relation'
   | 'rich_text'
@@ -495,6 +496,7 @@ const editorFieldV1Rule: ObjectRule = {
           'decimal',
           'group',
           'integer',
+          'link',
           'long_text',
           'relation',
           'rich_text',

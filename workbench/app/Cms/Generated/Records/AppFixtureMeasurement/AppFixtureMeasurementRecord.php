@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Workbench\App\Cms\Generated\Records\AppFixtureMeasurement;
 
 use Cbox\Cms\Contracts\Fields\FieldValues;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use DateTimeImmutable;
@@ -91,6 +92,11 @@ interface AppFixtureMeasurementRecord
      * @var list<FixtureSeriesItem>|null
      */
     public ?array $fixtureSeries { get; }
+
+    /**
+     * Source: Where the reading comes from, an entry, a node or a page of the station's feed.
+     */
+    public ?Link $fixtureSource { get; }
 
     /**
      * Station: The code of the station the sensor stands at.

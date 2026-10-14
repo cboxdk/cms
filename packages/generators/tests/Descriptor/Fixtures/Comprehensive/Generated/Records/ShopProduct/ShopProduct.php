@@ -11,6 +11,7 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -43,6 +44,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
         public ?array $dimensions,
         public ?bool $discontinued,
         public ?DateTimeImmutable $launchDate,
+        public ?Link $manual,
         public string $name,
         public string $price,
         public ?string $purchasePrice,
@@ -69,6 +71,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
             dimensions: DimensionsItem::fromListOrNull($fields->groupsOrNull('dimensions')),
             discontinued: $fields->booleanOrNull('discontinued'),
             launchDate: $fields->dateOrNull('launch_date'),
+            manual: $fields->linkOrNull('manual'),
             name: $fields->text('name'),
             price: $fields->decimal('price'),
             purchasePrice: $fields->decimalOrNull('purchase_price'),
@@ -98,6 +101,7 @@ final readonly class ShopProduct implements ShopProductAppExtension, ShopProduct
                 new NamedValue(new FieldHandle('dimensions'), FieldWriter::groups($this->dimensions === null ? null : DimensionsItem::toFieldMaps($this->dimensions))),
                 new NamedValue(new FieldHandle('discontinued'), FieldWriter::boolean($this->discontinued)),
                 new NamedValue(new FieldHandle('launch_date'), FieldWriter::date($this->launchDate)),
+                new NamedValue(new FieldHandle('manual'), FieldWriter::link($this->manual)),
                 new NamedValue(new FieldHandle('name'), FieldWriter::text($this->name)),
                 new NamedValue(new FieldHandle('price'), FieldWriter::decimal($this->price)),
                 new NamedValue(new FieldHandle('purchase_price'), FieldWriter::decimal($this->purchasePrice)),

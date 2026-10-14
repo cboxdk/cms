@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Workbench\App\Cms\Generated\Domain\Dto;
 
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -34,6 +35,7 @@ final readonly class AppFixtureMeasurementV1
      * @param  'fixture_celsius'|'fixture_kelvin'  $fixtureScale  Scale: The scale of the reading.
      * @param  AppFixtureMeasurementV1FixtureSensor|Omitted|null  $fixtureSensor  Sensor: The sensor that took the reading.
      * @param  list<AppFixtureMeasurementV1FixtureSeries>|Omitted|null  $fixtureSeries  Series: The single readings the reading is the mean of.
+     * @param  Link|Omitted|null  $fixtureSource  Source: Where the reading comes from, an entry, a node or a page of the station's feed.
      * @param  string|Omitted|null  $fixtureStation  Station: The code of the station the sensor stands at.
      */
     public function __construct(
@@ -51,6 +53,7 @@ final readonly class AppFixtureMeasurementV1
         public string $fixtureScale,
         public AppFixtureMeasurementV1FixtureSensor|Omitted|null $fixtureSensor,
         public array|Omitted|null $fixtureSeries,
+        public Link|Omitted|null $fixtureSource,
         public string|Omitted|null $fixtureStation,
     ) {}
 
@@ -75,6 +78,7 @@ final readonly class AppFixtureMeasurementV1
             fixtureScale: $this->fixtureScale,
             fixtureSensor: $access->allows(ClassificationAccess::Internal) ? $this->fixtureSensor : Omitted::Field,
             fixtureSeries: $this->fixtureSeries,
+            fixtureSource: $this->fixtureSource,
             fixtureStation: $access->allows(ClassificationAccess::Internal) ? $this->fixtureStation : Omitted::Field,
         );
     }

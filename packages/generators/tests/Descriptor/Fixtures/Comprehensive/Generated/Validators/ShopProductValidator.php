@@ -39,6 +39,7 @@ use Override;
  *   dimensions[].width: integer, required, shown on a condition, keep when hidden
  *   discontinued: boolean, optional
  *   launch_date: date, optional
+ *   manual: link, optional
  *   name: text, required
  *   price: decimal, required
  *   purchase_price: decimal, optional
@@ -161,6 +162,14 @@ final readonly class ShopProductValidator implements TypeValidator
                         new Rule(RuleName::Date),
                         new Rule(RuleName::Min, ['2000-01-01']),
                         new Rule(RuleName::Max, ['2099-12-31']),
+                    ],
+                ),
+                new FieldRules(
+                    new FieldHandle('manual'),
+                    Presence::Optional,
+                    [
+                        new Rule(RuleName::Link),
+                        new Rule(RuleName::Kinds, ['entry', 'url']),
                     ],
                 ),
                 new FieldRules(

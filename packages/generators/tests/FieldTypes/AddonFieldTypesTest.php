@@ -324,7 +324,7 @@ it('refuses <other>:<handle> of a namespace no addon registers with generate_unk
         YAML);
 
     expect($failed->codes())->toBe([GenerateErrorCode::UnknownFieldType])
-        ->and($failed->problems[0]->message)->toBe('schema/review.yaml, /fields/0/type: no field type contributor registers the field type other:colour, so it cannot be read. The registered field types are acme:grade, acme:stars, boolean, date, datetime, decimal, group, integer, long_text, relation, rich_text, select, text.');
+        ->and($failed->problems[0]->message)->toBe('schema/review.yaml, /fields/0/type: no field type contributor registers the field type other:colour, so it cannot be read. The registered field types are acme:grade, acme:stars, boolean, date, datetime, decimal, group, integer, link, long_text, relation, rich_text, select, text.');
 });
 
 it('checks the options against the field type\'s options schema, at each value\'s JSON pointer', function (): void {
@@ -497,7 +497,7 @@ it('names the addon field type and its base when a generator does not map the ba
         YAML);
     $type = $schema->types[0];
     $rating = $type->fields[0];
-    $unmapped = new FieldDescriptor($rating->column, $rating->handle, $rating->namespace, $rating->owner, $rating->type, $rating->label, $rating->description, $rating->required, $rating->classification, $rating->agents, $rating->filterable, $rating->sortable, $rating->encrypted, $rating->php, $rating->typeScript, $rating->validation, $rating->choices, [], $rating->location, 'link');
+    $unmapped = new FieldDescriptor($rating->column, $rating->handle, $rating->namespace, $rating->owner, $rating->type, $rating->label, $rating->description, $rating->required, $rating->classification, $rating->agents, $rating->filterable, $rating->sortable, $rating->encrypted, $rating->php, $rating->typeScript, $rating->validation, $rating->choices, [], $rating->location, 'geopoint');
     $changed = new CompiledSchema([new TypeDescriptor($type->typeId, $type->owner, $type->handle, $type->label, $type->description, $type->version, $type->capabilities, [], [$unmapped], $type->location)]);
 
     foreach ([new PhpTypeHandleEnum, new PhpRecordDtos] as $generator) {
@@ -506,7 +506,7 @@ it('names the addon field type and its base when a generator does not map the ba
             Assert::fail($generator::class.' generated the field.');
         } catch (GenerationFailed $failed) {
             expect($failed->codes())->toBe([GenerateErrorCode::InvalidOutput])
-                ->and($failed->problems[0]->message)->toContain('has no mapping for the field type "link", the base of the field type "acme:stars", of schema/review.yaml, /fields/0.');
+                ->and($failed->problems[0]->message)->toContain('has no mapping for the field type "geopoint", the base of the field type "acme:stars", of schema/review.yaml, /fields/0.');
         }
     }
 });

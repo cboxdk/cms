@@ -170,6 +170,15 @@ export interface DocumentRule {
   readonly kind: 'document';
 }
 
+/**
+ * A link: an object of its kind, one of `kinds`, and its target, as the kernel's LinkInput reads it
+ * (the contracts' Link).
+ */
+export interface LinkRule {
+  readonly kind: 'link';
+  readonly kinds: readonly LinkKind[];
+}
+
 /** One of the values of an enum. */
 export interface EnumRule {
   readonly kind: 'enum';
@@ -188,6 +197,7 @@ export type ValueRule =
   | ObjectValueRule
   | ListRule
   | StringRule
+  | LinkRule
   | EnumRule
   | FieldsRule
   | DocumentRule;
@@ -267,6 +277,22 @@ export interface PortableTextBlock {
   readonly markDefs?: readonly PortableTextMarkDefinition[];
   readonly [key: string]: unknown;
 }
+
+/** What a link points at: an entry, a node of the structure or a URL. */
+export type LinkKind = 'entry' | 'node' | 'url';
+
+/** A relation a link to a URL declares, as the HTML attribute `rel` writes it. */
+export type LinkRel = 'nofollow' | 'noopener' | 'noreferrer' | 'sponsored' | 'ugc';
+
+/**
+ * The value of a link field: an entry by its id, with the locale of the variant it points at or
+ * none for the reader's language; a node by its id; or an absolute http or https URL of at most
+ * 2048 characters with the rels it declares, each once.
+ */
+export type Link =
+  | { readonly kind: 'entry'; readonly entry: string; readonly locale?: string }
+  | { readonly kind: 'node'; readonly node: string }
+  | { readonly kind: 'url'; readonly url: string; readonly rel?: readonly LinkRel[] };
 
 /** The value of a rich text field: a list of Portable Text blocks. */
 export type PortableText = readonly PortableTextBlock[];
@@ -675,6 +701,9 @@ function checkValue(value: unknown, at: Path, rule: ValueRule, issues?: Invalid[
         throw new Invalid('validation_wrong_type', at, 'is not an object');
       }
       break;
+    case 'link':
+      checkLink(value, at, rule);
+      break;
     case 'enum':
       if (typeof value !== 'string' && typeof value !== 'number') {
         throw new Invalid('validation_wrong_type', at, 'is neither a string nor a number');
@@ -746,6 +775,180 @@ function matchesFormat(format: 'email' | 'url', value: string): boolean {
   const host = new URL(value).hostname;
 
   return host.startsWith('[') || HOST_NAME.test(host);
+}
+
+/** The id of an entry or a node: a UUIDv7, in upper or lower case. */
+const UUID7 =
+  /^[0-9a-fA-F]{8}-[0-9a-fA-F]{4}-7[0-9a-fA-F]{3}-[89abAB][0-9a-fA-F]{3}-[0-9a-fA-F]{12}$/;
+
+/** A locale: a BCP 47 tag of a language, an optional script and an optional region. */
+const LOCALE = /^[a-z]{2,3}(?:-[a-z]{4})?(?:-(?:[a-z]{2}|[0-9]{3}))?$/i;
+
+/** The most characters of a link's URL. */
+const MAX_URL_LENGTH = 2048;
+
+const LINK_RELS: readonly string[] = ['nofollow', 'noopener', 'noreferrer', 'sponsored', 'ugc'];
+
+/** The members a link of each kind has. */
+const LINK_MEMBERS: Readonly<Record<LinkKind, readonly string[]>> = {
+  entry: ['kind', 'entry', 'locale'],
+  node: ['kind', 'node'],
+  url: ['kind', 'url', 'rel'],
+};
+
+/**
+ * Checks a link in the order of the kernel's LinkInput, and throws the first rule it breaks: an
+ * object; its kind, there, text and one the field allows; only the members of its kind; then its
+ * target, an entry's or a node's id, or a URL of at most 2048 characters in the url format, with an
+ * optional locale or list of rels. An optional member is left out, never null.
+ */
+function checkLink(value: unknown, at: Path, rule: LinkRule): void {
+  if (!isRecord(value)) {
+    throw new Invalid(
+      'validation_wrong_type',
+      at,
+      'is not a link, an object of its kind and its target',
+    );
+  }
+
+  const kind = value.kind;
+
+  if (kind === undefined || kind === null) {
+    throw new Invalid(
+      'validation_required',
+      [...at, 'kind'],
+      'is missing; a link has the kind of its target',
+    );
+  }
+
+  if (typeof kind !== 'string') {
+    throw new Invalid('validation_wrong_type', [...at, 'kind'], 'is not text');
+  }
+
+  const allowed = rule.kinds.find((one) => one === kind);
+
+  if (allowed === undefined) {
+    throw new Invalid(
+      'validation_not_an_option',
+      [...at, 'kind'],
+      `is not one of the kinds the field allows: ${rule.kinds.join(', ')}`,
+    );
+  }
+
+  const members = LINK_MEMBERS[allowed];
+
+  for (const key of Object.keys(value)) {
+    if (!members.includes(key)) {
+      throw new Invalid(
+        'validation_unknown_field',
+        at,
+        `has the key "${key}", which a link to ${allowed === 'url' ? 'a URL' : `an ${allowed}`} does not have`,
+      );
+    }
+  }
+
+  if (allowed === 'entry' || allowed === 'node') {
+    const id = value[allowed];
+
+    if (id === undefined || id === null) {
+      throw new Invalid(
+        'validation_required',
+        [...at, allowed],
+        `is missing; a link to ${allowed === 'entry' ? 'an entry' : 'a node'} names it`,
+      );
+    }
+
+    if (typeof id !== 'string' || !UUID7.test(id)) {
+      throw new Invalid(
+        'validation_wrong_type',
+        [...at, allowed],
+        `is not ${allowed === 'entry' ? "an entry's" : "a node's"} id, a UUIDv7`,
+      );
+    }
+
+    if (allowed === 'entry' && Object.hasOwn(value, 'locale')) {
+      const locale = value.locale;
+
+      if (typeof locale !== 'string') {
+        throw new Invalid('validation_wrong_type', [...at, 'locale'], 'is not text');
+      }
+
+      if (!LOCALE.test(locale)) {
+        throw new Invalid(
+          'validation_invalid_format',
+          [...at, 'locale'],
+          'is not a locale, a BCP 47 tag such as "da" or "en-GB"',
+        );
+      }
+    }
+
+    return;
+  }
+
+  const url = value.url;
+
+  if (url === undefined || url === null) {
+    throw new Invalid('validation_required', [...at, 'url'], 'is missing; a link to a URL has it');
+  }
+
+  if (typeof url !== 'string') {
+    throw new Invalid('validation_wrong_type', [...at, 'url'], 'is not text');
+  }
+
+  const length = characters(url);
+
+  if (length > MAX_URL_LENGTH) {
+    throw new Invalid(
+      'validation_too_long',
+      [...at, 'url'],
+      `has ${String(length)} characters; it may have at most ${String(MAX_URL_LENGTH)}`,
+    );
+  }
+
+  if (!matchesFormat('url', url)) {
+    throw new Invalid(
+      'validation_invalid_format',
+      [...at, 'url'],
+      'is not an absolute http or https URL',
+    );
+  }
+
+  if (!Object.hasOwn(value, 'rel')) {
+    return;
+  }
+
+  const rels = value.rel;
+
+  if (!Array.isArray(rels)) {
+    throw new Invalid('validation_wrong_type', [...at, 'rel'], 'is not a list of rels');
+  }
+
+  const items: readonly unknown[] = rels;
+  const seen: string[] = [];
+
+  items.forEach((item, index) => {
+    if (typeof item !== 'string') {
+      throw new Invalid('validation_wrong_type', [...at, 'rel', index], 'is not text');
+    }
+
+    if (!LINK_RELS.includes(item)) {
+      throw new Invalid(
+        'validation_not_an_option',
+        [...at, 'rel', index],
+        `is not one of the rels: ${LINK_RELS.join(', ')}`,
+      );
+    }
+
+    if (seen.includes(item)) {
+      throw new Invalid(
+        'validation_duplicate_item',
+        [...at, 'rel', index],
+        `is the same rel as item ${String(seen.indexOf(item))}`,
+      );
+    }
+
+    seen.push(item);
+  });
 }
 
 function checkInteger(value: unknown, at: Path, rule: IntegerRule): void {

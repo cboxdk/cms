@@ -15,7 +15,9 @@
 # type table is unchanged. The relations (PRD 5.11, B2-T74) name other entries: fixture_corrects one
 # measurement, a uuid column with a foreign key to entries, fixture_cited_in up to 200 articles or
 # measurements, a jsonb list, and fixture_sensor_calibration one measurement inside the group. The
-# two top-level ones are step 2 of the type table's migrations.
+# two top-level ones are step 2 of the type table's migrations. The links (B2-T76) name an entry, a
+# node or a URL: fixture_source any of the three, a jsonb column of step 3 whose entry or node is
+# an edge of the relations, and fixture_sensor_datasheet, inside the group, a URL only.
 blueprint: 1
 kind: type
 type_id: 0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b
@@ -128,6 +130,11 @@ fields:
     multiple: true
     max_items: 200
     types: [app:fixture_article, app:fixture_measurement]
+  - handle: fixture_source
+    label: Source
+    description: Where the reading comes from, an entry, a node or a page of the station's feed.
+    type: link
+    classification: public
   - handle: fixture_sensor
     label: Sensor
     description: The sensor that took the reading.
@@ -154,6 +161,11 @@ fields:
         description: The reading the sensor was last calibrated against.
         type: relation
         types: [app:fixture_measurement]
+      - handle: fixture_sensor_datasheet
+        label: Sensor datasheet
+        description: The page of the sensor's datasheet.
+        type: link
+        kinds: [url]
   - handle: fixture_series
     label: Series
     description: The single readings the reading is the mean of.

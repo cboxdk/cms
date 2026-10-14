@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Pipeline\Fakes;
 
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\EntryTypes;
 use Cbox\Cms\Core\Pipeline\Domain\RelationTargets;
@@ -12,7 +13,7 @@ use Override;
 
 /**
  * The entries a test says exist, with their types: an entry it put nothing on reads as absent, as
- * an entry the actor cannot read does. It counts its reads, one per call with entries, as the
+ * an entry the actor cannot read does, and so does a node it put nothing on. It counts its reads, one per call with entries, as the
  * implementation makes one statement per call. RelationTargetsBehaviour holds it to
  * PostgresRelationTargets.
  */
@@ -23,6 +24,16 @@ final class FakeRelationTargets implements RelationTargets
 
     /** @var array<string, TypeId> by entry */
     private array $entries = [];
+
+    /** @var array<string, true> by node */
+    private array $nodes = [];
+
+    public function withNode(NodeId $node): self
+    {
+        $this->nodes[$node->toString()] = true;
+
+        return $this;
+    }
 
     public function with(EntryId $entry, TypeId $type): self
     {
@@ -50,5 +61,17 @@ final class FakeRelationTargets implements RelationTargets
         }
 
         return $types;
+    }
+
+    #[Override]
+    public function nodes(array $nodes): array
+    {
+        if ($nodes === []) {
+            return [];
+        }
+
+        $this->reads++;
+
+        return array_values(array_filter($nodes, fn (NodeId $node): bool => isset($this->nodes[$node->toString()])));
     }
 }

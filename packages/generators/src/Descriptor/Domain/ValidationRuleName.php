@@ -53,6 +53,9 @@ enum ValidationRuleName: string
     /** A list of entries' ids, each once: the targets of a multiple relation (PRD 5.11). */
     case Relations = 'relations';
 
+    /** A link: an object of its kind and its target, an entry, a node or a URL (B2-T76). */
+    case Link = 'link';
+
     /** At least the argument's number of characters. */
     case MinLength = 'min_length';
 
@@ -97,4 +100,7 @@ enum ValidationRuleName: string
 
     /** A relation whose targets are entries of the arguments' types, each `<owner>:<handle>`. */
     case Targets = 'targets';
+
+    /** A link whose kind is one of the arguments: `entry`, `node` or `url`. */
+    case Kinds = 'kinds';
 }

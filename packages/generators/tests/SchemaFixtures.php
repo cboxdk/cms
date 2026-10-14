@@ -20,6 +20,8 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\ExtensionBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
+use Cbox\Cms\Contracts\Fields\LinkKind;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LinkOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
@@ -35,6 +37,7 @@ use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DatetimeFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\DecimalFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\GroupFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\IntegerFieldType;
+use Cbox\Cms\Generators\Schema\Domain\FieldTypes\LinkFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\LongTextFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\RelationFieldType;
 use Cbox\Cms\Generators\Schema\Domain\FieldTypes\RichTextFieldType;
@@ -169,6 +172,7 @@ final class SchemaFixtures
             RichTextFieldType::NAME => new RichTextOptions(null, null, null, null),
             GroupFieldType::NAME => new GroupOptions([self::field(self::root(), new SourceLocation('schema/group.yaml', '/fields/0/fields/0'), 'name', 'text', null)], null),
             RelationFieldType::NAME => new RelationOptions([new TypeName('app:article')], RelationOptions::DEFAULT_MULTIPLE, null),
+            LinkFieldType::NAME => new LinkOptions(LinkKind::cases()),
             default => throw new LogicException(sprintf('"%s" is not a core field type.', $type)),
         };
     }

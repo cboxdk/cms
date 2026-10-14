@@ -69,6 +69,7 @@ final readonly class PhpTypeValidators implements Generator
         'decimal' => 'decimal',
         'group' => 'group',
         'integer' => 'integer',
+        'link' => 'link',
         'long_text' => 'long_text',
         'relation' => 'relation',
         'rich_text' => 'rich_text',
@@ -399,6 +400,7 @@ final readonly class PhpTypeValidators implements Generator
             ValidationRuleName::PortableText => RuleName::PortableText,
             ValidationRuleName::Relation => RuleName::Relation,
             ValidationRuleName::Relations => RuleName::Relations,
+            ValidationRuleName::Link => RuleName::Link,
             ValidationRuleName::MinLength => RuleName::MinLength,
             ValidationRuleName::MaxLength => RuleName::MaxLength,
             ValidationRuleName::Min => RuleName::Min,
@@ -414,6 +416,7 @@ final readonly class PhpTypeValidators implements Generator
             ValidationRuleName::Lists => RuleName::Lists,
             ValidationRuleName::Links => RuleName::Links,
             ValidationRuleName::Targets => RuleName::Targets,
+            ValidationRuleName::Kinds => RuleName::Kinds,
         };
     }
 

@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Entries\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Content\VariantKey;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
@@ -12,6 +13,8 @@ use Cbox\Cms\Contracts\Fields\FieldNamespace;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
+use Cbox\Cms\Contracts\Fields\InvalidLink;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
@@ -45,10 +48,17 @@ use Cbox\Cms\Core\Entries\Domain\Dto\VariantEdges;
  * released edge of a top-level relation with a sort_by field carries that field's value of the
  * same variant's fields as its sort key, which the kernel writes in the transaction of the release;
  * a draft edge carries none.
+ *
+ * A link field's value is an edge too when it names an entry or a node: its target is that entry
+ * or node, and a link to an entry in a locale carries the locale as its attribute. A link to a URL
+ * gives no edge.
  */
 #[Internal]
 final readonly class RelationEdges
 {
+    /** The value type of a link field, whose entry or node target is an edge too (B2-T76). */
+    private const string LINK = 'link';
+
     /**
      * @return list<RelationEdge>
      */
@@ -77,7 +87,7 @@ final readonly class RelationEdges
 
         foreach ($targets as $address => $entries) {
             foreach ($entries as $ordinal => $target) {
-                $edges[] = new RelationEdge($address, $ordinal, $target->entry, $target->meta, $target->filterKey, $sortKeys[$address] ?? null);
+                $edges[] = new RelationEdge($address, $ordinal, $target->target, $target->meta, $target->filterKey, $sortKeys[$address] ?? null);
             }
         }
 
@@ -104,6 +114,16 @@ final readonly class RelationEdges
      */
     private static function collect(FieldDefinition $field, FieldValue $value, string $address, array &$targets): void
     {
+        if ($field->valueType() === self::LINK) {
+            $target = self::link($value);
+
+            if ($target instanceof RelationTarget) {
+                $targets[$address][] = $target;
+            }
+
+            return;
+        }
+
         if ($field->isRelation()) {
             $items = $value instanceof ListValue ? $value->items : [$value];
 
@@ -169,6 +189,33 @@ final readonly class RelationEdges
         return $id instanceof EntryId
             ? new RelationTarget($id, new FieldMap(...$attributes), $filtered instanceof FieldValue ? AttributeFilter::textOf($filtered) : null)
             : null;
+    }
+
+    /**
+     * The entry or the node a link names, with the locale of a link to an entry as its attribute;
+     * null for a link to a URL or a value that is no link.
+     */
+    private static function link(FieldValue $value): ?RelationTarget
+    {
+        if ($value instanceof NullValue) {
+            return null;
+        }
+
+        try {
+            $link = Link::fromFieldValue($value);
+        } catch (InvalidLink) {
+            return null;
+        }
+
+        $target = $link->target();
+
+        if ($target === null) {
+            return null;
+        }
+
+        return new RelationTarget($target, $link->locale instanceof Locale
+            ? new FieldMap(new NamedValue(new FieldHandle(Link::LOCALE), new TextValue($link->locale->value)))
+            : null);
     }
 
     private static function entry(TextValue $value): ?EntryId

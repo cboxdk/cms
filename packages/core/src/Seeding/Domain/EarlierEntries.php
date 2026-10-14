@@ -17,7 +17,8 @@ use Random\Randomizer;
  * relation is checked and written. It draws up to TRIES indexes below n and takes the first whose
  * type the relation allows; when none is, it takes entry n itself if its type is allowed, and
  * otherwise has no target. An entry's id and type follow from its index alone
- * (EntryGenerator::identity()), so the same seed names the same targets.
+ * (EntryGenerator::identity()), so the same seed names the same targets. A link to an entry takes
+ * any earlier entry, or entry n itself when it is the first.
  */
 #[Internal]
 final readonly class EarlierEntries implements SeedRelations
@@ -43,6 +44,15 @@ final readonly class EarlierEntries implements SeedRelations
         }
 
         return $this->allowed($this->own, $types) ? $this->own->id : null;
+    }
+
+    /**
+     * An earlier entry of any type, or entry n itself when it is the first.
+     */
+    #[Override]
+    public function any(Randomizer $random): EntryId
+    {
+        return $this->index > 0 ? $this->entries->identity($random->getInt(0, $this->index - 1))->id : $this->own->id;
     }
 
     /**

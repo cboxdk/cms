@@ -31,6 +31,7 @@ it('serves a record without the fields above the caller\'s classification access
         fixtureScale: 'fixture_celsius',
         fixtureSensor: Omitted::Field,
         fixtureSeries: Omitted::Field,
+        fixtureSource: Omitted::Field,
         fixtureStation: 'DK-042',
     );
 

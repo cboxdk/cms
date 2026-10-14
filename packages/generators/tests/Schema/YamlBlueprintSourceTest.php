@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Schema;
 
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Generators\Generation\Domain\Dto\GenerationProblem;
 use Cbox\Cms\Generators\Generation\Domain\GenerateErrorCode;
@@ -28,6 +29,7 @@ use Cbox\Cms\Generators\Schema\Domain\Dto\FieldBlueprint;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\GroupRepeat;
 use Cbox\Cms\Generators\Schema\Domain\Dto\IntegerOptions;
+use Cbox\Cms\Generators\Schema\Domain\Dto\LinkOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\LongTextOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RelationOptions;
 use Cbox\Cms\Generators\Schema\Domain\Dto\RichTextOptions;
@@ -212,7 +214,7 @@ function invalidContractFixtures(): array
         'a decimal without scale' => ['decimal-without-scale.yaml', '/fields/0'],
         'a classification on a field inside a group' => ['classification-in-group.yaml', '/fields/0/fields/0'],
         'a repeated group with min_items above 500, the most a repeated field holds' => ['repeat-min-items-above-500.yaml', '/fields/0/repeat/min_items'],
-        'a field type that is not one of the core\'s' => ['field-type-link.yaml', '/fields/0/type'],
+        'a field type that is not one of the core\'s' => ['field-type-hyperlink.yaml', '/fields/0/type'],
         'a relation without types' => ['relation-without-types.yaml', '/fields/0'],
         'a relation with max_items above 1000, the most relations a field holds' => ['relation-max-items-above-1000.yaml', '/fields/0/max_items'],
         'max_items on a relation that holds one entry' => ['relation-max-items-to-one.yaml', '/fields/0'],
@@ -225,6 +227,12 @@ function invalidContractFixtures(): array
         'a filterable attribute on a relation that is not filterable' => ['relation-meta-filterable-unfilterable-relation.yaml', '/fields/1/meta/0'],
         'a confidential relation, whose foreign key cannot hold ciphertext' => ['relation-confidential.yaml', '/fields/0/classification'],
         'a relation type that is not <owner>:<handle>' => ['relation-types-not-names.yaml', '/fields/0/types/0'],
+        'a link kind that is not entry, node or url' => ['link-kinds-unknown.yaml', '/fields/0/kinds/1'],
+        'a link that allows no kind' => ['link-kinds-empty.yaml', '/fields/0/kinds'],
+        'a link kind named twice' => ['link-kinds-twice.yaml', '/fields/0/kinds'],
+        'a confidential link, whose edge cannot hold ciphertext' => ['link-confidential.yaml', '/fields/0/classification'],
+        'a filterable link' => ['link-filterable.yaml', '/fields/0'],
+        'a link that holds several targets' => ['link-multiple.yaml', '/fields/0'],
         'an addon field type in the reserved namespace app' => ['field-type-app-namespace.yaml', '/fields/0/type'],
         'an addon field type in the reserved namespace ext' => ['field-type-ext-namespace.yaml', '/fields/0/type'],
         'kind: fieldset' => ['kind-fieldset.yaml', '/kind'],
@@ -294,6 +302,8 @@ function expectedArticle(SchemaRoot $root): TypeBlueprint
             ], new GroupRepeat(1, 10)), Classification::Confidential, agents: false),
             $field(10, 'related', 'Related', 'The articles to read next, in order.', new RelationOptions([new TypeName('app:article')], true, 5), Classification::Public),
             $field(11, 'follows', 'Follows', 'The article this one follows up on.', new RelationOptions([new TypeName('app:article')], false, null), Classification::Internal),
+            $field(12, 'source', 'Source', 'Where the article comes from, an entry, a node or a page on the web.', new LinkOptions([LinkKind::Entry, LinkKind::Node, LinkKind::Url]), Classification::Public),
+            $field(13, 'further_reading', 'Further reading', 'A page on the web to read next.', new LinkOptions([LinkKind::Url]), Classification::Internal),
         ],
         $app,
         $at,

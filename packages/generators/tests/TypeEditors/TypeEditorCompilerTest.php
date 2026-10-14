@@ -122,7 +122,7 @@ it('lists the fields in form order: the owner\'s in file order, each group befor
         'name', 'support_email', 'summary', 'stock', 'weight', 'price', 'discontinued', 'launch_date', 'checked_at', 'colour', 'tags', 'body', 'care',
         'supplier', 'supplier.company', 'supplier.website', 'supplier.notes',
         'dimensions', 'dimensions.size', 'dimensions.width',
-        'successor', 'accessories', 'purchase_price',
+        'successor', 'accessories', 'manual', 'purchase_price',
         'ext.app.tax_code', 'ext.app.name',
     ])
         ->and($editor->field('supplier.company')?->parent)->toBe('supplier')
@@ -230,7 +230,7 @@ it('carries the layout, the labels per locale, the hints and the defaults of the
 
     expect($tabs)->toBe([
         'general: identity name,colour,summary,body,care | supply supplier,purchase_price,stock,ext.app.tax_code',
-        'details: measures weight,price,dimensions,accessories,successor',
+        'details: measures weight,price,dimensions,accessories,successor,manual',
         'local: names ext.app.name',
     ])
         ->and(array_map(static fn (EditorSection $section): string => $section->handle->value.' '.implode(',', $section->paths()), $editor->layout->sidebar))->toBe(['status discontinued,launch_date,checked_at,tags', 'contact support_email'])
@@ -292,7 +292,7 @@ it('gives a type without a layout the tab content with its fields in file order,
 it('keeps only the placements of the fields a reader sees, and drops the sections and tabs left empty', function (): void {
     $editor = comprehensiveEditor()->visibleTo(ClassificationAccess::Public, agent: false);
 
-    expect($editor->layout->paths())->toBe(['name', 'colour', 'body', 'care', 'weight', 'price', 'dimensions', 'accessories', 'ext.app.name', 'discontinued', 'launch_date', 'tags', 'support_email'])
+    expect($editor->layout->paths())->toBe(['name', 'colour', 'body', 'care', 'weight', 'price', 'dimensions', 'accessories', 'manual', 'ext.app.name', 'discontinued', 'launch_date', 'tags', 'support_email'])
         ->and(array_map(static fn (EditorTab $tab): string => $tab->handle->value, $editor->layout->tabs))->toBe(['general', 'details', 'local'])
         ->and(array_map(static fn (EditorSection $section): string => $section->handle->value, $editor->layout->tabs[0]->sections))->toBe(['identity']);
 });

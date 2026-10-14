@@ -5,13 +5,17 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Postgres;
 
 use Cbox\Cms\Contracts\Consistency\Outcome;
+use Cbox\Cms\Contracts\Content\Locale;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkRel;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\PlacementId;
+use Cbox\Cms\Contracts\Results\CatalogError;
 use Cbox\Cms\Contracts\Results\WriteResult;
 use Cbox\Cms\Core\Tests\Entries\EntryFields;
 use Cbox\Cms\Core\Tests\Entries\EntryWorld;
@@ -35,7 +39,9 @@ use Illuminate\Support\Facades\DB;
  * fixture_related has. entry.unpublish unreleases the article and removes its released edges,
  * keeping the draft's, variant.delete removes a language's edges in both stages, and
  * cms:types:rebuild writes the same edges again. The edges of a run are one statement, so a command
- * with 20 targets runs as many statements as one with 200.
+ * with 20 targets runs as many statements as one with 200. A link (B2-T76) to an entry or a node is
+ * an edge too, its target in target_entry_id or target_node_id and a link to an entry's locale in
+ * meta; a link to a URL is none, and one to an entry or a node the actor cannot read is refused.
  */
 
 const EDGE_PLACEMENT = '0192a0c0-0000-7000-8000-0000000007e1';
@@ -242,6 +248,49 @@ it('writes the edges of a type with stages none in the released stage: a to-one,
         ]);
 });
 
+it('writes a link to an entry or a node as an edge, with the locale of a link to an entry, and a link to a URL as none', function (): void {
+    [$world, $structure, $targets] = edgeWorld(2);
+    $measurement = edgeEntry(110);
+    $type = EntryWorld::MEASUREMENT;
+    $link = static fn (Link $link): array => ['fixture_source' => $link->toFieldValue()];
+    $targetsOf = static fn (EntryId $entry): array => array_map(
+        static fn (object $edge): string => implode(' ', [
+            is_string($edge->field) ? $edge->field : '',
+            is_string($edge->target_entry_id) ? 'entry '.((int) substr($edge->target_entry_id, -12) - 400_000) : 'node',
+            is_string($edge->target_node_id) ? $edge->target_node_id : '-',
+            is_string($edge->meta) ? $edge->meta : '-',
+        ]),
+        StorageTables::superuser()->table('relations')->where('source_entry_id', $entry->toString())->orderBy('field')->get()->all(),
+    );
+
+    $created = $world->createEntry($measurement, $type, edgeMeasurement($link(Link::toEntry($targets[0], new Locale('da')))), $structure->northSection, 'create-linked');
+
+    expect($created->outcome())->toBe(Outcome::Committed)
+        ->and(edgeRows($measurement))->toBe(['shared released fixture_source 0 1'])
+        ->and($targetsOf($measurement))->toBe(['fixture_source entry 1 - {"locale": "da"}']);
+
+    $toNode = $world->revise($measurement, 1, edgeMeasurement($link(Link::toNode($structure->northSection->id))), 'link-node');
+
+    expect($toNode->outcome())->toBe(Outcome::Committed)
+        ->and($targetsOf($measurement))->toBe(['fixture_source node '.$structure->northSection->id->toString().' -']);
+
+    $toUrl = $world->revise($measurement, 2, edgeMeasurement($link(Link::toUrl('https://example.org/feed/42', LinkRel::Nofollow))), 'link-url');
+
+    expect($toUrl->outcome())->toBe(Outcome::Committed)
+        ->and(edgeRows($measurement))->toBe([]);
+
+    $missingEntry = $world->revise($measurement, 3, edgeMeasurement($link(Link::toEntry(edgeEntry(999)))), 'link-missing-entry');
+    $farNode = $world->revise($measurement, 3, edgeMeasurement($link(Link::toNode($structure->southSection->id))), 'link-far-node');
+
+    expect($missingEntry->outcome())->toBe(Outcome::Rejected)
+        ->and(array_map(static fn (CatalogError $error): array => [$error->code->value, $error->path?->toString()], $missingEntry->errors))
+        ->toBe([['validation_failed', null], ['validation_link_target_missing', 'fields.fixture_source.entry']])
+        ->and($farNode->outcome())->toBe(Outcome::Rejected)
+        ->and(array_map(static fn (CatalogError $error): array => [$error->code->value, $error->path?->toString()], $farNode->errors))
+        ->toBe([['validation_failed', null], ['validation_link_target_missing', 'fields.fixture_source.node']])
+        ->and(edgeRows($measurement))->toBe([]);
+});
+
 it('writes each variant\'s edges in the draft stage, its released edges on a release, and keeps the released ones while a draft changes', function (): void {
     [$world, $structure, $targets] = edgeWorld();
     $notice = edgeNotice($world, $structure, $targets);
@@ -420,7 +469,7 @@ it('keeps an entry with inbound edges from being deleted, and holds relations to
         SQL);
 
     expect($table)->toBe(['true true'])
-        ->and($keys)->toBe(['relations_head_fkey variant_heads a', 'relations_target_fkey entries r']);
+        ->and($keys)->toBe(['relations_head_fkey variant_heads a', 'relations_target_fkey entries r', 'relations_target_node_fkey nodes r']);
 
     // An entry no other row names but an edge is kept from being deleted by the edge's foreign key.
     $bare = edgeEntry(900);

@@ -9,16 +9,20 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
+use Cbox\Cms\Contracts\Fields\InvalidLink;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\InvalidUuid7;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Contracts\Validation\FieldRules;
 use Cbox\Cms\Contracts\Validation\Rule;
 use Cbox\Cms\Contracts\Validation\RuleName;
 use Cbox\Cms\Contracts\Validation\TypeRules;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\LinkReference;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RelationReference;
 
 /**
@@ -26,13 +30,16 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RelationReference;
  * type's rules: each `relation` and each item of a `relations`, in the owner's fields, each
  * extender's under `ext.<namespace>` and the fields of groups, repeated or not, at any depth. A
  * value that is not an entry's id is left out, because the input validator already refuses it.
+ *
+ * A `link` that names an entry or a node gives a LinkReference at the path of its target, such as
+ * `fields.source.entry` (B2-T76); a link to a URL, or a value that is no link, gives none.
  */
 #[Internal]
 final readonly class RelationReferences
 {
     /**
      * @param  FieldPath  $at  the path of the fields in the command, such as `fields`
-     * @return list<RelationReference>
+     * @return list<RelationReference|LinkReference>
      */
     public static function of(TypeRules $rules, FieldValues $values, FieldPath $at): array
     {
@@ -51,7 +58,7 @@ final readonly class RelationReferences
 
     /**
      * @param  list<FieldRules>  $rules
-     * @return list<RelationReference>
+     * @return list<RelationReference|LinkReference>
      */
     private static function fields(array $rules, FieldMap $map, FieldPath $at): array
     {
@@ -69,10 +76,14 @@ final readonly class RelationReferences
     }
 
     /**
-     * @return list<RelationReference>
+     * @return list<RelationReference|LinkReference>
      */
     private static function value(FieldRules $field, FieldValue $value, FieldPath $path): array
     {
+        if ($field->type === RuleName::Link) {
+            return self::link($value, $path);
+        }
+
         $targets = self::targets($field);
 
         if ($field->type === RuleName::Relation && $targets !== [] && $value instanceof TextValue) {
@@ -116,6 +127,24 @@ final readonly class RelationReferences
         }
 
         return $references;
+    }
+
+    /**
+     * @return list<LinkReference>
+     */
+    private static function link(FieldValue $value, FieldPath $path): array
+    {
+        try {
+            $link = Link::fromFieldValue($value);
+        } catch (InvalidLink) {
+            return [];
+        }
+
+        return match (true) {
+            $link->entry instanceof EntryId => [new LinkReference($link->entry, $path->then(Link::ENTRY))],
+            $link->node instanceof NodeId => [new LinkReference($link->node, $path->then(Link::NODE))],
+            default => [],
+        };
     }
 
     /**

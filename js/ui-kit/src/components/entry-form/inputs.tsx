@@ -8,6 +8,7 @@
 import { useEffect, useRef, useState, type ReactNode } from 'react';
 
 import type { EditorBase, EditorFieldV1 } from '../../generated/protocol/TypeEditorV1';
+import type { LinkKind, LinkRel } from '../../generated/protocol/validation';
 import { useKitTranslation } from '../../i18n/translations';
 import { Checkbox } from '../Checkbox';
 import { Field } from '../Field';
@@ -20,7 +21,7 @@ import type { JsonValue } from '../schema-form/model';
 import { Select } from '../Select';
 import { TextArea } from '../TextArea';
 import { TextInput } from '../TextInput';
-import { editorText } from './model';
+import { editorText, isObject } from './model';
 
 /**
  * What an input of an entry form gets: the field as the descriptor has it, its value and how to
@@ -579,11 +580,173 @@ function RelationEntryInput(props: EntryFieldInputProps) {
   );
 }
 
+/** The kinds of target a link field allows, from its value rule, in the rule's order. */
+function linkKinds(field: EditorFieldV1): readonly LinkKind[] {
+  const kinds = field.rule?.['kinds'];
+  const all: readonly LinkKind[] = ['entry', 'node', 'url'];
+
+  return Array.isArray(kinds) ? all.filter((kind) => kinds.includes(kind)) : all;
+}
+
+/** The members of a link value as text, by key, and its rels. */
+function linkParts(value: JsonValue | undefined): {
+  readonly kind: string | undefined;
+  readonly text: Readonly<Record<string, string>>;
+  readonly rel: readonly string[];
+} {
+  if (!isObject(value)) {
+    return { kind: undefined, text: {}, rel: [] };
+  }
+
+  const text: Record<string, string> = {};
+
+  for (const key of ['entry', 'locale', 'node', 'url']) {
+    const member = value[key];
+
+    if (typeof member === 'string') {
+      text[key] = member;
+    }
+  }
+
+  const rel = value['rel'];
+
+  return {
+    kind: typeof value['kind'] === 'string' ? value['kind'] : undefined,
+    text,
+    rel: Array.isArray(rel) ? rel.filter((item): item is string => typeof item === 'string') : [],
+  };
+}
+
+/** The rels a link to a URL may declare, in the order the kit shows them. */
+const LINK_RELS: readonly LinkRel[] = ['nofollow', 'noopener', 'noreferrer', 'sponsored', 'ugc'];
+
+/**
+ * A link: the kind of its target, chosen among the kinds the field allows, and the target, an
+ * entry's id with an optional locale, a node's id, or a URL with its rels. Each part's control has
+ * the id of its path below the field, such as `<id>.url`, so the ErrorSummary links to the part an
+ * error is at. A picker of entries and nodes takes the base's place behind the same contract.
+ */
+function LinkEntryInput(props: EntryFieldInputProps) {
+  const t = useKitTranslation();
+  const kinds = linkKinds(props.field);
+  const parts = linkParts(props.value);
+  const kind = kinds.find((one) => one === parts.kind) ?? kinds[0] ?? 'url';
+  const disabled = props.disabled || props.readOnly;
+  const labels: Readonly<Record<LinkKind, string>> = {
+    entry: t('kit.entry_form.link_kind_entry'),
+    node: t('kit.entry_form.link_kind_node'),
+    url: t('kit.entry_form.link_kind_url'),
+  };
+  const changed = (
+    next: Readonly<Record<string, string>>,
+    nextKind: LinkKind,
+    rel: readonly string[],
+  ) => {
+    const target = nextKind === 'url' ? next['url'] : next[nextKind];
+
+    if (target === undefined || target === '') {
+      props.onChange(undefined);
+
+      return;
+    }
+
+    props.onChange({
+      kind: nextKind,
+      ...(nextKind === 'url'
+        ? { url: target, ...(rel.length === 0 ? {} : { rel: [...rel] }) }
+        : { [nextKind]: target }),
+      ...(nextKind === 'entry' && next['locale'] !== undefined && next['locale'] !== ''
+        ? { locale: next['locale'] }
+        : {}),
+    });
+  };
+  const part = (key: string, label: string, type: 'text' | 'url', hint?: string) => (
+    <TextInput
+      id={`${props.id}.${key}`}
+      name={`${props.name}.${key}`}
+      label={label}
+      required={props.required && key !== 'locale'}
+      readOnly={props.readOnly}
+      disabled={props.disabled}
+      type={type}
+      placeholder={hint}
+      autoComplete="off"
+      spellCheck={false}
+      value={parts.text[key] ?? ''}
+      onChange={(event) => {
+        changed({ ...parts.text, [key]: event.target.value.trim() }, kind, parts.rel);
+      }}
+    />
+  );
+
+  return (
+    <Fieldset
+      id={props.id}
+      legend={props.label}
+      description={props.description}
+      error={props.error}
+    >
+      <div className="cms-entry-form__link">
+        {kinds.length > 1 ? (
+          <RadioGroup
+            name={`${props.name}.kind`}
+            label={t('kit.entry_form.link_kind')}
+            disabled={disabled}
+            orientation="horizontal"
+            options={kinds.map((one) => ({ value: one, label: labels[one] }))}
+            value={kind}
+            onChange={(next) => {
+              const nextKind = kinds.find((one) => one === next) ?? kind;
+              changed(
+                nextKind === kind ? parts.text : {},
+                nextKind,
+                nextKind === kind ? parts.rel : [],
+              );
+            }}
+          />
+        ) : null}
+        {kind === 'entry'
+          ? part('entry', t('kit.entry_form.link_entry'), 'text', props.inputHint)
+          : null}
+        {kind === 'entry' ? part('locale', t('kit.entry_form.link_locale'), 'text') : null}
+        {kind === 'node'
+          ? part('node', t('kit.entry_form.link_node'), 'text', props.inputHint)
+          : null}
+        {kind === 'url' ? part('url', t('kit.entry_form.link_url'), 'url', props.inputHint) : null}
+        {kind === 'url' ? (
+          <Fieldset id={`${props.id}.rel`} legend={t('kit.entry_form.link_rel')}>
+            <div className="cms-entry-form__choices" data-display="buttons">
+              {LINK_RELS.map((rel) => (
+                <Checkbox
+                  key={rel}
+                  name={`${props.name}.rel`}
+                  value={rel}
+                  label={rel}
+                  disabled={disabled}
+                  checked={parts.rel.includes(rel)}
+                  onChange={(checked) => {
+                    changed(
+                      parts.text,
+                      kind,
+                      LINK_RELS.filter((one) => (one === rel ? checked : parts.rel.includes(one))),
+                    );
+                  }}
+                />
+              ))}
+            </div>
+          </Fieldset>
+        ) : null}
+      </div>
+    </Fieldset>
+  );
+}
+
 /**
  * The kit's input of each base: text, email and URL fields as one line, long text as a text area,
  * integers as a number field within their bounds, decimals as text, booleans as a check box, dates
  * and date-times in the browser's controls, selects as radio buttons, buttons, a dropdown or check
- * boxes by their ui display, rich text as JSON, and relations as the ids of the entries they name.
+ * boxes by their ui display, rich text as JSON, relations as the ids of the entries they name, and
+ * links as the kind and the target of each.
  *
  * @experimental
  */
@@ -598,4 +761,5 @@ export const ENTRY_FIELD_INPUTS: EntryFieldInputs = {
   select: SelectEntryInput,
   rich_text: RichTextEntryInput,
   relation: RelationEntryInput,
+  link: LinkEntryInput,
 };

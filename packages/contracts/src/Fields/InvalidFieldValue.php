@@ -111,6 +111,11 @@ final class InvalidFieldValue extends InvalidArgumentException
         return new self(sprintf('The relation "%s" holds "%s", which is not an entry\'s id, a UUIDv7.', self::shown($path), self::shown($value)));
     }
 
+    public static function link(string $path, string $why): self
+    {
+        return new self(sprintf('The link "%s" holds no valid link. %s', self::shown($path), $why));
+    }
+
     private static function shown(string $value): string
     {
         $cut = strlen($value) > 64 ? substr($value, 0, 64).'...' : $value;

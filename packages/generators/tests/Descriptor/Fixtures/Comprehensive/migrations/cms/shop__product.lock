@@ -102,6 +102,16 @@
         },
         {
             "checks": [
+                "CASE WHEN jsonb_typeof(\"manual\") = 'object' THEN coalesce((\"manual\" ->> 'kind') IN ('entry', 'url'), false) ELSE \"manual\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "manual",
+            "not_null": false,
+            "step": 1,
+            "type": "jsonb"
+        },
+        {
+            "checks": [
                 "char_length(\"name\") >= 1",
                 "char_length(\"name\") <= 120"
             ],

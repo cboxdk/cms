@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Workbench\App\Cms\Generated\Domain\Dto;
 
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Ids\EntryId;
 
@@ -20,12 +21,14 @@ final readonly class AppFixtureMeasurementV1FixtureSensor
      * @param  EntryId|Omitted|null  $fixtureSensorCalibration  Sensor calibration: The reading the sensor was last calibrated against.
      * @param  string  $fixtureSensorCode  Sensor code: The code of the sensor.
      * @param  string|Omitted|null  $fixtureSensorContact  Sensor contact: Who looks after the sensor.
+     * @param  Link|Omitted|null  $fixtureSensorDatasheet  Sensor datasheet: The page of the sensor's datasheet.
      * @param  string|Omitted|null  $fixtureSensorManual  Sensor manual: Where the sensor's manual can be read.
      */
     public function __construct(
         public EntryId|Omitted|null $fixtureSensorCalibration,
         public string $fixtureSensorCode,
         public string|Omitted|null $fixtureSensorContact,
+        public Link|Omitted|null $fixtureSensorDatasheet,
         public string|Omitted|null $fixtureSensorManual,
     ) {}
 }

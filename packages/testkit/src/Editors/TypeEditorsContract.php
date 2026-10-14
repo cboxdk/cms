@@ -56,7 +56,7 @@ trait TypeEditorsContract
      *
      * @var list<string>
      */
-    private const array RULE_KINDS = ['boolean', 'choice', 'date', 'datetime', 'decimal', 'integer', 'list', 'portable_text', 'string', 'text'];
+    private const array RULE_KINDS = ['boolean', 'choice', 'date', 'datetime', 'decimal', 'integer', 'link', 'list', 'portable_text', 'string', 'text'];
 
     abstract protected function editors(): TypeEditors;
 
@@ -151,6 +151,8 @@ trait TypeEditorsContract
                 Assert::assertNull($field->repeat, $where);
                 $rule = RuleShape::of($field->rule);
                 Assert::assertContains($rule->kind, self::RULE_KINDS, $where);
+
+                Assert::assertSame($field->base === EditorBase::Link, $rule->kind === 'link', $where);
 
                 if ($field->base === EditorBase::Relation) {
                     Assert::assertContains($rule->kind === 'list' ? $rule->itemKind : $rule->kind, ['string'], $where);

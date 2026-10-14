@@ -13,6 +13,8 @@ use Cbox\Cms\Contracts\Fields\DecimalValue;
 use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
+use Cbox\Cms\Contracts\Fields\InvalidLink;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\MapValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
@@ -26,8 +28,8 @@ use stdClass;
 /**
  * The JSON form of the records for FakeRecordCodecs, from the contracts alone: a text, a select's
  * option or a list of them, an integer, a decimal's string, a boolean, a date `YYYY-MM-DD`, a
- * date-time in UTC with microseconds, rich text's blocks, a relation's id or a list of them and a
- * group's object or a list of them, every object's keys sorted. A value that does not fit its field is InvalidRecordDocument.
+ * date-time in UTC with microseconds, rich text's blocks, a relation's id or a list of them, a
+ * link's object and a group's object or a list of them, every object's keys sorted. A value that does not fit its field is InvalidRecordDocument.
  */
 #[Internal]
 final readonly class RecordJson
@@ -51,6 +53,7 @@ final readonly class RecordJson
             $kind === 'date' && $value instanceof DateValue => $value->value,
             $kind === 'datetime' && $value instanceof DateTimeValue => $value->value->setTimezone(new DateTimeZone('UTC'))->format('Y-m-d\TH:i:s.u\Z'),
             $kind === 'rich_text' && $value instanceof ListValue => array_map(self::block(...), $value->items),
+            $kind === 'link' => self::link($type, $field, $value),
             $kind === 'group' && $value instanceof GroupValue => self::group($type, $field, $value),
             $kind === 'group' && $value instanceof ListValue => array_map(static fn (FieldValue $item): stdClass => $item instanceof GroupValue
                 ? self::group($type, $field, $item)
@@ -97,6 +100,20 @@ final readonly class RecordJson
     /**
      * A block of rich text, or a value inside one, as the kernel holds Portable Text.
      */
+    /**
+     * A link's object of its kind and its target, the keys sorted.
+     *
+     * @throws InvalidRecordDocument
+     */
+    private static function link(TypeId $type, FieldDefinition $field, FieldValue $value): mixed
+    {
+        try {
+            return self::block(Link::fromFieldValue($value)->toFieldValue());
+        } catch (InvalidLink) {
+            throw InvalidRecordDocument::refused($type, sprintf('%s holds no link', $field->address()));
+        }
+    }
+
     private static function block(FieldValue $value): mixed
     {
         if ($value instanceof MapValue) {

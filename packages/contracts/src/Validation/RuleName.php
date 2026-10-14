@@ -47,6 +47,13 @@ enum RuleName: string
     /** A list of entries' ids, each once: the targets of a multiple relation (PRD 5.11). */
     case Relations = 'relations';
 
+    /**
+     * A link (B2-T76): an object of its kind, `entry`, `node` or `url`, and its target: an
+     * entry's id with an optional locale, a node's id, or an absolute http or https URL of at most
+     * 2048 characters with its rels (Cbox\Cms\Contracts\Fields\Link).
+     */
+    case Link = 'link';
+
     /** Text of at least the argument's number of characters. */
     case MinLength = 'min_length';
 
@@ -97,6 +104,12 @@ enum RuleName: string
     case Targets = 'targets';
 
     /**
+     * A link whose kind is one of the arguments, each a LinkKind: `entry`, `node` or `url`. Without
+     * it a link may be of every kind.
+     */
+    case Kinds = 'kinds';
+
+    /**
      * The formats of Format.
      *
      * @var list<string>
@@ -120,6 +133,7 @@ enum RuleName: string
             self::PortableText,
             self::Relation,
             self::Relations,
+            self::Link,
         ], true);
     }
 
@@ -138,6 +152,7 @@ enum RuleName: string
             self::PortableText => [self::Styles, self::Marks, self::Lists, self::Links],
             self::Relation => [self::Targets],
             self::Relations => [self::Targets, self::MaxItems],
+            self::Link => [self::Kinds],
             default => [],
         };
     }

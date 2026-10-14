@@ -63,6 +63,7 @@ final readonly class RecordContracts
         'decimal' => 'numeric-string with the field\'s scale, a JSON string',
         'group' => 'a DTO of its fields, or a list of them when it repeats',
         'integer' => 'int, a JSON integer',
+        'link' => 'the contracts\' Link, a JSON object of its kind and its target',
         'long_text' => 'string',
         'relation' => 'the target\'s EntryId, a JSON string, or a list of them with multiple',
         'rich_text' => 'ListValue of Portable Text blocks',
@@ -234,6 +235,7 @@ final readonly class RecordContracts
             'date' => CodecValue::of(CodecKind::Date, $rules),
             'datetime' => CodecValue::of(CodecKind::Datetime, $rules),
             'rich_text' => CodecValue::of(CodecKind::PortableText, $rules),
+            'link' => CodecValue::of(CodecKind::Link, $rules),
             'relation' => self::has($rules, ValidationRuleName::Relations)
                 ? CodecValue::list(self::entryId(), [
                     new ValidationRule(ValidationRuleName::List),

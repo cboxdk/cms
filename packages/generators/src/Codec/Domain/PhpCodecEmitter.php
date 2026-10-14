@@ -577,6 +577,7 @@ final readonly class PhpCodecEmitter
                 static fn (ValidationRuleName $rule): string => PhpSource::strings(PhpSource::rule($value, $rule)->arguments ?? []),
                 [ValidationRuleName::Styles, ValidationRuleName::Marks, ValidationRuleName::Lists, ValidationRuleName::Links],
             )]),
+            CodecKind::Link => self::call('link', [$raw, $at, PhpSource::strings(PhpSource::linkKinds($value))]),
             CodecKind::Object => sprintf(
                 '$this->%s(%s, %s%s)',
                 self::decoderName(self::object($value)),
@@ -617,6 +618,7 @@ final readonly class PhpCodecEmitter
             CodecKind::Date => sprintf('JsonValues::encodeDate(%s)', $read),
             CodecKind::Datetime => sprintf('JsonValues::encodeDatetime(%s)', $read),
             CodecKind::PortableText => sprintf('JsonValues::encodeFieldValue(%s)', $read),
+            CodecKind::Link => sprintf('JsonValues::encodeLink(%s)', $read),
             CodecKind::Object => sprintf('$this->%s(%s%s)', self::encoderName(self::object($value)), $read, self::object($value)->embeds() ? ', $access' : ''),
             CodecKind::List => self::writtenList(self::item($value), $read, $depth + 1),
             CodecKind::Id => $read.'->toString()',

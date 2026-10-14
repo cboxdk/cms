@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Pipeline\Domain;
 
 use Cbox\Cms\Contracts\Attributes\Internal;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Contracts\Plans\Mutations\EntryCreated;
 use Cbox\Cms\Contracts\Plans\Mutations\RevisionCreated;
@@ -16,6 +17,7 @@ use Cbox\Cms\Contracts\Schema\TypeCatalog;
 use Cbox\Cms\Contracts\Schema\TypeDefinition;
 use Cbox\Cms\Contracts\Schema\TypeName;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\EntryTypes;
+use Cbox\Cms\Core\Pipeline\Domain\Dto\LinkReference;
 use Cbox\Cms\Core\Pipeline\Domain\Dto\RelationReference;
 
 /**
@@ -27,6 +29,11 @@ use Cbox\Cms\Core\Pipeline\Domain\Dto\RelationReference;
  * other. The targets of every revision are read through RelationTargets in one statement, whatever
  * their number, and only when there is a target the plan does not create. A field whose value the
  * validators already refused at its path is not checked again.
+ *
+ * A link field (B2-T76) that names an entry or a node needs it to exist and the actor to read it,
+ * validation_link_target_missing otherwise, at the path of the target, of any type; an entry the
+ * plan creates counts. The nodes are read through RelationTargets in one more statement, only when
+ * a link names one.
  */
 #[Internal]
 final readonly class RelationCheck
@@ -69,18 +76,31 @@ final readonly class RelationCheck
         }
 
         $unread = [];
+        $nodes = [];
 
         foreach ($references as $reference) {
-            if (! $created->of($reference->entry) instanceof TypeId) {
-                $unread[$reference->entry->toString()] = $reference->entry;
+            $target = $reference instanceof LinkReference ? $reference->target : $reference->entry;
+
+            if ($target instanceof NodeId) {
+                $nodes[$target->toString()] = $target;
+            } elseif (! $created->of($target) instanceof TypeId) {
+                $unread[$target->toString()] = $target;
             }
         }
 
         $found = $unread === [] ? new EntryTypes : $this->targets->types(array_values($unread));
+        $foundNodes = [];
+
+        foreach ($nodes === [] ? [] : $this->targets->nodes(array_values($nodes)) as $node) {
+            $foundNodes[$node->toString()] = true;
+        }
+
         $errors = [];
 
         foreach ($references as $reference) {
-            $error = $this->error($reference, $created, $found);
+            $error = $reference instanceof LinkReference
+                ? $this->linkError($reference, $created, $found, $foundNodes)
+                : $this->error($reference, $created, $found);
 
             if ($error instanceof CatalogError) {
                 $errors[] = $error;
@@ -88,6 +108,23 @@ final readonly class RelationCheck
         }
 
         return $errors;
+    }
+
+    /**
+     * @param  array<string, true>  $nodes  the nodes found, by id
+     */
+    private function linkError(LinkReference $reference, EntryTypes $created, EntryTypes $found, array $nodes): ?CatalogError
+    {
+        $target = $reference->target;
+        $exists = $target instanceof NodeId
+            ? isset($nodes[$target->toString()])
+            : ($created->of($target) ?? $found->of($target)) instanceof TypeId;
+
+        return $exists ? null : new CatalogError(ErrorCode::ValidationLinkTargetMissing, $reference->path, sprintf(
+            'names the %s %s, which does not exist or which the actor cannot read.',
+            $target instanceof NodeId ? 'node' : 'entry',
+            $target->toString(),
+        ));
     }
 
     private function error(RelationReference $reference, EntryTypes $created, EntryTypes $found): ?CatalogError

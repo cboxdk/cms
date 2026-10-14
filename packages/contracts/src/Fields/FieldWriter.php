@@ -99,6 +99,14 @@ final readonly class FieldWriter
             : new ListValue(...array_map(static fn (EntryId $value): TextValue => new TextValue($value->toString()), $values));
     }
 
+    /**
+     * The target of a link field as the MapValue of its members (B2-T76).
+     */
+    public static function link(?Link $value): FieldValue
+    {
+        return $value instanceof Link ? $value->toFieldValue() : new NullValue;
+    }
+
     public static function group(?FieldMap $fields): FieldValue
     {
         return $fields instanceof FieldMap ? new GroupValue($fields) : new NullValue;

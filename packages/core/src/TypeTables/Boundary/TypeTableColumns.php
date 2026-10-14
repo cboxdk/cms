@@ -17,7 +17,11 @@ use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
 use Cbox\Cms\Contracts\Fields\InvalidFieldValue;
+use Cbox\Cms\Contracts\Fields\InvalidLink;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Fields\ListValue;
+use Cbox\Cms\Contracts\Fields\MapValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Fields\NullValue;
 use Cbox\Cms\Contracts\Fields\TextValue;
@@ -29,6 +33,8 @@ use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
 use Cbox\Cms\Core\Codecs\Domain\DecodingFailed;
 use Cbox\Cms\Core\Codecs\Domain\EncodingFailed;
 use Cbox\Cms\Core\TypeTables\Domain\UnreadableTypeTable;
+use Cbox\Cms\Core\Validation\Boundary\LinkInput;
+use Cbox\Cms\Core\Validation\Boundary\LinkProblem;
 use DateTimeImmutable;
 use JsonException;
 use stdClass;
@@ -49,6 +55,7 @@ use stdClass;
  * - rich_text: a jsonb array of Portable Text blocks (PRD 11.10);
  * - relation: the target entry's id, a uuid with a foreign key to entries, or for a relation that
  *   holds several a jsonb array of the ids as strings (PRD 5.11, 11.6);
+ * - link: a jsonb object of the link's kind and its target, the keys sorted (B2-T76);
  * - group: a jsonb object of the nested fields by handle, or a jsonb array of such objects when the
  *   group repeats. Inside it a text is a JSON string, an integer a JSON integer, a decimal its
  *   canonical string, a boolean a JSON boolean, a date `YYYY-MM-DD`, a date-time RFC 3339 in UTC
@@ -131,6 +138,7 @@ final readonly class TypeTableColumns
                 'rich_text' => self::richText($name, self::document($name, self::string($name, $raw))),
                 'group' => self::group($field, $name, self::document($name, self::string($name, $raw))),
                 'relation' => $column->type === 'uuid' ? new TextValue(self::string($name, $raw)) : self::entries($name, self::document($name, self::string($name, $raw))),
+                'link' => self::link($name, self::document($name, self::string($name, $raw))),
                 default => throw UnreadableTypeTable::fieldType($name, $field->fieldType),
             };
         } catch (InvalidFieldValue $exception) {
@@ -232,6 +240,7 @@ final readonly class TypeTableColumns
             $field->valueType() === 'group' => self::json($name, self::groupJson($field, $name, $value)),
             $field->valueType() === 'relation' && $column->type === 'uuid' && $value instanceof TextValue => $value->value,
             $field->valueType() === 'relation' && $value instanceof ListValue => self::json($name, self::entryIds($name, $value)),
+            $field->valueType() === 'link' => self::json($name, self::linkJson($name, $value)),
             default => throw UnreadableTypeTable::value($name, sprintf('a %s for a field of the type %s', $value::class, $field->fieldType)),
         };
     }
@@ -273,6 +282,7 @@ final readonly class TypeTableColumns
             $field->valueType() === 'group' => self::groupJson($field, $at, $value),
             $field->valueType() === 'relation' && $value instanceof TextValue => $value->value,
             $field->valueType() === 'relation' && $value instanceof ListValue => self::entryIds($at, $value),
+            $field->valueType() === 'link' => self::linkJson($at, $value),
             default => throw UnreadableTypeTable::value($at, sprintf('a %s for a field of the type %s', $value::class, $field->fieldType)),
         };
     }
@@ -637,7 +647,38 @@ final readonly class TypeTableColumns
             'rich_text' => self::richText($at, $value),
             'group' => self::group($field, $at, $value),
             'relation' => is_array($value) ? self::entries($at, $value) : new TextValue(self::string($at, $value)),
+            'link' => self::link($at, $value),
             default => throw UnreadableTypeTable::fieldType($at, $field->fieldType),
         };
+    }
+
+    /**
+     * A link from its JSON object, in the canonical form of its members (Link::toFieldValue()).
+     *
+     * @throws UnreadableTypeTable
+     */
+    private static function link(string $at, mixed $document): MapValue
+    {
+        $read = LinkInput::read($document, LinkKind::cases());
+
+        if ($read instanceof LinkProblem) {
+            throw UnreadableTypeTable::value($at, 'a link: '.$read->reason);
+        }
+
+        return $read->toFieldValue();
+    }
+
+    /**
+     * A link as its JSON object.
+     *
+     * @throws UnreadableTypeTable
+     */
+    private static function linkJson(string $at, FieldValue $value): stdClass
+    {
+        try {
+            return JsonValues::encodeLink(Link::fromFieldValue($value));
+        } catch (InvalidLink $exception) {
+            throw UnreadableTypeTable::value($at, $exception->getMessage());
+        }
     }
 }

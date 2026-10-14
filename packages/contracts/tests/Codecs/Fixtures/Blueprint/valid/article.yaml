@@ -121,3 +121,14 @@ fields:
     type: relation
     types: [app:article]
     classification: internal
+  - handle: source
+    label: Source
+    description: Where the article comes from, an entry, a node or a page on the web.
+    type: link
+    classification: public
+  - handle: further_reading
+    label: Further reading
+    description: A page on the web to read next.
+    type: link
+    kinds: [url]
+    classification: internal

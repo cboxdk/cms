@@ -6,6 +6,7 @@ namespace Cbox\Cms\Core\Validation\Boundary;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
 use Cbox\Cms\Contracts\Errors\ErrorCode;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Ids\EntryId;
 use Cbox\Cms\Contracts\Ids\InvalidUuid7;
 use Cbox\Cms\Contracts\Results\FieldPath;
@@ -189,6 +190,7 @@ final readonly class InputValidator
             RuleName::List => $this->list($field, $value, $path, $stage, $errors, $scopes),
             RuleName::Relation => self::entryId($value) !== null || $this->wrongType($path, 'is not an entry\'s id, a UUIDv7 such as "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b"', $errors),
             RuleName::Relations => $this->relations($field, $value, $path, $errors),
+            RuleName::Link => $this->link($field, $value, $path, $errors),
             default => PortableTextInput::check($field, $value, $path, $errors),
         };
     }
@@ -418,6 +420,22 @@ final readonly class InputValidator
     }
 
     /**
+     * A link (B2-T76), read by LinkInput, which the record codecs share: the first rule it breaks,
+     * at the path of the value that breaks it. Whether an entry or a node it names exists is the
+     * kernel's check when it validates a command, not this one's.
+     */
+    private function link(FieldRules $field, mixed $value, FieldPath $path, ValidationErrors $errors): bool
+    {
+        $read = LinkInput::read($value, $field->linkKinds());
+
+        if ($read instanceof LinkProblem) {
+            $errors->add($read->code, $read->at($path), $read->reason.'.');
+        }
+
+        return true;
+    }
+
+    /**
      * The canonical lowercase form of an entry's id, or null when $value is not a UUIDv7.
      */
     public static function entryId(mixed $value): ?string
@@ -458,6 +476,6 @@ final readonly class InputValidator
             return filter_var($value, FILTER_VALIDATE_EMAIL) !== false;
         }
 
-        return filter_var($value, FILTER_VALIDATE_URL) !== false && preg_match('/\Ahttps?\z/i', (string) parse_url($value, PHP_URL_SCHEME)) === 1;
+        return Link::isWebUrl($value);
     }
 }

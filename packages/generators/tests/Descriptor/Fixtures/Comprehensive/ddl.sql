@@ -30,6 +30,8 @@ create table "shop__product" (
     "launch_date" date
         check ("launch_date" >= '2000-01-01'::date)
         check ("launch_date" <= '2099-12-31'::date),
+    "manual" jsonb
+        check (CASE WHEN jsonb_typeof("manual") = 'object' THEN coalesce(("manual" ->> 'kind') IN ('entry', 'url'), false) ELSE "manual" IS NULL END),
     "name" text not null
         check (char_length("name") >= 1)
         check (char_length("name") <= 120),

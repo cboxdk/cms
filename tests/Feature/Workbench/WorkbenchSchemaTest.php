@@ -186,6 +186,7 @@ it('generates exactly these files from the workbench\'s schema', function (): vo
         'workbench/database/migrations/cms/app__fixture_measurement.lock',
         'workbench/database/migrations/cms/app__fixture_measurement_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_measurement_0002_add_columns.php',
+        'workbench/database/migrations/cms/app__fixture_measurement_0003_add_columns.php',
         'workbench/database/migrations/cms/app__fixture_notice.lock',
         'workbench/database/migrations/cms/app__fixture_notice_0001_create.php',
         'workbench/database/migrations/cms/app__fixture_notice_0002_add_columns.php',

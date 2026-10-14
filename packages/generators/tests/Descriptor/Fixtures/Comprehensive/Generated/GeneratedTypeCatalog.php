@@ -196,6 +196,18 @@ final readonly class GeneratedTypeCatalog implements TypeCatalog
                     ),
                     new FieldDefinition(
                         namespace: null,
+                        handle: new FieldHandle('manual'),
+                        fieldType: 'link',
+                        classification: ClassificationAccess::Public,
+                        agents: true,
+                        encrypted: false,
+                        required: false,
+                        filterable: false,
+                        sortable: false,
+                        column: new ColumnDefinition('manual', 'jsonb', false, ['CASE WHEN jsonb_typeof("manual") = \'object\' THEN coalesce(("manual" ->> \'kind\') IN (\'entry\', \'url\'), false) ELSE "manual" IS NULL END']),
+                    ),
+                    new FieldDefinition(
+                        namespace: null,
                         handle: new FieldHandle('name'),
                         fieldType: 'text',
                         classification: ClassificationAccess::Public,

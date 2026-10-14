@@ -561,7 +561,7 @@ it('rejects a field type that no contributor registers with generate_unknown_fie
     $problem = rulesProblem(rulesFailure([$app]), GenerateErrorCode::UnknownFieldType, 'schema/product.yaml, /fields/1/type');
 
     expect($problem->message)->toContain('no field type contributor registers the field type acme:colour')
-        ->and($problem->message)->toContain('The registered field types are boolean, date, datetime, decimal, group, integer, long_text, relation, rich_text, select, text.');
+        ->and($problem->message)->toContain('The registered field types are boolean, date, datetime, decimal, group, integer, link, long_text, relation, rich_text, select, text.');
 });
 
 it('reads a field type that another contributor registers, and only that one', function (): void {

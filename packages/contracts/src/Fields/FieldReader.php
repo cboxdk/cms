@@ -295,6 +295,29 @@ final readonly class FieldReader
     }
 
     /**
+     * The target of a link field (B2-T76): the Link its MapValue holds.
+     */
+    public function link(string $handle): Link
+    {
+        return $this->linkOrNull($handle) ?? throw InvalidFieldValue::missing($this->pathOf($handle));
+    }
+
+    public function linkOrNull(string $handle): ?Link
+    {
+        $value = $this->valueOf($handle);
+
+        if (! $value instanceof FieldValue) {
+            return null;
+        }
+
+        try {
+            return Link::fromFieldValue($value);
+        } catch (InvalidLink $exception) {
+            throw InvalidFieldValue::link($this->pathOf($handle), $exception->getMessage());
+        }
+    }
+
+    /**
      * The reader of a group field's fields, whose paths start with the group's.
      */
     public function group(string $handle): self

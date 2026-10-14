@@ -37,9 +37,9 @@ final class PostgresRelationTargetsBehaviourTest extends TestCase
 
     private const string ROOT = '0192a0c0-0000-7000-8000-0000000005a1';
 
-    private const string NODE = '0192a0c0-0000-7000-8000-0000000005a2';
+    private const string NODE = self::HOME_NODE;
 
-    private const string FAR = '0192a0c0-0000-7000-8000-0000000005a3';
+    private const string FAR = self::FAR_NODE;
 
     #[Override]
     protected function setUp(): void

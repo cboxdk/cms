@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Contracts\Validation;
 
 use Cbox\Cms\Contracts\Attributes\Experimental;
+use Cbox\Cms\Contracts\Fields\LinkKind;
 use Cbox\Cms\Contracts\Fields\FieldHandle;
 use DateTimeImmutable;
 
@@ -139,6 +140,18 @@ final readonly class FieldRules
         }
 
         return null;
+    }
+
+    /**
+     * The kinds a link field allows (B2-T76): those of its `kinds` rule, or every kind without one.
+     *
+     * @return list<LinkKind>
+     */
+    public function linkKinds(): array
+    {
+        $rule = $this->rule(RuleName::Kinds);
+
+        return $rule instanceof Rule ? array_map(LinkKind::from(...), $rule->arguments) : LinkKind::cases();
     }
 
     /**

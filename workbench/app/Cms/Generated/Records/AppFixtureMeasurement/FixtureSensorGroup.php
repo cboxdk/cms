@@ -8,6 +8,7 @@ use Cbox\Cms\Contracts\Fields\FieldHandle;
 use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
 
@@ -23,6 +24,7 @@ final readonly class FixtureSensorGroup
         public ?EntryId $fixtureSensorCalibration,
         public string $fixtureSensorCode,
         public ?string $fixtureSensorContact,
+        public ?Link $fixtureSensorDatasheet,
         public ?string $fixtureSensorManual,
     ) {}
 
@@ -32,6 +34,7 @@ final readonly class FixtureSensorGroup
             fixtureSensorCalibration: $fields->entryOrNull('fixture_sensor_calibration'),
             fixtureSensorCode: $fields->text('fixture_sensor_code'),
             fixtureSensorContact: $fields->textOrNull('fixture_sensor_contact'),
+            fixtureSensorDatasheet: $fields->linkOrNull('fixture_sensor_datasheet'),
             fixtureSensorManual: $fields->textOrNull('fixture_sensor_manual'),
         );
     }
@@ -47,6 +50,7 @@ final readonly class FixtureSensorGroup
             new NamedValue(new FieldHandle('fixture_sensor_calibration'), FieldWriter::entry($this->fixtureSensorCalibration)),
             new NamedValue(new FieldHandle('fixture_sensor_code'), FieldWriter::text($this->fixtureSensorCode)),
             new NamedValue(new FieldHandle('fixture_sensor_contact'), FieldWriter::text($this->fixtureSensorContact)),
+            new NamedValue(new FieldHandle('fixture_sensor_datasheet'), FieldWriter::link($this->fixtureSensorDatasheet)),
             new NamedValue(new FieldHandle('fixture_sensor_manual'), FieldWriter::text($this->fixtureSensorManual)),
         );
     }

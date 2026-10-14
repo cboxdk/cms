@@ -69,6 +69,7 @@ enum TypeHandle: string
                 'fixture_scale' => 'select',
                 'fixture_sensor' => 'group',
                 'fixture_series' => 'group',
+                'fixture_source' => 'link',
                 'fixture_station' => 'text',
             ],
             self::AppFixtureNotice => [

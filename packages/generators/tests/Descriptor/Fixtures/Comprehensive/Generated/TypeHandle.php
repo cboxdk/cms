@@ -35,6 +35,7 @@ enum TypeHandle: string
                 'dimensions' => 'group',
                 'discontinued' => 'boolean',
                 'launch_date' => 'date',
+                'manual' => 'link',
                 'name' => 'text',
                 'price' => 'decimal',
                 'purchase_price' => 'decimal',

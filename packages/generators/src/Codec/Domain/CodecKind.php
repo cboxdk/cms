@@ -39,6 +39,12 @@ enum CodecKind: string
     /** A list of Portable Text blocks; rules `portable_text`, `styles`, `marks`, `lists` and `links`. */
     case PortableText = 'portable_text';
 
+    /**
+     * A link (B2-T76), the contracts' Link: a JSON object of its kind and its target, read as the
+     * core's LinkInput reads it; rules `link` and `kinds`.
+     */
+    case Link = 'link';
+
     /** An object of the properties of a CodecObject; rule `object`. */
     case Object = 'object';
 
@@ -110,6 +116,7 @@ enum CodecKind: string
             self::Datetime => [ValidationRuleName::Datetime, ValidationRuleName::Min, ValidationRuleName::Max],
             self::Choice => [ValidationRuleName::In],
             self::PortableText => [ValidationRuleName::PortableText, ValidationRuleName::Styles, ValidationRuleName::Marks, ValidationRuleName::Lists, ValidationRuleName::Links],
+            self::Link => [ValidationRuleName::Link, ValidationRuleName::Kinds],
             self::Object => [ValidationRuleName::Object],
             self::List => [ValidationRuleName::List, ValidationRuleName::Distinct, ValidationRuleName::MinItems, ValidationRuleName::MaxItems],
             self::IntegerValue => [ValidationRuleName::Min, ValidationRuleName::Max],
@@ -124,7 +131,7 @@ enum CodecKind: string
     public function isClass(): bool
     {
         return match ($this) {
-            self::Date, self::Datetime, self::PortableText, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields, self::Document, self::Embedded => true,
+            self::Date, self::Datetime, self::PortableText, self::Link, self::Object, self::Id, self::Enum, self::Value, self::IntegerValue, self::Fields, self::Document, self::Embedded => true,
             default => false,
         };
     }

@@ -9,6 +9,7 @@ use Cbox\Cms\Contracts\Fields\FieldMap;
 use Cbox\Cms\Contracts\Fields\FieldReader;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\FieldWriter;
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\NamedValue;
 use Cbox\Cms\Contracts\Ids\EntryId;
@@ -45,6 +46,7 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
         public FixtureScaleChoice $fixtureScale,
         public ?FixtureSensorGroup $fixtureSensor,
         public ?array $fixtureSeries,
+        public ?Link $fixtureSource,
         public ?string $fixtureStation,
     ) {}
 
@@ -66,6 +68,7 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
             fixtureScale: $fields->choice('fixture_scale', FixtureScaleChoice::class),
             fixtureSensor: FixtureSensorGroup::fromFieldsOrNull($fields->groupOrNull('fixture_sensor')),
             fixtureSeries: FixtureSeriesItem::fromListOrNull($fields->groupsOrNull('fixture_series')),
+            fixtureSource: $fields->linkOrNull('fixture_source'),
             fixtureStation: $fields->textOrNull('fixture_station'),
         );
     }
@@ -88,6 +91,7 @@ final readonly class AppFixtureMeasurement implements AppFixtureMeasurementRecor
                 new NamedValue(new FieldHandle('fixture_scale'), FieldWriter::choice($this->fixtureScale)),
                 new NamedValue(new FieldHandle('fixture_sensor'), FieldWriter::group($this->fixtureSensor?->toFieldMap())),
                 new NamedValue(new FieldHandle('fixture_series'), FieldWriter::groups($this->fixtureSeries === null ? null : FixtureSeriesItem::toFieldMaps($this->fixtureSeries))),
+                new NamedValue(new FieldHandle('fixture_source'), FieldWriter::link($this->fixtureSource)),
                 new NamedValue(new FieldHandle('fixture_station'), FieldWriter::text($this->fixtureStation)),
             ),
         );

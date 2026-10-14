@@ -51,6 +51,7 @@ final readonly class PhpTypeHandleEnum implements Generator
         'decimal' => 'decimal',
         'group' => 'group',
         'integer' => 'integer',
+        'link' => 'link',
         'long_text' => 'long_text',
         'relation' => 'relation',
         'rich_text' => 'rich_text',

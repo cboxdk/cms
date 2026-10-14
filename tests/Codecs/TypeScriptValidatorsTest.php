@@ -193,11 +193,12 @@ function fullMeasurementJson(): string
             'children' => [['_type' => 'span', '_key' => 'a1', 'text' => 'Drift ', 'marks' => ['strong']], ['_type' => 'span', '_key' => 'a2', 'text' => 'seen']],
         ]],
         'fixture_samples' => 1000,
-        'fixture_sensor' => ['fixture_sensor_calibration' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04', 'fixture_sensor_code' => 'S-1', 'fixture_sensor_contact' => 'care@example.org', 'fixture_sensor_manual' => 'https://example.org/manual?page=2'],
+        'fixture_sensor' => ['fixture_sensor_calibration' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a04', 'fixture_sensor_code' => 'S-1', 'fixture_sensor_contact' => 'care@example.org', 'fixture_sensor_datasheet' => ['kind' => 'url', 'url' => 'https://example.org/datasheet.pdf', 'rel' => ['nofollow', 'noopener']], 'fixture_sensor_manual' => 'https://example.org/manual?page=2'],
         'fixture_series' => [
             ['fixture_series_value' => '-100.00', 'fixture_series_taken_at' => '2026-03-10T11:00:00Z'],
             ['fixture_series_value' => '1000'],
         ],
+        'fixture_source' => ['kind' => 'entry', 'entry' => '0199A3C1-2B4D-7E5F-8A6B-1C2D3E4F5A05', 'locale' => 'en-GB'],
         'fixture_station' => 'DK-042',
     ]);
 }
@@ -270,7 +271,7 @@ it('accepts every record of app:fixture_measurement v1 the PHP codec writes, and
     crossCheck(new AppFixtureMeasurementCodecV1, 'records/AppFixtureMeasurementV1', 'validateAppFixtureMeasurementV1', [
         'every optional field omitted' => [measurementJson(), null],
         'every field set' => [fullMeasurementJson(), null],
-        'every optional field null' => [measurementJson(array_fill_keys(['fixture_alerts', 'fixture_calibrated', 'fixture_calibrated_on', 'fixture_cited_in', 'fixture_corrects', 'fixture_note', 'fixture_remark', 'fixture_samples', 'fixture_sensor', 'fixture_series', 'fixture_station'], null)), null],
+        'every optional field null' => [measurementJson(array_fill_keys(['fixture_alerts', 'fixture_calibrated', 'fixture_calibrated_on', 'fixture_cited_in', 'fixture_corrects', 'fixture_note', 'fixture_remark', 'fixture_samples', 'fixture_sensor', 'fixture_series', 'fixture_source', 'fixture_station'], null)), null],
         'a decimal with leading zeros and the most digits' => [measurementJson(['fixture_reading' => '-000999999999.999']), null],
         'a date-time at the largest offset and six decimals' => [measurementJson(['fixture_measured_at' => '2026-03-10T23:59:59.999999+23:59']), null],
         'a leap day' => [measurementJson(['fixture_calibrated_on' => '2028-02-29']), null],
@@ -385,6 +386,50 @@ it('holds the conditional fields of app:fixture_measurement v1 to the same verdi
 
         expect($first?->path?->toString())->toBe($path, 'The InputValidator on the fixture '.$name)
             ->and($first === null || in_array($first->code, [ErrorCode::ValidationRequired, ErrorCode::ValidationHiddenField, ErrorCode::ValidationTooLong, ErrorCode::ValidationNotAnOption], true))->toBeTrue('The code of the InputValidator on the fixture '.$name);
+    }
+});
+
+it('holds the links of app:fixture_measurement v1 to the same verdict and path in the PHP codec, the InputValidator and the TypeScript validator', function (): void {
+    $fixtures = [
+        'a link to an entry in a locale' => [measurementJson(['fixture_source' => ['kind' => 'entry', 'entry' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a05', 'locale' => 'da']]), null],
+        'a link to a node' => [measurementJson(['fixture_source' => ['kind' => 'node', 'node' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a06']]), null],
+        'a link to a URL without rels' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'https://example.org/feed/42']]), null],
+        'a link to a URL of 2048 characters, the most it has' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'https://example.org/'.str_repeat('a', 2028)]]), null],
+        'a link to a URL of another scheme' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'ftp://example.org/feed']]), 'fixture_source.url'],
+        'a link to a URL over the length limit' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'https://example.org/'.str_repeat('a', 2029)]]), 'fixture_source.url'],
+        'a link to a URL that is not absolute' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => '/feed/42']]), 'fixture_source.url'],
+        'a link of a kind the field does not allow' => [measurementJson(['fixture_sensor' => ['fixture_sensor_code' => 'S', 'fixture_sensor_datasheet' => ['kind' => 'entry', 'entry' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03']]]), 'fixture_sensor.fixture_sensor_datasheet.kind'],
+        'a link of no kind there is' => [measurementJson(['fixture_source' => ['kind' => 'page', 'url' => 'https://example.org']]), 'fixture_source.kind'],
+        'a link without its kind' => [measurementJson(['fixture_source' => ['url' => 'https://example.org']]), 'fixture_source.kind'],
+        'a link to an entry without the entry' => [measurementJson(['fixture_source' => ['kind' => 'entry']]), 'fixture_source.entry'],
+        'a link to an entry whose target is no entry id' => [measurementJson(['fixture_source' => ['kind' => 'entry', 'entry' => 'DK-042']]), 'fixture_source.entry'],
+        'a link to a node without the node' => [measurementJson(['fixture_source' => ['kind' => 'node', 'node' => null]]), 'fixture_source.node'],
+        'a link to an entry in a locale that is none' => [measurementJson(['fixture_source' => ['kind' => 'entry', 'entry' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'locale' => 'danish']]), 'fixture_source.locale'],
+        'a link to an entry with a null locale' => [measurementJson(['fixture_source' => ['kind' => 'entry', 'entry' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'locale' => null]]), 'fixture_source.locale'],
+        'a link to an entry with the member of a URL' => [measurementJson(['fixture_source' => ['kind' => 'entry', 'entry' => '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03', 'url' => 'https://example.org']]), 'fixture_source'],
+        'a link with a rel that is none' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'https://example.org', 'rel' => ['external']]]), 'fixture_source.rel[0]'],
+        'a link with a rel twice' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'https://example.org', 'rel' => ['ugc', 'ugc']]]), 'fixture_source.rel[1]'],
+        'a link whose rels are no list' => [measurementJson(['fixture_source' => ['kind' => 'url', 'url' => 'https://example.org', 'rel' => 'nofollow']]), 'fixture_source.rel'],
+        'a link that is a list' => [measurementJson(['fixture_source' => []]), 'fixture_source'],
+        'a link that is text' => [measurementJson(['fixture_source' => 'https://example.org']), 'fixture_source'],
+    ];
+
+    crossCheck(new AppFixtureMeasurementCodecV1, 'records/AppFixtureMeasurementV1', 'validateAppFixtureMeasurementV1', $fixtures);
+
+    $rules = new AppFixtureMeasurementValidator()->rules();
+
+    foreach ($fixtures as $name => [$document, $path]) {
+        $input = json_decode($document, true, 64, JSON_THROW_ON_ERROR);
+        expect($input)->toBeArray();
+
+        if (! is_array($input)) {
+            continue;
+        }
+
+        unset($input['cms_id']);
+        $first = new InputValidator()->validate($rules, $input)->errors[0] ?? null;
+
+        expect($first?->path?->toString())->toBe($path, 'The InputValidator on the fixture '.$name);
     }
 });
 

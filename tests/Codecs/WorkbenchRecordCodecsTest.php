@@ -4,10 +4,14 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Tests\Codecs;
 
+use Cbox\Cms\Contracts\Content\Locale;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkRel;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Results\FieldPath;
 use Cbox\Cms\Core\Codecs\Boundary\JsonText;
 use Cbox\Cms\Core\Codecs\Boundary\JsonValues;
@@ -28,7 +32,8 @@ use Workbench\App\Cms\Generated\Domain\Dto\AppFixtureMeasurementV1;
  * The workbench's generated record codecs, contract version 1 (PRD 8.9, GUARDRAILS 2.2). Every core
  * field type of the fixture types goes through encode() into the canonical JSON written out by
  * hand below, and back through decode() into an equal record: text, long text, integer, decimal,
- * boolean, date, datetime, select once and multiple, rich text, and a group once and repeated, and
+ * boolean, date, datetime, select once and multiple, rich text, a link, and a group once and
+ * repeated, and
  * the fixture addon's extension field under ext.fixtureaddon beside the owner's field of the same
  * handle, fixture_slug; ext is always present, with the namespace of every extender.
  * Null stays null, an optional field that is missing stays Omitted, and a field classified above
@@ -56,7 +61,7 @@ const ARTICLE_JSON = '{"cms_id":"'.ARTICLE_ID.'",'
 /** The measurement with every field set, as a caller with internal access sees it. */
 const CORRECTED_ID = '0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03';
 
-const MEASUREMENT_JSON = '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_note":"Sensor cleaned first.","fixture_reading":"-12.500","fixture_scale":"fixture_celsius","fixture_station":"DK-042"}';
+const MEASUREMENT_JSON = '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_note":"Sensor cleaned first.","fixture_reading":"-12.500","fixture_scale":"fixture_celsius","fixture_source":{"kind":"url","rel":["nofollow"],"url":"https://example.org/feed/42"},"fixture_station":"DK-042"}';
 
 /**
  * The rich text of the article: one heading with a decorator and a link.
@@ -116,6 +121,7 @@ function measurement(): AppFixtureMeasurementV1
         fixtureScale: 'fixture_celsius',
         fixtureSensor: Omitted::Field,
         fixtureSeries: Omitted::Field,
+        fixtureSource: Link::toUrl('https://example.org/feed/42', LinkRel::Nofollow),
         fixtureStation: 'DK-042',
     );
 }
@@ -171,6 +177,26 @@ it('holds a relation\'s targets as entry ids, and refuses a target that is no id
         ->toBe(['json_invalid', 'fixture_cited_in', 'has 201 items, more than the 200 the field allows']);
 });
 
+it('holds a link as the contracts\' Link, and refuses one of a kind the field does not allow, without its target or with another scheme', function (): void {
+    $codec = new AppFixtureMeasurementCodecV1;
+    $base = '{"cms_id":"'.MEASUREMENT_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius"';
+    $entry = $codec->decode($base.',"fixture_source":{"kind":"entry","entry":"'.strtoupper(CORRECTED_ID).'","locale":"EN-gb"}}', ClassificationAccess::Internal);
+
+    expect($entry->fixtureSource)->toEqual(Link::toEntry(EntryId::fromString(CORRECTED_ID), new Locale('en-GB')))
+        ->and($codec->encode($entry, ClassificationAccess::Internal))->toContain('"fixture_source":{"entry":"'.CORRECTED_ID.'","kind":"entry","locale":"en-GB"}')
+        ->and($codec->decode($base.',"fixture_source":{"kind":"node","node":"'.ARTICLE_ID.'"}}', ClassificationAccess::Internal)->fixtureSource)->toEqual(Link::toNode(NodeId::fromString(ARTICLE_ID)))
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_source":{"kind":"url","url":"ftp://example.org/feed"}}', ClassificationAccess::Internal)))
+        ->toBe(['json_invalid', 'fixture_source.url', 'is not an absolute http or https URL'])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_source":{"kind":"url","url":"https://example.org/'.str_repeat('a', 2029).'"}}', ClassificationAccess::Internal)))
+        ->toBe(['json_invalid', 'fixture_source.url', 'has 2049 characters; it may have at most 2048'])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_source":{"kind":"entry"}}', ClassificationAccess::Internal)))
+        ->toBe(['json_invalid', 'fixture_source.entry', 'is missing; a link to an entry names it'])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_sensor":{"fixture_sensor_code":"S","fixture_sensor_datasheet":{"kind":"entry","entry":"'.CORRECTED_ID.'"}}}', ClassificationAccess::Internal)))
+        ->toBe(['json_invalid', 'fixture_sensor.fixture_sensor_datasheet.kind', 'is not one of the kinds the field allows: url'])
+        ->and(refusedDocument(static fn (): object => $codec->decode($base.',"fixture_source":{"kind":"url","url":"https://example.org","rel":["nofollow","nofollow"]}}', ClassificationAccess::Internal)))
+        ->toBe(['json_invalid', 'fixture_source.rel[1]', 'is the same rel as item 0']);
+});
+
 it('decodes the same record from any key order, whitespace and offset, and encodes it canonically', function (): void {
     $document = <<<'JSON'
         {
@@ -179,6 +205,7 @@ it('decodes the same record from any key order, whitespace and offset, and encod
           "fixture_measured_at": "2026-03-10T13:59:59.25+02:00",
           "fixture_corrects": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03",
           "fixture_cited_in": ["0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a01", "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03"],
+          "fixture_source": {"url": "https://example.org/feed/42", "rel": ["nofollow"], "kind": "url"},
           "cms_id": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a02"
         }
         JSON;
@@ -237,7 +264,7 @@ it('leaves out every field classified above the caller\'s classification access'
     'public' => [
         ClassificationAccess::Public,
         '{"cms_id":"'.ARTICLE_ID.'","ext":{"fixtureaddon":{"fixture_slug":"budget-report-out"}},"fixture_body":[{"_key":"a","_type":"block","children":[{"_key":"a1","_type":"span","marks":["strong","l"],"text":"Read the report"}],"markDefs":[{"_key":"l","_type":"link","href":"https://example.org/report"}],"style":"h2"}],"fixture_byline":[{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_role":"fixture_author"},{"entry":"0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a03","fixture_credit_note":"Photos by the desk","fixture_role":"fixture_photo"}],"fixture_featured":true,"fixture_published_on":"2026-03-09","fixture_reading_minutes":7,"fixture_slug":"the-report","fixture_title":"Budget: the report is out","fixture_topics":["fixture_politics","fixture_science"]}',
-        '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius"}',
+        '{"cms_id":"'.MEASUREMENT_ID.'","fixture_cited_in":["'.ARTICLE_ID.'","'.CORRECTED_ID.'"],"fixture_corrects":"'.CORRECTED_ID.'","fixture_measured_at":"2026-03-10T11:59:59.250000Z","fixture_reading":"-12.500","fixture_scale":"fixture_celsius","fixture_source":{"kind":"url","rel":["nofollow"],"url":"https://example.org/feed/42"}}',
     ],
     'internal' => [
         ClassificationAccess::Internal,

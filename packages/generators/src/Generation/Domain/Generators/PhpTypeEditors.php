@@ -75,6 +75,7 @@ final readonly class PhpTypeEditors implements Generator
         'decimal' => 'the base decimal and a decimal rule with its precision, scale and bounds',
         'group' => 'the base group, its repeat and no rule; the fields below it follow it',
         'integer' => 'the base integer and an integer rule with its bounds',
+        'link' => 'the base link and a link rule with its kinds',
         'long_text' => 'the base long_text and a text rule with its lengths',
         'relation' => 'the base relation, its target types, and an id rule, or a list of one with multiple',
         'rich_text' => 'the base rich_text and a portable_text rule with its styles, marks, lists and links',

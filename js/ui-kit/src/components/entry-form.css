@@ -113,6 +113,11 @@
     min-inline-size: 0;
   }
 
+  .cms-entry-form__link {
+    display: grid;
+    gap: var(--cms-space-4);
+  }
+
   .cms-entry-form__choices {
     display: grid;
     gap: var(--cms-space-2);

@@ -291,6 +291,7 @@ enum ErrorCode: string
     case ValidationHookFailed = 'validation_hook_failed';
     case ValidationInvalidFormat = 'validation_invalid_format';
     case ValidationInvalidRichText = 'validation_invalid_rich_text';
+    case ValidationLinkTargetMissing = 'validation_link_target_missing';
     case ValidationNotAnOption = 'validation_not_an_option';
     case ValidationRelationTargetMissing = 'validation_relation_target_missing';
     case ValidationRelationTargetType = 'validation_relation_target_type';
@@ -1304,6 +1305,11 @@ enum ErrorCode: string
                 HttpStatus::UnprocessableContent,
                 ExitCode::DataErr,
                 'The rich text is not Portable Text as the field holds it (PRD 11.10): each block is an object of the type block with a key of its own and at least one span, each span has a key and its text, and a level belongs to a list item. Nothing was committed. Correct the value at the path the error names.',
+            ),
+            self::ValidationLinkTargetMissing => $this->caller(
+                HttpStatus::UnprocessableContent,
+                ExitCode::DataErr,
+                'A link names an entry or a node that does not exist, or one the caller cannot read. Nothing was committed. Name an existing entry or node, or link to a URL.',
             ),
             self::ValidationNotAnOption => $this->caller(
                 HttpStatus::UnprocessableContent,

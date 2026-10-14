@@ -21,4 +21,10 @@ final readonly class NoSeedRelations implements SeedRelations
     {
         return null;
     }
+
+    #[Override]
+    public function any(Randomizer $random): ?EntryId
+    {
+        return null;
+    }
 }

@@ -274,6 +274,7 @@ export type ErrorCode =
   | 'validation_hook_failed'
   | 'validation_invalid_format'
   | 'validation_invalid_rich_text'
+  | 'validation_link_target_missing'
   | 'validation_not_an_option'
   | 'validation_relation_target_missing'
   | 'validation_relation_target_type'
@@ -617,6 +618,7 @@ const catalogErrorV1Rule: ObjectRule = {
           'validation_hook_failed',
           'validation_invalid_format',
           'validation_invalid_rich_text',
+          'validation_link_target_missing',
           'validation_not_an_option',
           'validation_relation_target_missing',
           'validation_relation_target_type',
@@ -924,6 +926,7 @@ const problemV1Rule: ObjectRule = {
           'validation_hook_failed',
           'validation_invalid_format',
           'validation_invalid_rich_text',
+          'validation_link_target_missing',
           'validation_not_an_option',
           'validation_relation_target_missing',
           'validation_relation_target_type',

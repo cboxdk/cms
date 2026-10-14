@@ -5,6 +5,7 @@ declare(strict_types=1);
 namespace Cbox\Cms\Core\Tests\Pipeline;
 
 use Cbox\Cms\Contracts\Ids\EntryId;
+use Cbox\Cms\Contracts\Ids\NodeId;
 use Cbox\Cms\Contracts\Ids\TypeId;
 use Cbox\Cms\Core\Pipeline\Domain\RelationTargets;
 use Cbox\Cms\Core\Tests\Pipeline\Fakes\FakeRelationTargets;
@@ -23,6 +24,7 @@ final class FakeRelationTargetsBehaviourTest extends TestCase
     {
         return new FakeRelationTargets()
             ->with(EntryId::fromString(self::ARTICLE), TypeId::fromString(self::ARTICLE_TYPE))
-            ->with(EntryId::fromString(self::NOTE), TypeId::fromString(self::NOTE_TYPE));
+            ->with(EntryId::fromString(self::NOTE), TypeId::fromString(self::NOTE_TYPE))
+            ->withNode(NodeId::fromString(self::HOME_NODE));
     }
 }

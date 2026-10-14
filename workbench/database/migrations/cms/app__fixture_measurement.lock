@@ -1,5 +1,5 @@
 {
-    "about": "The schema lock of the type table app__fixture_measurement: the columns its migrations app__fixture_measurement_<step> build, in 2 steps. cms:generate writes the lock and the migrations from it; do not edit either.",
+    "about": "The schema lock of the type table app__fixture_measurement: the columns its migrations app__fixture_measurement_<step> build, in 3 steps. cms:generate writes the lock and the migrations from it; do not edit either.",
     "columns": [
         {
             "checks": [
@@ -138,12 +138,22 @@
             "references": "entries",
             "step": 2,
             "type": "uuid"
+        },
+        {
+            "checks": [
+                "CASE WHEN jsonb_typeof(\"fixture_source\") = 'object' THEN coalesce((\"fixture_source\" ->> 'kind') IN ('entry', 'node', 'url'), false) ELSE \"fixture_source\" IS NULL END"
+            ],
+            "indexed": false,
+            "name": "fixture_source",
+            "not_null": false,
+            "step": 3,
+            "type": "jsonb"
         }
     ],
     "localization": "none",
     "lock": 1,
     "stages": "none",
-    "steps": 2,
+    "steps": 3,
     "table": "app__fixture_measurement",
     "type": "app:fixture_measurement",
     "type_id": "0199a3c1-2b4d-7e5f-8a6b-1c2d3e4f5a6b"

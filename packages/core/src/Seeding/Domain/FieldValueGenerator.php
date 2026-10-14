@@ -16,6 +16,9 @@ use Cbox\Cms\Contracts\Fields\FieldValue;
 use Cbox\Cms\Contracts\Fields\FieldValues;
 use Cbox\Cms\Contracts\Fields\GroupValue;
 use Cbox\Cms\Contracts\Fields\IntegerValue;
+use Cbox\Cms\Contracts\Fields\Link;
+use Cbox\Cms\Contracts\Fields\LinkKind;
+use Cbox\Cms\Contracts\Fields\LinkRel;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\MapEntry;
 use Cbox\Cms\Contracts\Fields\MapValue;
@@ -59,6 +62,9 @@ use Random\Randomizer;
  * which SeedRelations has no target is left out, required or not, and so is a group, or an item of
  * a repeated group, whose required relation has none, such as a target of a relation whose targets
  * carry attributes.
+ *
+ * A link names a URL below DOMAIN or an earlier entry, of the kinds its field allows; never a
+ * node, so a link that allows only nodes is left out.
  */
 #[Internal]
 final readonly class FieldValueGenerator
@@ -202,6 +208,7 @@ final readonly class FieldValueGenerator
             RuleName::PortableText => $this->richText($field, $random),
             RuleName::Relation => $this->relation($field, $random, $relations),
             RuleName::Relations => $this->relations($field, $random, $relations),
+            RuleName::Link => $this->link($field, $random, $relations),
             default => throw new LogicException(sprintf('The rule %s is not the type rule of a field.', $field->type->value)),
         };
     }
@@ -341,6 +348,35 @@ final readonly class FieldValueGenerator
         }
 
         return $targets === [] ? null : new ListValue(...array_values($targets));
+    }
+
+    /**
+     * A link (B2-T76) of one of the kinds the field allows that the seeder can name: a URL below
+     * DOMAIN, a third of them with the rel nofollow, or an earlier entry. A node is never named,
+     * so a link that allows only nodes is left out, as a relation without a target is.
+     */
+    private function link(FieldRules $field, Randomizer $random, SeedRelations $relations): ?MapValue
+    {
+        $kinds = array_values(array_filter(
+            $field->linkKinds(),
+            static fn (LinkKind $kind): bool => $kind !== LinkKind::Node,
+        ));
+
+        if ($kinds === []) {
+            return null;
+        }
+
+        $kind = $kinds[new ZipfDistribution(count($kinds), $this->profile->valueSkew)->pick($random)];
+
+        if ($kind === LinkKind::Url) {
+            $url = sprintf('https://%s/%s/%s', self::DOMAIN, SeedText::word($random), SeedText::word($random));
+
+            return ($random->getInt(1, 3) === 1 ? Link::toUrl($url, LinkRel::Nofollow) : Link::toUrl($url))->toFieldValue();
+        }
+
+        $entry = $relations->any($random);
+
+        return $entry instanceof EntryId ? Link::toEntry($entry)->toFieldValue() : null;
     }
 
     /**

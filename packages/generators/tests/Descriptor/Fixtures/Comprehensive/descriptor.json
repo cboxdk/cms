@@ -776,6 +776,63 @@
         },
         {
             "agents": true,
+            "base": "link",
+            "choices": [],
+            "classification": "public",
+            "column": {
+                "checks": [
+                    "CASE WHEN jsonb_typeof(\"manual\") = 'object' THEN coalesce((\"manual\" ->> 'kind') IN ('entry', 'url'), false) ELSE \"manual\" IS NULL END"
+                ],
+                "name": "manual",
+                "not_null": false,
+                "references": null,
+                "type": "jsonb"
+            },
+            "description": "Where the product's manual is, an entry of the shop or a page on the web.",
+            "encrypted": false,
+            "fallback": "variant",
+            "fields": [],
+            "filterable": false,
+            "handle": "manual",
+            "label": "Manual",
+            "namespace": null,
+            "owner": "shop",
+            "php": {
+                "doc": "\\Cbox\\Cms\\Contracts\\Fields\\Link",
+                "native": "\\Cbox\\Cms\\Contracts\\Fields\\Link",
+                "nullable": true
+            },
+            "relation": null,
+            "required": false,
+            "sortable": false,
+            "translatable": false,
+            "type": "link",
+            "typescript": {
+                "nullable": true,
+                "type": "Link"
+            },
+            "validation": [
+                {
+                    "arguments": [],
+                    "rule": "nullable"
+                },
+                {
+                    "arguments": [],
+                    "rule": "link"
+                },
+                {
+                    "arguments": [
+                        "entry",
+                        "url"
+                    ],
+                    "rule": "kinds"
+                }
+            ],
+            "when": null,
+            "when_hidden": null
+        },
+        {
+            "agents": true,
             "base": "text",
             "choices": [],
             "classification": "public",

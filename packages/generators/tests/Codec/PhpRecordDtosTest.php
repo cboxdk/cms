@@ -69,7 +69,7 @@ it('maps the comprehensive example into the record contract', function (): void 
     expect($contract->root->className)->toBe('ShopProductV1')
         ->and($contract->codecClass)->toBe('ShopProductCodecV1')
         ->and($contract->version)->toBe(1)
-        ->and(array_keys($root))->toBe(['accessories', 'body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'name', 'price', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight'])
+        ->and(array_keys($root))->toBe(['accessories', 'body', 'care', 'checked_at', 'cms_id', 'colour', 'dimensions', 'discontinued', 'ext', 'launch_date', 'manual', 'name', 'price', 'purchase_price', 'stock', 'successor', 'summary', 'supplier', 'support_email', 'tags', 'weight'])
         ->and(array_map($describe, $root))->toBe([
             'accessories' => ['accessories', CodecKind::List, CodecKind::Id, false, ClassificationAccess::Public, ['list', 'distinct', 'max_items']],
             'body' => ['body', CodecKind::PortableText, null, false, ClassificationAccess::Public, ['portable_text', 'styles', 'marks', 'lists', 'links']],
@@ -81,6 +81,7 @@ it('maps the comprehensive example into the record contract', function (): void 
             'discontinued' => ['discontinued', CodecKind::Boolean, null, false, ClassificationAccess::Public, ['boolean']],
             'ext' => ['ext', CodecKind::Object, null, true, null, []],
             'launch_date' => ['launchDate', CodecKind::Date, null, false, ClassificationAccess::Public, ['date', 'min', 'max']],
+            'manual' => ['manual', CodecKind::Link, null, false, ClassificationAccess::Public, ['link', 'kinds']],
             'name' => ['name', CodecKind::Text, null, true, ClassificationAccess::Public, ['string', 'min_length', 'max_length']],
             'price' => ['price', CodecKind::Decimal, null, true, ClassificationAccess::Public, ['decimal', 'min', 'max']],
             'purchase_price' => ['purchasePrice', CodecKind::Decimal, null, false, ClassificationAccess::Confidential, ['decimal']],
@@ -95,6 +96,7 @@ it('maps the comprehensive example into the record contract', function (): void 
         ->and($root['cms_id']->value->class)->toBe(EntryId::class)
         ->and($root['successor']->value->class)->toBe(EntryId::class)
         ->and($root['accessories']->value->item?->class)->toBe(EntryId::class)
+        ->and($root['manual']->value->rules)->toEqual([new ValidationRule(ValidationRuleName::Link), new ValidationRule(ValidationRuleName::Kinds, ['entry', 'url'])])
         ->and($root['tags']->value->item?->rules)->toEqual([new ValidationRule(ValidationRuleName::In, ['new', 'sale', 'eco'])]);
 
     $supplier = propertyObject($root['supplier']);

@@ -4,6 +4,7 @@ declare(strict_types=1);
 
 namespace Cbox\Cms\Generators\Tests\Descriptor\Fixtures\Comprehensive\Generated\Domain\Dto;
 
+use Cbox\Cms\Contracts\Fields\Link;
 use Cbox\Cms\Contracts\Fields\ListValue;
 use Cbox\Cms\Contracts\Fields\Omitted;
 use Cbox\Cms\Contracts\Identity\ClassificationAccess;
@@ -30,6 +31,7 @@ final readonly class ShopProductV1
      * @param  bool|Omitted|null  $discontinued  Discontinued: Whether the shop no longer sells the product.
      * @param  ShopProductV1Ext  $ext  The fields extensions add, by the namespace of their extender (PRD 11.12).
      * @param  DateTimeImmutable|Omitted|null  $launchDate  Launch date: The day the product went on sale.
+     * @param  Link|Omitted|null  $manual  Manual: Where the product's manual is, an entry of the shop or a page on the web.
      * @param  string  $name  Name: The name of the product, as the shop shows it.
      * @param  numeric-string  $price  Price: The price of one item, in euro.
      * @param  numeric-string|Omitted|null  $purchasePrice  Purchase price: What the shop pays the supplier for one item.
@@ -52,6 +54,7 @@ final readonly class ShopProductV1
         public bool|Omitted|null $discontinued,
         public ShopProductV1Ext $ext,
         public DateTimeImmutable|Omitted|null $launchDate,
+        public Link|Omitted|null $manual,
         public string $name,
         public string $price,
         public string|Omitted|null $purchasePrice,
@@ -81,6 +84,7 @@ final readonly class ShopProductV1
             discontinued: $this->discontinued,
             ext: $this->ext->visibleTo($access),
             launchDate: $this->launchDate,
+            manual: $this->manual,
             name: $this->name,
             price: $this->price,
             purchasePrice: $access->allows(ClassificationAccess::Confidential) ? $this->purchasePrice : Omitted::Field,
