@@ -1,0 +1,1345 @@
+{
+  "block": "B2",
+  "summary": "B2 (Model, MILESTONES 1.6): the remaining work, planned 12 October 2026 from main d7da886c and revised after the critic's review. B2-T1 (key segments in FieldPath, decision D3), B2-T2 (node.create, node.archive and node.set_route, with nodes_owner_write and node_routes_owner_write removed) and B2-T64 (four CI shards) are done and green on main. Earlier blocks delivered site.register and cms:sites:sync (B1-T6), the invariant 18 fix for stages none (B1-S4), type tables keyed (entry, locale, stage) with draft rows (M1), the grant commands and the access bootstrap (B1-T16, B1-T24), and a surface contract harness for queries on REST, Inertia and MCP (tests/Support/SurfaceContract/*Query*). The staged stage arrives with release packages in B10. New task ids start at T65. T110 to T118 are new or split from bigger tasks.\n\nWhat changed in the revision:\n- Split: T74 is now the relation field type plus T112 (relation storage). T77 is now flat blocks plus T113 (nesting). T90 is now the multi-variant writes plus T114 (entry.publish v2 and variant.create_from). T92 is now merge plus T115 (unmerge). T101 is now save plus T116 (conflicts, the leave guard and local recovery).\n- New: T110 (slug history and prefix redirects, PRD 5.9), T111 (deleting one translation, PRD 10.3), T117 (preview parity for links and references, so the delivery lane no longer waits on the editor), and T118 (measuring CI and rebalancing the shards).\n- No broken intermediate state for variants. T71 builds storage and reads with a locale dimension. The v1 commands refuse a variants type permanently, because v1 is the single-variant contract. T90 adds the v2 writes. T91 adds fallback, including field-level fallback, which T71 declares as `fallback: field` per translatable field.\n- Merge covers references kept in JSON (blocks, rich text, links, menus) and taxonomy paths. The link and reference resolvers read through entry_aliases, so T92 now comes after T89 and T95.\n- Removed: the time window on menu items (scope creep) and priority_cap in mount.set_override (it stays null until curation in B9).\n- A critic claim that was stale: the Inertia profile and the surface contract harness already serve queries (InertiaQueryProfile, QuerySurfaceProfiles), so the query tasks keep REST, Inertia and MCP.\n\nRules every task follows. They are spelled out in its acceptance where they apply:\n- A new catalog code puts its entry in ErrorCode, and composer docs:errors regenerates docs/reference/errors.md (gate 10).\n- A new command schema is declared on docs/addons/command-json.md, and a new JSON Schema gets exactly one docs page with a running example.\n- A new field type extends Seeding's FieldValueGenerator, so SeedScaleTest keeps passing.\n- A blueprint key that users write updates docs/addons/blueprint-v1.md and the docs/recipes/content-type.md recipe in the same commit (GUARDRAILS 7.3).\n- A new table asserts relrowsecurity and relforcerowsecurity in pg_class.\n- A new event that changes what a URL shows is purged through the fragments subscriber.\n- A new mutation that can make content public implements ChangesPublicVisibility (invariant 18).\n- A new read states its statement count at 20 and 200 rows.\n- A new contract or port has a fake and a shared suite or a Behaviour trait.\n\nLanes:\n- Structure: T65 to T69 and T110.\n- Blueprint chain: T70 to T89, with T112 and T113. It is sequential, because every step changes blueprint.v1.json and the comprehensive golden fixture.\n- Core model: T90, T114, T91, T111, T92, T115 and T93.\n- Delivery contract: T94 to T97 and T117.\n- Entry editor v1: T98 to T109 and T116.\n- CI budget: T118.\n\nOut of scope, as MILESTONES places it:\n- The redirects manager, host roles, slug templates, traits, owned children, revision diff and workflow.\n- The tombstone command with its relation policy, and the per-site archive index (B5). T112 keeps the foreign keys ON DELETE RESTRICT and records the deferral.\n- Recomputing derived values and resolving the query field (B3, B5).\n- The CRDT buffer (B11).",
+  "tasks": [
+    {
+      "id": "T65",
+      "title": "Site locale commands and full site reconcile from configuration",
+      "goal": "A site's locales change through commands, and cms:sites:sync applies the configuration instead of reporting site_locales_drift (PRD 11.14, gap G30).\n- site.add_locale adds a locale to a registered site with its root route.\n- site.remove_locale retires a locale. It is refused with a new catalog code site_locale_in_use (with the count and the next step) while a placement locale in that locale is not withdrawn. Its plan reads the site aggregate, and placement.create takes the site's share lock, so a remove that races a placement.create in the locale ends in version_conflict, never in an orphaned placement.\n- sites and site_locales are written as the app role under RLS write policies. These replace sites_owner_write and site_locales_owner_write and close the open half of M1-T30. The owner function cms_structure_register_site and site.register move to the same policies.\n- The testkit's PostgresStructureFixtures writes sites as nodes are written since B2-T2: as the app role under a granted fixture actor's context. The PlacementWorld, EntryWorld and AccessWorld tests keep working.\n- The events site.locale_added and site.locale_removed purge the site root's n- key.\n- cms:sites:sync --dry-run prints the diff and writes nothing.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/SiteLocaleCommandsTest.php passes: add; remove; remove refused with site_locale_in_use while a live or scheduled placement locale exists; idempotent repeats replay one changeset; a remove racing a placement.create in the same locale on IndependentConnections gives one commit and one version_conflict",
+        "vendor/bin/pest packages/cli/tests/Postgres/SitesSyncCommandTest.php passes: a newly configured locale is added, a removed one is retired, a second sync writes nothing, and --dry-run prints the diff and writes nothing",
+        "A Postgres test reading pg_policies finds no sites_owner_write or site_locales_owner_write policy; tests/Postgres/WalkingSkeleton/RlsWithoutActorContextTest.php passes; and vendor/bin/pest --testsuite=Postgres --filter='Placement|Entry|Access' passes on the rewritten fixture writer",
+        "vendor/bin/pest packages/core/tests/Postgres/FragmentInvalidationTest.php passes with a case where site.locale_removed purges the site root's n- key",
+        "vendor/bin/pest --filter=SurfaceContract passes with cases for both commands, and composer docs:check passes: the committed docs/reference/errors.md equals what composer docs:errors writes, and both schemas are declared on docs/addons/command-json.md and documented on docs/addons/site-commands.md",
+        "composer check passes"
+      ],
+      "dependsOn": [],
+      "touches": [
+        "packages/core/src/Structure",
+        "packages/core/src/Placements",
+        "packages/core/src/Fragments",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "packages/cli/src/Console/SitesSyncCommand.php",
+        "packages/testkit/src/FixtureWriters/Structure",
+        "packages/contracts/src/Errors/ErrorCode.php",
+        "docs/reference/errors.md",
+        "docs/addons/site-commands.md",
+        "docs/addons/command-json.md",
+        "CLAUDE.md",
+        "AGENTS.md"
+      ]
+    },
+    {
+      "id": "T66",
+      "title": "node.move and node labels",
+      "goal": "node.move moves a node and its subtree under a new parent in one changeset.\n- It rewrites every descendant's ltree path in one statement.\n- It refuses a move below the node itself or a descendant, below a mount or an archived node, and across sites while the node or a descendant has a route there. Routes belong to their nodes, so a move within a site changes no URL.\n- It needs the permission on both the old and the new parent.\n- Two concurrent moves that together would form a cycle (A under B, B under A) end in one commit and one version_conflict. Both moves take the lock of each ancestor path they read.\n- It emits node.moved, which purges the n- keys of the moved node and its descendants in batches.\n- A move whose subtree holds a visible placement and that lands under another site implements ChangesPublicVisibility (invariant 18).\n\nnode.set_label sets a node's label per locale in a new node_labels table with forced RLS. Breadcrumbs and panel trees read it later. Its event purges the node's n- key.\n\nThe commit guard for a concurrent visibility change follows B2-T2's pattern.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/NodeMoveTest.php passes: descendants' paths are rewritten; every refusal is answered with validation_failed or unauthorized; an actor granted on the new parent reaches the moved nodes, and one granted only on the old parent no longer does; two crossing moves on IndependentConnections give one commit and one version_conflict; an agent's move of a visible subtree across sites is agent_visibility_forbidden",
+        "The same test shows an equal statement count for a subtree of 20 and of 2000 descendants",
+        "vendor/bin/pest packages/core/tests/Postgres/NodeLabelTest.php passes; a pg_class assertion shows relrowsecurity and relforcerowsecurity on node_labels; and RlsWithoutActorContextTest lists node_labels with zero rows",
+        "vendor/bin/pest packages/core/tests/Postgres/FragmentInvalidationTest.php passes with cases for node.moved and the label event",
+        "vendor/bin/pest --filter=SurfaceContract passes with cases for node.move and node.set_label, and composer docs:check passes with both schemas on docs/addons/command-json.md and docs/addons/node-commands.md",
+        "composer check passes"
+      ],
+      "dependsOn": [],
+      "touches": [
+        "packages/core/src/Structure",
+        "packages/core/src/Fragments",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "packages/contracts/src/Plans/Mutations",
+        "docs/addons/node-commands.md",
+        "docs/addons/command-json.md",
+        "CLAUDE.md",
+        "AGENTS.md"
+      ]
+    },
+    {
+      "id": "T67",
+      "title": "mount.create and mount overrides",
+      "goal": "mount.create makes a mount node under a site node with its mount_source_id (PRD 5.8). It refuses a source that is a mount, the node itself, an ancestor or an archived node. It reads the source's ancestor path under lock, so a node.move that meanwhile makes the source an ancestor ends in version_conflict.\n\nmount.set_override sets hidden per (mount node, entry), under new RLS policies on mount_overrides, with the permission decided on the mount's node. An override that un-hides a visible entry implements ChangesPublicVisibility (invariant 18). priority_cap stays null and is not in the command until curation (B9), recorded in PROGRESS.md.\n\npath.resolve answers 404 for an entry hidden on the mount, and the explanation names the override step. The new events invalidate through the mount node's n- key. B2-T2's archive guard is checked again for content shown through a mount, and the result is recorded.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/MountCommandsTest.php passes for creation, each refusal, setting and clearing an override, an agent un-hiding refused with agent_visibility_forbidden, and a mount.create racing a node.move on IndependentConnections (one commit, one version_conflict)",
+        "vendor/bin/pest packages/core/tests/Postgres/PathResolutionTest.php passes with a case where a hidden entry answers 404 on the mount URL and 200 at its source, with the override step in the PathExplanation",
+        "vendor/bin/pest packages/core/tests/Postgres/FragmentInvalidationTest.php passes with a case where an override purges the mount node's n- key",
+        "A pg_class assertion shows forced RLS on mount_overrides; RlsWithoutActorContextTest lists it with zero rows; vendor/bin/pest --filter=SurfaceContract passes; and composer docs:check passes with the schemas on docs/addons/command-json.md and a mount page in docs/addons",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T66"
+      ],
+      "touches": [
+        "packages/core/src/Structure",
+        "packages/core/src/Routing",
+        "packages/core/src/Fragments",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "docs/addons",
+        "docs/addons/command-json.md"
+      ]
+    },
+    {
+      "id": "T68",
+      "title": "Redirect outcome in path.resolve and delivery",
+      "goal": "path.resolve gets a redirect outcome to an absolute URL, resolved in one hop (PRD 5.9: no redirect chains).\n- It is used when a site has its own placement of an entry that a mount on the same site also shows. The mount URL answers 301 to the site's own placement (PRD 5.8).\n- GET /v1/resolve answers 301 with Location, Surrogate-Key and a public Cache-Control.\n- path-explanation.v1.json gains the redirect step through its generated codec.\n- The outcome is general, so slug history (T110) and entry.merge (T92) reuse it.",
+      "acceptance": [
+        "vendor/bin/pest packages/http/tests/Postgres/DeliveryResolveTest.php passes with a case where the mount URL answers 301, Location equals the site's own placement URL, and Surrogate-Key holds that entry's e- key and the n- keys",
+        "cms:explain prints the redirect step, and vendor/bin/pest packages/cli/tests/Postgres/ExplainCommandTest.php passes",
+        "vendor/bin/pest --testsuite=Codecs passes with the redirect explanation round-tripped and validated against path-explanation.v1.json",
+        "composer generate:protocol followed by composer check:generated shows no diff, and composer docs:check passes with docs/addons/delivery-json.md updated",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T67"
+      ],
+      "touches": [
+        "packages/core/src/Routing",
+        "packages/core/src/Delivery",
+        "packages/http/src/Delivery",
+        "packages/contracts/resources/schemas/path-explanation.v1.json",
+        "packages/core/src/Codecs/Boundary/Generated",
+        "packages/cli/src/Boundary/ExplainOutput.php",
+        "docs/developers/delivery.md",
+        "docs/addons/delivery-json.md"
+      ]
+    },
+    {
+      "id": "T110",
+      "title": "Slug history and prefix redirects",
+      "goal": "PRD 5.9's redirects for content that moves without changing identity.\n- placement.set_slug changes a placement locale's slug. It writes the old slug to slug_history, pointing at the placement and not at another history row, and refuses a slug that is taken.\n- node.set_route version 2 changes a node's existing route. It records the old route as a prefix redirect in a node_route_history table. Version 1 keeps refusing a node that already has a route.\n- path.resolve consults the live lookup first, then slug_history and the prefix redirects. It answers T68's redirect outcome to the current URL in one hop, also after several renames, and 410 for a withdrawn placement.\n- Both tables have forced RLS.\n- The events purge the old and new keys.\n- A rename is not a visibility change. A renamed placement that is visible keeps its visibility.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/SlugHistoryTest.php passes: three renames of one placement leave the first URL answering 301 directly to the current URL; a route change answers 301 for a path below the old prefix; a taken slug is refused with placement_slug_taken; a withdrawn placement's old URL answers 410",
+        "The statement count of path.resolve is equal for a placement with 1 and with 20 history rows, and for a node with 20 and 200 placements",
+        "A pg_class assertion shows forced RLS on slug_history and node_route_history, and RlsWithoutActorContextTest lists both with zero rows",
+        "vendor/bin/pest --filter=SurfaceContract passes with cases for placement.set_slug and node.set_route version 2, and composer docs:check passes with both schemas on docs/addons/command-json.md",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T66",
+        "T68"
+      ],
+      "touches": [
+        "packages/core/src/Placements",
+        "packages/core/src/Structure",
+        "packages/core/src/Routing",
+        "packages/core/src/Fragments",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "docs/addons/placement-commands.md",
+        "docs/addons/node-commands.md",
+        "docs/addons/command-json.md"
+      ]
+    },
+    {
+      "id": "T69",
+      "title": "A real site goes live through commands alone",
+      "goal": "A walking-skeleton test proves the MILESTONES 1.6 goal that a real site can go live without test fixtures.\n1. The access bootstrap (B1-T24) runs in the maintenance process and gives the first administrator.\n2. actor.register and grant.assign make an editor with a grant on the site root.\n3. The site comes from configuration through cms:sites:sync.\n4. node.create, node.set_route, mount.create, entry.create, placement.create and entry.publish run through cms:run and REST as that editor.\n5. GET /v1/resolve answers 200 on the site and on the mount.\n\nA guide in docs/developers embeds the test.",
+      "acceptance": [
+        "composer image:run -- vendor/bin/pest tests/Postgres/WalkingSkeleton/SiteGoesLiveTest.php passes",
+        "grep -c -E 'FixtureWriters|PostgresIdentitySeeder|PostgresAccessFixtures' tests/Postgres/WalkingSkeleton/SiteGoesLiveTest.php prints 0",
+        "composer docs:check passes with the new guide embedding the test",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T65",
+        "T67"
+      ],
+      "touches": [
+        "tests/Postgres/WalkingSkeleton",
+        "docs/developers"
+      ]
+    },
+    {
+      "id": "T70",
+      "title": "Type editor descriptor and the type.list and type.describe queries",
+      "goal": "cms:generate writes a type editor descriptor per type: the data the panel's forms render from (gap G1).\n- It holds the type name, labels, capabilities and an inferred title field.\n- Its field tree holds the field type and base, options, labels, descriptions, required, classification, agents, and extension fields under their namespace.\n- It carries the validation rules as the ObjectRule constants of the generated validation runtime, so the kit can validate with the same interpreter.\n\nIt lives in the new contract packages/contracts/resources/schemas/type-editor.v1.json. It comes as a generated class implementing a new contract TypeEditors, bound by the generated provider, with a testkit fake and a shared suite.\n\nThe queries type.list and type.describe run on REST, Inertia (through the existing InertiaQueryProfile) and MCP. They answer descriptors filtered to the reader's classification access, and for agents to the fields agents may see.\n\ncomposer generate:protocol writes the TypeScript of the contract and a copy of the validation runtime into js/ui-kit/src/generated, which check:generated already covers. The prebuilt panel gets the types from there.",
+      "acceptance": [
+        "packages/generators/tests/Descriptor/Fixtures/Comprehensive/editor.json is a committed golden file, and a generators test compares the generated descriptor with it",
+        "vendor/bin/pest --testsuite=Contract --filter=TypeEditors passes against the fake and the workbench's generated class",
+        "vendor/bin/pest packages/http/tests/Rest --filter=TypeList passes: an actor gets the workbench's types, a field above the reader's classification access is absent, and both queries read no table (statement count 0 with 3 and 30 types in the fake)",
+        "vendor/bin/pest --filter=SurfaceContract passes with query cases for type.list and type.describe on REST, Inertia and MCP",
+        "vendor/bin/pest --testsuite=Codecs passes with every workbench descriptor validated against type-editor.v1.json by opis/json-schema; composer docs:check passes with a page that declares type-editor.v1.json and TypeEditors",
+        "composer check:generated and composer check pass"
+      ],
+      "dependsOn": [],
+      "touches": [
+        "packages/generators/src/Generation/Domain/Generators",
+        "packages/generators/src/Descriptor",
+        "packages/contracts/src/Schema",
+        "packages/contracts/resources/schemas/type-editor.v1.json",
+        "packages/core/src/Reads",
+        "packages/testkit/src/Schema",
+        "packages/http",
+        "packages/mcp",
+        "tools/src/Protocol",
+        "js/ui-kit/src/generated",
+        "workbench/app/Cms/Generated",
+        "workbench/resources/js/cms/generated",
+        "docs/addons/contracts"
+      ]
+    },
+    {
+      "id": "T71",
+      "title": "Localization variants: blueprint, catalog, type rows and reads",
+      "goal": "The blueprint accepts localization: variants, a per-field translatable key, and fallback: field on a translatable field (PRD 10.1, 10.3, 11.6). Fields that are not translatable live in the shared variant. TypeCatalog and FieldDefinition expose Localization::Variants, translatable and the field fallback, and the descriptor and the editor descriptor carry them.\n\nStorage:\n- TypeRows writes one row per (entry, locale, stage), with the shared fields denormalized into each locale row.\n- It rewrites every locale row when the shared variant changes.\n- cms:types:rebuild rebuilds a variants type identically.\n\nReads:\n- TypeTableQuery, PostgresTypeTableReader and the generated query builders gain a locale dimension (locale(Locale), the shared row for localization none).\n- path.resolve reads the requested locale's row. Fallback comes in T91.\n\nThe v1 entry commands are the single-variant contract. They refuse a variants type permanently with validation_failed naming the v2 command, recorded as a Tolkning, so no write leaves a half-stored variant before T90.\n\nSeedTypes and FieldValueGenerator seed variants types through the shared variant. T90 adds locale variants.",
+      "acceptance": [
+        "The blueprint schema and BlueprintRules accept localization: variants with translatable and fallback: field, and refuse translatable or fallback on a localization: none type with catalog codes (packages/generators/tests Schema tests)",
+        "A generator fixture with localization: variants has golden descriptor, editor descriptor, PHP and TypeScript files",
+        "vendor/bin/pest packages/core/tests/Postgres/LocalizedTypeRowsTest.php passes: shared fields appear in every locale row; a shared change rewrites each locale row with an equal statement count for 2 and 6 locales; the type table reader with locale(da) pages only da rows",
+        "vendor/bin/pest --filter=RebuildReadModels passes with a variants type rebuilt to the same rows; vendor/bin/pest --testsuite=Actions --filter='CreateEntry|ReviseEntry|ReleaseVariant|PublishEntry' passes with the v1 refusal of a variants type",
+        "vendor/bin/pest packages/core/tests/Postgres/SeedScaleTest.php passes; docs/addons/blueprint-v1.md and docs/recipes/content-type.md describe the keys; composer docs:check passes",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T70"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Schema",
+        "packages/contracts/src/TypeTables",
+        "packages/generators/src",
+        "packages/core/src/Entries",
+        "packages/core/src/Publishing",
+        "packages/core/src/TypeTables",
+        "packages/core/src/Routing",
+        "packages/core/src/ReadModels",
+        "packages/core/src/Seeding",
+        "packages/generators/tests",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md",
+        "docs/recipes/content-type.md"
+      ]
+    },
+    {
+      "id": "T72",
+      "title": "Blueprint layout, ui hints, form defaults and labels per language",
+      "goal": "Additive, presentation-only blueprint keys (gap G2, P15).\n- layout: holds tabs, collapsible sections with instructions, field references with width presets, and a sidebar.\n- Per-field ui: holds instructions, an input hint, read_only, hidden, the display of a select (radio, buttons or dropdown) and a summary template for repeated groups. The key for the input hint is input_hint, because the marker gate forbids the other word.\n- default is form-only: constants, or the tokens today and now from the Clock.\n- label and description are a string or a locale map.\n\nThe compiler rule is that every field, extension fields included, appears exactly once in the layout. An extender places its fields with a layout fragment, or they land in an Extensions tab. None of this reaches codecs, contracts or DDL.",
+      "acceptance": [
+        "BlueprintRules refuses a layout that omits or repeats a field, an unknown width preset and a default of the wrong kind, each with its own generate_* code and exit 65 (generators Schema tests), and docs/reference/errors.md equals what composer docs:errors writes",
+        "A generators test changes only layout, ui, a default and a label in the comprehensive example, and shows that only the editor descriptor and the catalog labels change",
+        "The workbench fixture_article declares two tabs and a sidebar, and its editor descriptor carries layout, ui, defaults and Danish and English labels; composer check:generated passes",
+        "docs/addons/blueprint-v1.md and docs/recipes/content-type.md document the keys with a running example, and composer docs:check passes",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T71"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/resources/schemas/type-editor.v1.json",
+        "packages/generators/src/Schema",
+        "packages/generators/src/Descriptor",
+        "packages/generators/src/Generation",
+        "packages/generators/tests",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md",
+        "docs/recipes/content-type.md",
+        "docs/reference/errors.md"
+      ]
+    },
+    {
+      "id": "T73",
+      "title": "Conditional fields with when",
+      "goal": "A typed when: on fields, nested fields included (gap G3).\n- The grammar is eq, neq, in, null, not_null, all and any, over sibling fields and over ancestor fields within the same set. It allows no expressions.\n- when_hidden: clear|keep is required on every conditional field, so no default is decided (open decision 17).\n- The compiler refuses cycles, a reference to another owner's namespace, a reference to a field above the conditional field's classification, and unknown fields.\n- The PHP InputValidator and the generated TypeScript validator never require a hidden field, and they refuse a value on a hidden field marked clear.\n- The editor descriptor carries the conditions.",
+      "acceptance": [
+        "The generators Schema tests show each refusal with its own generate_* code, and docs/reference/errors.md equals what composer docs:errors writes",
+        "tests/Codecs/TypeScriptValidatorsTest.php passes with conditional fixtures where PHP and TypeScript give the same verdict and path for hidden and required, hidden with a value under clear and under keep, and nested all and any",
+        "The comprehensive example has a conditional field with golden validator, editor descriptor and TypeScript",
+        "docs/addons/validation.md, docs/addons/blueprint-v1.md and docs/recipes/content-type.md are updated, and composer docs:check and composer check pass"
+      ],
+      "dependsOn": [
+        "T72"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Validation",
+        "packages/core/src/Validation/Boundary/InputValidator.php",
+        "packages/generators/src",
+        "packages/generators/resources/typescript/validation.ts",
+        "packages/generators/tests",
+        "tests/Codecs",
+        "docs/addons/validation.md",
+        "docs/addons/blueprint-v1.md",
+        "docs/recipes/content-type.md"
+      ]
+    },
+    {
+      "id": "T74",
+      "title": "Relation field type",
+      "goal": "A core field type relation (PRD 5.11, 11.6) with the options types (the allowed target type names), multiple and max_items (at most 1000).\n- A to-one relation is a uuid column with a foreign key to entries (ON DELETE RESTRICT) and an index.\n- A to-many relation is stored in the revision payload and the type row as a jsonb list. T112 adds the relations table.\n- A target that does not exist, or whose type is not in types, is validation_failed at the field's path. It is read in one statement per command, whatever the number of targets.\n- The field type comes with a PHP value, record, codec, validator, TypeScript, editor descriptor and seed values.",
+      "acceptance": [
+        "BlueprintRules refuses an unknown target type name with a catalog code, and docs/reference/errors.md equals what composer docs:errors writes",
+        "vendor/bin/pest packages/core/tests/Postgres/RelationFieldTest.php passes: a missing or wrong-type target is refused at fields.<handle>, with an equal statement count for 2 and 200 targets",
+        "tests/Postgres/ForeignKeyIndexTest.php passes with the to-one column, and tests/Codecs/TypeScriptValidatorsTest.php and tests/Codecs/WorkbenchRecordCodecsTest.php pass with a relation in a workbench fixture type",
+        "GeneratorCoverageTest and packages/core/tests/Postgres/SeedScaleTest.php pass with the new field type, and docs/addons/blueprint-v1.md and docs/recipes/content-type.md document it",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T73"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Fields",
+        "packages/generators/src",
+        "packages/core/src/Entries",
+        "packages/core/src/TypeTables",
+        "packages/core/src/Seeding",
+        "workbench/schema",
+        "packages/generators/tests",
+        "docs/addons/blueprint-v1.md",
+        "docs/recipes/content-type.md"
+      ]
+    },
+    {
+      "id": "T112",
+      "title": "Relation storage",
+      "goal": "Every relation, to-one and to-many, is an edge in a new relations table (PRD 5.11): (source entry, variant, stage, field, target, ordinal).\n- The target has a real foreign key to entries with ON DELETE RESTRICT, and every foreign key has an index.\n- The table has forced RLS.\n\nEdges are written in the same transaction for each stage that entry.create, entry.revise, variant.release, entry.publish, seed.entries and the v2 variant commands write. variant.unrelease and entry.unpublish remove the released edges. cms:types:rebuild rebuilds them. The entry commands write every variant's edges with one statement per mutation run.\n\nNo tombstone command exists in B2. The rule that an entry with released inbound relations needs a cascade or replace policy before it is tombstoned (PRD 5.11) is recorded under Info for the block that builds the tombstone command.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/RelationStorageTest.php passes: edges are written per stage and per variant for to-one and to-many; an unrelease and an unpublish remove the released edges; a rebuild gives the same edges; the statement count is equal for 20 and 200 targets",
+        "tests/Postgres/ForeignKeyIndexTest.php passes; a pg_class assertion shows forced RLS on relations; RlsWithoutActorContextTest lists relations with zero rows",
+        "vendor/bin/pest packages/core/tests/Postgres/SeedScaleTest.php passes with seeded edges",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T74",
+        "T90"
+      ],
+      "touches": [
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/Publishing",
+        "packages/core/src/ReadModels",
+        "packages/core/src/Seeding",
+        "packages/core/database/migrations"
+      ]
+    },
+    {
+      "id": "T75",
+      "title": "Relation attributes, sort keys and relation filters",
+      "goal": "A relation field declares a typed meta shape (for example a role select) (PRD 5.11).\n- The meta is validated like fields, kept in the revision and stored in relations.meta.\n- Meta attributes declared filterable get a partial index.\n\nA filterable relation field declares sort_by, a sortable field of the source. The kernel writes that sort key onto the relation row at release, in the same transaction, with an index on (to_entry, field, sort key).\n\nThe typed query builder gains a where<Field>(EntryId) filter and an ordered reverse listing over the sort key.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/RelationAttributesTest.php passes: an unknown role is refused at the field path, and a filter on a filterable attribute uses the partial index (EXPLAIN in the test)",
+        "In the same test, on 50,000 relation rows, the newest 20 sources for one target are read through an index scan with the sort key (EXPLAIN (ANALYZE))",
+        "The workbench's generated query builders expose the relation filter, and tests/Postgres/TypeTables/WorkbenchQueryBuildersTest.php passes",
+        "docs/addons/blueprint-v1.md documents meta and sort_by, and composer docs:check and composer check pass"
+      ],
+      "dependsOn": [
+        "T112"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/TypeTables",
+        "packages/core/src/Seeding",
+        "packages/core/database/migrations",
+        "workbench/schema",
+        "workbench/app/Cms/Generated/QueryBuilders",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T76",
+      "title": "Link field type",
+      "goal": "A core field type link.\n- Its target is an entry (EntryId with an optional locale), a node (NodeId) or an absolute http or https URL of at most 2048 characters with rel options.\n- An option kinds limits the allowed kinds.\n- It is stored as jsonb, and an entry or node target is also an edge in relations.\n- The field type comes with a PHP value, record, codec, validator, TypeScript, editor descriptor and seed values.\n\nThe delivered LinkV1 form comes in T94.",
+      "acceptance": [
+        "A URL with another scheme or over the length limit, a kind the field does not allow, and a missing entry target are refused at the field path in PHP and in TypeScript, and tests/Codecs/TypeScriptValidatorsTest.php passes",
+        "vendor/bin/pest packages/core/tests/Postgres/RelationStorageTest.php passes with a link to an entry written as an edge",
+        "The comprehensive example has a link field with golden files; GeneratorCoverageTest and SeedScaleTest pass",
+        "docs/addons/blueprint-v1.md documents the field type, and composer check passes"
+      ],
+      "dependsOn": [
+        "T75"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Fields",
+        "packages/generators/src",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/TypeTables",
+        "packages/core/src/Seeding",
+        "packages/generators/tests",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T77",
+      "title": "Blocks: block types with identity and stable keys",
+      "goal": "Block types are blueprint documents of kind: block (gap G12; editing proposal D4 and D7).\n- Each has a block_id (UUIDv7), handle, version, label, icon, group, an optional preview: (layout, title, eyebrow, image, meta, example) and presentation:. inline: is allowed on plain text fields only.\n- A missing preview is inferred into the descriptor.\n\nA core field type blocks has sets (the allowed block types, by owner:handle) and min_items and max_items (at most 500). It holds one level of blocks; T113 adds nesting.\n- It is stored as jsonb. Every block object carries cms_key (ItemKey::PATTERN, unique within the field), cms_type and cms_v.\n- The generated output is a PHP value class per block type, a TypeScript union per blocks field and an exhaustive BlockComponents registry type.\n- Validation errors inside blocks carry key segments.\n- Relations and links inside blocks are written as edges.\n- Seeding generates blocks.\n\nPortableTextInput and Codecs\\Domain\\PortableText narrow _key to ItemKey::PATTERN, which closes the B2-T1 Info note.",
+      "acceptance": [
+        "The comprehensive example has a blocks field with three block types, with golden descriptor, editor descriptor, codec, validator and TypeScript",
+        "vendor/bin/pest --testsuite=Codecs passes: cms_key and cms_type round-trip, and a duplicate key or a key outside ItemKey::PATTERN is refused at its path",
+        "A test in tests/Codecs/TypeScriptValidatorsTest.php shows that an error inside a block has the path fields.body[#k1].heading in PHP and TypeScript, unchanged after the blocks are reordered",
+        "inline: on a field that is not plain text is refused with a catalog code; vendor/bin/pest packages/core/tests/Postgres/RelationStorageTest.php passes with a relation inside a block written as an edge; SeedScaleTest passes",
+        "docs/addons/blueprint-v1.md and docs/recipes/content-type.md document block types, docs/reference/errors.md equals what composer docs:errors writes, and composer check passes"
+      ],
+      "dependsOn": [
+        "T76"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/resources/schemas/type-editor.v1.json",
+        "packages/contracts/src/Fields",
+        "packages/generators/src",
+        "packages/core/src/Validation",
+        "packages/core/src/Codecs",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/Seeding",
+        "packages/generators/tests/Descriptor/Fixtures/Comprehensive",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md",
+        "docs/recipes/content-type.md"
+      ]
+    },
+    {
+      "id": "T113",
+      "title": "Nested blocks up to depth 4",
+      "goal": "A block type may hold blocks fields, nested up to depth 4. That includes a block type that allows itself.\n- The compiler counts the depth over every path and refuses depth 5 with generate_blocks_too_deep.\n- The generated TypeScript uses a recursive alias.\n- Both validators check the depth at run time.\n- The BlockComponents registry stays exhaustive over the nested types.\n- Key-segment paths and edges hold at every depth.",
+      "acceptance": [
+        "The comprehensive example gains a recursive block type with golden files",
+        "Depth 5 is refused by the compiler (generate_blocks_too_deep, exit 65) and by both validators at the path of the fifth level",
+        "tests/Codecs/TypeScriptValidatorsTest.php shows the path fields.body[#k1].items[#k2].heading in PHP and TypeScript, unchanged after a reorder at both levels",
+        "vendor/bin/pest packages/core/tests/Postgres/RelationStorageTest.php passes with an edge from a relation at depth 4, and composer check passes"
+      ],
+      "dependsOn": [
+        "T77"
+      ],
+      "touches": [
+        "packages/generators/src",
+        "packages/core/src/Validation",
+        "packages/core/src/Codecs",
+        "packages/generators/resources/typescript/validation.ts",
+        "packages/generators/tests/Descriptor/Fixtures/Comprehensive",
+        "packages/core/src/Entries/Adapter",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T78",
+      "title": "Sets and entry links inside rich text",
+      "goal": "rich_text gains sets (block types allowed inline, as in Statamic's Bard) and links of the kinds url, entry and node. The markDefs carry link targets in the link field's shape.\n\nInline references are extracted to relations at every revision write (PRD 5.11, 19.2). That covers both entry links and the contents of sets.\n\nBoth validators check them, and seeding produces them.",
+      "acceptance": [
+        "A markDef linking a missing entry is refused at fields.<handle>[#<block key>].markDefs[#<key>] in PHP and TypeScript, and tests/Codecs/TypeScriptValidatorsTest.php passes",
+        "vendor/bin/pest packages/core/tests/Postgres/RelationStorageTest.php passes with edges from rich-text links and from a set inside rich text",
+        "The comprehensive example's rich-text field has a set and an entry link, with golden files; SeedScaleTest passes",
+        "docs/addons/blueprint-v1.md documents sets and links, and composer check passes"
+      ],
+      "dependsOn": [
+        "T113"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/core/src/Validation/Boundary/PortableTextInput.php",
+        "packages/core/src/Codecs/Domain/PortableText.php",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/Seeding",
+        "packages/generators/tests",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T79",
+      "title": "Fieldsets with import in fields, groups and blocks",
+      "goal": "Fieldsets are blueprint documents of kind: fieldset, with a fieldset_id and a version (gap G12).\n- An import is allowed in top-level fields, groups and blocks. Imports may nest up to 3 deep, with no cycles.\n- Classification comes from the import site.\n- An import may override only label, description, required (stricter only) and layout.\n- Each fieldset gets one generated PHP interface and one TypeScript interface. The prefix applies to storage keys only.\n- A fieldset change requires bumping every importer's version, and cms:generate refuses a stale importer with a code naming it.",
+      "acceptance": [
+        "The generators tests show that a cycle, depth 4, a forbidden override and a stale importer are each refused with its own generate_* code and exit 65, and docs/reference/errors.md equals what composer docs:errors writes",
+        "Two block types importing one fieldset share one generated PHP interface and one TypeScript interface, held by golden files",
+        "docs/addons/blueprint-v1.md and docs/recipes/content-type.md document fieldsets, and composer check:generated, composer docs:check and composer check pass"
+      ],
+      "dependsOn": [
+        "T78"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/generators/tests",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md",
+        "docs/recipes/content-type.md"
+      ]
+    },
+    {
+      "id": "T80",
+      "title": "Money field type",
+      "goal": "A core field type money with one ISO 4217 currency per field in the option currency, plus minimum and maximum. Markets and price lists belong to the commerce module (gap P5).\n- It is stored as numeric with the currency's minor-unit scale.\n- It is filterable and sortable.\n- It is written in JSON as {amount: decimal string, currency}.\n- It comes with a PHP value object, validator, TypeScript, editor descriptor, query-builder filters and seed values.",
+      "acceptance": [
+        "A wrong currency, too many decimals and an out-of-range amount are refused at the field path in PHP and TypeScript, and tests/Codecs/TypeScriptValidatorsTest.php passes",
+        "The workbench's generated builder filters and sorts on a money field in tests/Postgres/TypeTables/WorkbenchQueryBuildersTest.php",
+        "The comprehensive example has a money field with golden files; GeneratorCoverageTest and SeedScaleTest pass",
+        "docs/addons/blueprint-v1.md documents money, and composer check passes"
+      ],
+      "dependsOn": [
+        "T79"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Fields",
+        "packages/generators/src",
+        "packages/core/src/TypeTables",
+        "packages/core/src/Codecs",
+        "packages/core/src/Seeding/Domain/FieldValueGenerator.php",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T81",
+      "title": "Composite addon field types: ObjectShape and ListShape",
+      "goal": "An addon field type can map to ObjectShape (named members of core shapes) or ListShape (a list of a shape), next to the eight scalar shapes. This reverses M1-T64 (gap G13).\n- It is stored as jsonb and gets a generated value object, codec, validator, TypeScript interface, editor descriptor and seed values from its shape.\n- A new #[Experimental] contract FieldValueValidator gives a field type a pure, budgeted validator. It is either mirrored in TypeScript or declared server-only.\n- The validator has a testkit fake and a shared suite FieldValueValidatorContract.\n- A validator over its budget rejects the command with a new catalog code.\n- The fixture addon contributes a composite field type, which fixture_article uses through its extension.",
+      "acceptance": [
+        "The fixture addon's composite field type generates and round-trips in tests/Codecs/WorkbenchRecordCodecsTest.php",
+        "vendor/bin/pest packages/core/tests/Actions/FieldValueValidatorBudgetTest.php passes: a validator over its budget rejects the command with the new code",
+        "vendor/bin/pest --testsuite=Contract --filter=FieldValueValidator passes against the fake and the fixture addon's validator",
+        "docs/addons/field-types.md embeds a running example of a composite type and declares FieldValueValidator; docs/reference/errors.md equals what composer docs:errors writes; composer docs:check passes",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T80"
+      ],
+      "touches": [
+        "packages/contracts/src/FieldTypes",
+        "packages/generators/src/Schema",
+        "packages/generators/src",
+        "packages/core/src/Validation",
+        "packages/core/src/Pipeline",
+        "packages/core/src/Seeding",
+        "packages/testkit/src/FieldTypes",
+        "workbench/addons/fixtureaddon",
+        "docs/addons/field-types.md",
+        "docs/reference/errors.md"
+      ]
+    },
+    {
+      "id": "T82",
+      "title": "Properties field type with GIN and expression indexes",
+      "goal": "A properties field per PRD 11.6.\n- A catalog holds properties, each with a handle, label, description and value type: text, number with unit, flag, select, date or money.\n- An entry holds a subset of them in one jsonb column.\n- Filterable properties support eq and in through a GIN index.\n- Sortable numbers and dates get generated expression indexes ending in the entry id, at most 10 per catalog.\n- Typed optional properties are generated in PHP and TypeScript.\n- Classification is public or internal only.\n- A catalog holds at most 200 properties and an entry at most 100.\n- Extensions add <ns>:<handle> properties.\n- The query builder filters and sorts on properties, and seeding produces them.",
+      "acceptance": [
+        "BlueprintRules refuses an eleventh sortable property, more than 200 in a catalog and a classification above internal, each with a code, and docs/reference/errors.md equals what composer docs:errors writes",
+        "vendor/bin/pest packages/core/tests/Postgres/PropertiesFieldTest.php passes: the generated migration creates the GIN and expression indexes CONCURRENTLY, and on 10,000 rows EXPLAIN shows index scans for eq and in filters and for a keyset sort",
+        "An unknown key and a wrong value type are refused in PHP and TypeScript at the property's path, and tests/Codecs/TypeScriptValidatorsTest.php passes",
+        "SeedScaleTest passes, docs/addons/blueprint-v1.md documents properties, and composer check passes"
+      ],
+      "dependsOn": [
+        "T81"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/generators/src/Generation/Domain/Generators/TypeTableMigrations.php",
+        "packages/core/src/TypeTables",
+        "packages/core/src/Codecs",
+        "packages/core/src/Seeding",
+        "workbench/schema",
+        "workbench/database/migrations/cms",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T83",
+      "title": "Query field type",
+      "goal": "A core field type query (gap G18).\n- Its options give the allowed target types, or a type_from sibling select.\n- Its value is a query tree: filters with operators over the filterable fields of the allowed types, a sort over sortable fields, and a limit.\n- Dynamic values are typed tokens, never expressions: now, now plus or minus a duration, today, site, locale and context.<field>.\n- The new contract is packages/contracts/resources/schemas/query-field.v1.json.\n- The value is validated at save against the schema and a cost budget, with a FieldPath per bad clause.\n- It is stored as jsonb and delivered as its value.\n- Seeding produces valid trees.\n\nResolving the query is B5, recorded as a Tolkning.",
+      "acceptance": [
+        "An unknown field, a field that is not filterable, an operator the field type does not take and an unknown token are each refused at fields.<handle>.filters[n] in PHP and TypeScript, and tests/Codecs/TypeScriptValidatorsTest.php passes",
+        "A query over the cost budget is refused with a new catalog code, and docs/reference/errors.md equals what composer docs:errors writes",
+        "The comprehensive example has a query field with golden files, and SeedScaleTest passes",
+        "composer docs:check passes with exactly one page that declares query-field.v1.json and embeds a running example",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T82"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/query-field.v1.json",
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/core/src/Validation",
+        "packages/core/src/Seeding",
+        "packages/contracts/src/Errors/ErrorCode.php",
+        "workbench/schema",
+        "docs/addons"
+      ]
+    },
+    {
+      "id": "T84",
+      "title": "Declarative cross-field rules and a format registry",
+      "goal": "Type-level rules: (gap G14):\n- compare: lt, lte, gt, gte, eq or neq between two fields of comparable types.\n- require_one_of.\n- require_together.\n\nA vetted format registry, which field types can extend, replaces free regexes. The PHP and TypeScript validators agree, and errors land at the field each rule names. FieldValueGenerator produces values that satisfy the rules.",
+      "acceptance": [
+        "tests/Codecs/TypeScriptValidatorsTest.php passes with a fixture for each rule, where PHP and TypeScript give the same code and path",
+        "The compiler refuses a compare between incompatible types and an unknown format with codes, and docs/reference/errors.md equals what composer docs:errors writes",
+        "SeedScaleTest passes with a ruled workbench type; docs/addons/validation.md documents the rules",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T83"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Validation",
+        "packages/core/src/Validation",
+        "packages/core/src/Seeding",
+        "packages/generators/src",
+        "packages/generators/resources/typescript/validation.ts",
+        "workbench/schema",
+        "docs/addons/validation.md"
+      ]
+    },
+    {
+      "id": "T85",
+      "title": "Unique fields and count rules backed by the database",
+      "goal": "unique: {scope: type|locale} on text, integer and select fields (gap G14).\n- It generates a partial unique index per stage.\n- The commit checks the value under an advisory lock keyed by type, field and value. The index is the backstop.\n- A taken value is refused with a new catalog code field_not_unique at the field path, without aborting the command transaction.\n\nA count rule ('at most N entries with field = value') is checked in validate under the same kind of lock. It is not mirrored in TypeScript.\n\nThe seeder generates distinct values for unique fields.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/UniqueFieldTest.php passes: two creates with the same value on IndependentConnections give one commit and one field_not_unique at fields.<handle>",
+        "The same test shows that the N+1th entry under a count rule is refused",
+        "The generated migration creates the partial unique indexes; tests/Postgres/ForeignKeyIndexTest.php and SeedScaleTest pass; docs/reference/errors.md equals what composer docs:errors writes",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T84"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/core/src/Pipeline",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/Seeding",
+        "packages/contracts/src/Errors/ErrorCode.php",
+        "workbench/schema",
+        "workbench/database/migrations/cms",
+        "docs/addons/validation.md"
+      ]
+    },
+    {
+      "id": "T86",
+      "title": "Derived fields",
+      "goal": "derived: {by: <ns>:<deriver>, from: [fields]} (gap G15).\n- The new #[Experimental] contract FieldDeriver is pure, has a budget in milliseconds, and has a testkit fake and a shared suite FieldDeriverContract.\n- The kernel ships core derivers that name no type, such as word count and reading time.\n- A derived value is stored and read-only. A command that sets it is refused with a catalog code.\n- It is computed in the pipeline after the transform hooks and before validation.\n- It is filterable or sortable when declared.\n- The seeder leaves derived fields to the pipeline.\n\nRecomputing values when a deriver's version changes is B3, recorded as a Tolkning.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/DerivedFieldTest.php passes: a workbench fixture with a derived word count recomputes it on entry.revise",
+        "vendor/bin/pest packages/core/tests/Actions/DerivedFieldTest.php passes: a command that sets the derived field is refused, and a deriver over its budget rejects the command",
+        "vendor/bin/pest --testsuite=Contract --filter=FieldDeriver passes against the fake and the core derivers, and vendor/bin/pest --filter=RebuildReadModels passes with derived values rebuilt equal",
+        "composer docs:check passes with a page that declares FieldDeriver with a running example, and docs/reference/errors.md equals what composer docs:errors writes",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T85"
+      ],
+      "touches": [
+        "packages/contracts/src/FieldTypes",
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/core/src/Pipeline",
+        "packages/core/src/Seeding",
+        "packages/testkit/src/FieldTypes",
+        "packages/generators/src",
+        "workbench/schema",
+        "docs/addons"
+      ]
+    },
+    {
+      "id": "T87",
+      "title": "Singletons",
+      "goal": "cardinality: singleton with scope installation or site (PRD 5.13).\n- The site of an entry is the site of its home node.\n- For a variants type, the scope holds one entry, and the rule 'per scope and language' holds through that entry's locale variants.\n- entry.create refuses a second entry for the scope with a new catalog code singleton_exists, naming the existing entry. An advisory aggregate makes two concurrent creates end in one commit and one conflict.\n- The query singleton.get (type, site, locale) runs on REST, Inertia and MCP.\n- TypeCapabilities exposes the cardinality.\n- The seeder creates at most one entry per scope.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/SingletonTest.php passes: a second create is refused with singleton_exists; two concurrent creates give one commit and one conflict; a variants singleton answers per locale; singleton.get has an equal statement count with 20 and 200 entries of other types",
+        "vendor/bin/pest --filter=SurfaceContract passes with query cases for singleton.get, and packages/http REST tests answer the entry or not found per scope",
+        "tests/Arch/ContentTypesTest.php passes, and docs/reference/errors.md equals what composer docs:errors writes; docs/addons/blueprint-v1.md documents cardinality",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T86",
+        "T90"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/contracts/src/Schema/TypeCapabilities.php",
+        "packages/generators/src",
+        "packages/core/src/Entries",
+        "packages/core/src/Reads",
+        "packages/core/src/Seeding",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T88",
+      "title": "Taxonomies",
+      "goal": "Capability taxonomy (PRD 5.13).\n- A parent relation between terms is declared on a relation field.\n- The kernel keeps the system column cms_path, an ltree of term ids with a GiST index. When a parent changes, it rewrites the descendants in the same changeset.\n- A cycle is refused with validation_failed. Two concurrent reparentings that together would form a cycle end in one commit and one version_conflict.\n- A relation option kind: taxonomy requires target types that have the taxonomy capability, and it uses T75's sort key.\n- The query builder filters on a term and its descendants through cms_path.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/TaxonomyTest.php passes: cms_path is correct after reparenting a term with 1,000 descendants, with an equal statement count for 10 and 1,000 descendants; a cycle is refused; two crossing reparentings on IndependentConnections give one commit and one version_conflict; a filter on a term and its descendants uses the GiST index (EXPLAIN)",
+        "A blueprint test refuses kind: taxonomy towards a type without the capability; docs/addons/blueprint-v1.md documents taxonomies",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T87"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/TypeTables",
+        "packages/generators/src/Generation/Domain/Generators/TypeTableMigrations.php",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T89",
+      "title": "Menus",
+      "goal": "A core field type menu: an ordered tree of items at most 3 levels deep. Each item has a cms_key, a label and a link in T76's shape. Menu items have no time window.\n\nThe capability menu requires cardinality singleton and exactly one menu field (PRD 5.13).\n\nEntry targets are edges in relations, so a changed slug reaches the menu through the graph.\n\nThe field type comes with generators, validators, codecs, TypeScript, an editor descriptor and seed values.",
+      "acceptance": [
+        "Depth 4 is refused in PHP and TypeScript, and the compiler refuses a breach of the capability's rules with codes; docs/reference/errors.md equals what composer docs:errors writes",
+        "vendor/bin/pest packages/core/tests/Postgres/RelationStorageTest.php passes with a menu item's entry link written as an edge",
+        "A workbench menu singleton type generates; tests/Codecs/WorkbenchRecordCodecsTest.php and SeedScaleTest pass; docs/addons/blueprint-v1.md documents menus",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T88"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/blueprint.v1.json",
+        "packages/generators/src",
+        "packages/core/src/Entries/Adapter",
+        "packages/core/src/Seeding",
+        "workbench/schema",
+        "docs/addons/blueprint-v1.md"
+      ]
+    },
+    {
+      "id": "T90",
+      "title": "Variant writes: several variants in one changeset and release per variant",
+      "goal": "entry.create v2 creates the shared variant and locale variants. entry.revise v2 revises several variants, each with its expected version, in one changeset (PRD 10.3). variant.release v2 releases any variant.\n- Locale grants hold: a translator granted only de cannot write da.\n- A release by an agent stays refused (invariant 18).\n- Two concurrent multi-variant saves of one entry give one commit, one version_conflict and one changeset.\n- seed.entries writes locale variants for variants types.\n\nThe v1 commands keep T71's refusal of variants types.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/VariantCommandsTest.php passes: one changeset with da and shared revisions; the locale-grant refusal; an agent release refused with agent_visibility_forbidden; two concurrent v2 revises on IndependentConnections give one commit and one version_conflict",
+        "vendor/bin/pest --testsuite=Actions --filter=Variant passes with the fakes, and SeedScaleTest passes with a seeded variants type",
+        "vendor/bin/pest --filter=SurfaceContract passes with the cases of the new versions, and composer docs:check passes with the schemas on docs/addons/command-json.md and docs/addons/entry-commands.md",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T71"
+      ],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/src/Seeding",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "packages/contracts/src/Plans/Mutations",
+        "docs/addons/entry-commands.md",
+        "docs/addons/command-json.md"
+      ]
+    },
+    {
+      "id": "T114",
+      "title": "entry.publish v2 and variant.create_from with staleness",
+      "goal": "entry.publish v2 releases the locale variant and the shared variant as needed, and sets the window.\n\nvariant.create_from creates a locale variant from a source variant's revision, recording translated_from (variant, revision) in a derivations table with forced RLS. A new release of the source marks the derived variants stale.\n\nentry.get (T98) returns translated_from and staleness for each variant head. Writing edges for the new variant follows T112.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/VariantCommandsTest.php passes with: publish v2 releasing da and shared in one changeset; translated_from recorded; staleness after the source is released again; an agent's publish v2 refused (invariant 18)",
+        "vendor/bin/pest packages/core/tests/Postgres/EntryReadsTest.php passes with translated_from and staleness in entry.get",
+        "A pg_class assertion shows forced RLS on the derivations table, and vendor/bin/pest --filter=SurfaceContract passes",
+        "composer docs:check passes with the schemas on docs/addons/command-json.md and docs/addons/publish-commands.md, and composer check passes"
+      ],
+      "dependsOn": [
+        "T90",
+        "T98"
+      ],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/src/Publishing",
+        "packages/core/src/Placements",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "docs/addons/publish-commands.md",
+        "docs/addons/command-json.md"
+      ]
+    },
+    {
+      "id": "T91",
+      "title": "Locale delivery and fallback per site and per field",
+      "goal": "A per-site fallback chain cbox-cms.sites.<handle>.fallback, read by a Boundary into a DTO and checked by the doctor's config check.\n\npath.resolve reads the locale row of a variants type and falls back per variant along the chain. A translatable field marked fallback: field (T71) takes its value from the chain when its own variant leaves it empty (PRD 10.3).\n\ndelivery.v1.json meta gains resolved_locale, fallback and the list of fields that fell back, through the generated codec. The explanation gains a fallback step.",
+      "acceptance": [
+        "vendor/bin/pest packages/http/tests/Postgres/DeliveryResolveTest.php passes: a de-AT request with only de released answers de with fallback true; a field marked fallback: field takes de's value when de-AT leaves it empty, and meta lists it; no released variant in the chain answers 404",
+        "An invalid fallback setting fails doctor.config (core Doctor test)",
+        "composer generate:protocol and composer check:generated show no diff, the Codecs suite validates the new meta, and docs/developers/configuration.md documents the key (ReferencePagesTest passes)",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T90",
+        "T68"
+      ],
+      "touches": [
+        "packages/core/src/Routing",
+        "packages/core/src/Delivery",
+        "packages/core/src/Doctor",
+        "packages/contracts/resources/schemas/delivery.v1.json",
+        "packages/core/src/Codecs/Boundary/Generated",
+        "packages/core/config/cbox-cms.php",
+        "docs/developers/delivery.md",
+        "docs/developers/configuration.md",
+        "docs/addons/delivery-json.md"
+      ]
+    },
+    {
+      "id": "T111",
+      "title": "Deleting one translation",
+      "goal": "variant.delete removes a locale variant of a variants type, while the entry and its other variants remain (PRD 10.3).\n- The variant's head is withdrawn and its released type row and edges are removed.\n- The entry's placement locales in that locale are withdrawn, so their routes answer 410.\n- The shared variant cannot be deleted this way.\n- The command needs the permission in that locale.\n- The events purge the entry's e- key and the placements' n- keys.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/VariantDeleteTest.php passes: after deleting da, the da URL answers 410, the de URL still answers 200, the entry stays active, a delete of shared is refused with validation_failed, and a translator without da is unauthorized",
+        "The fragment of the da URL is purged (FragmentInvalidationTest case)",
+        "vendor/bin/pest --filter=SurfaceContract passes, and composer docs:check passes with the schema on docs/addons/command-json.md",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T114",
+        "T91"
+      ],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/src/Placements",
+        "packages/core/src/Fragments",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "docs/addons/entry-commands.md",
+        "docs/addons/command-json.md"
+      ]
+    },
+    {
+      "id": "T92",
+      "title": "entry.merge",
+      "goal": "entry.merge(from, into) for two entries of one type (PRD 5.14).\n- The loser's lifecycle becomes merged, with a row in entry_aliases (forced RLS).\n- Current references to the loser are rewritten to the winner in chunks on the bulk stream through OperationRunner. That covers relation edges and the references kept in jsonb columns: blocks, rich-text markDefs and sets, link fields and menu items.\n- A taxonomy term's descendants have their cms_path rewritten.\n- Historic revisions keep the loser's id. Reads resolve it through the alias: the LinkResolver (T94), reference expansion (T95) and path.resolve, which also covers references the running operation has not yet reached.\n- The loser's routes answer 301 to the winner's canonical URL through T68's outcome.\n- A command that names a merged entry is rewritten to the winner in resolve (invariant 27).\n- A revise of the loser that races the merge ends in version_conflict or lands on the winner, never on a merged head.\n- The operation reports telemetry: chunks, references rewritten and duration.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/EntryMergeTest.php passes: 5,000 relation edges and references in blocks, rich text, links and menus rewritten in chunks; a 301 from the loser's URL; a command naming the loser landing on the winner; a delivered link to the loser resolving to the winner; a revise of the loser racing the merge on IndependentConnections not landing on a merged head",
+        "cms:types:rebuild after the merge gives rows equal to the live rows",
+        "A pg_class assertion shows forced RLS on entry_aliases; vendor/bin/pest --filter=SurfaceContract passes; the telemetry is asserted with FakeTelemetry and listed in docs/addons/contracts/telemetry.md",
+        "composer docs:check passes with the schema on docs/addons/command-json.md, and composer check passes"
+      ],
+      "dependsOn": [
+        "T89",
+        "T95",
+        "T68"
+      ],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/src/Routing",
+        "packages/core/src/Delivery",
+        "packages/core/src/Operations",
+        "packages/core/src/Pipeline",
+        "packages/core/database/migrations",
+        "packages/core/resources/schemas/commands",
+        "docs/addons/entry-commands.md",
+        "docs/addons/command-json.md",
+        "docs/addons/contracts/telemetry.md"
+      ]
+    },
+    {
+      "id": "T115",
+      "title": "entry.unmerge",
+      "goal": "entry.unmerge reverts a merge while the loser is not purged (PRD 5.14).\n- The loser is active again and its alias is removed.\n- The rewrite is reverted, through the same operation, for the heads that have not changed since the merge.\n- The other heads are listed for review in the command's result.\n- The loser's routes resolve to it again.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/EntryUnmergeTest.php passes: the unchanged heads are restored; a head revised after the merge is listed and left alone; the loser's URL answers 200 again",
+        "cms:types:rebuild after the unmerge gives rows equal to the live rows",
+        "vendor/bin/pest --filter=SurfaceContract passes, and composer docs:check passes with the schema on docs/addons/command-json.md",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T92"
+      ],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/src/Operations",
+        "packages/core/src/Routing",
+        "packages/core/resources/schemas/commands",
+        "docs/addons/entry-commands.md",
+        "docs/addons/command-json.md"
+      ]
+    },
+    {
+      "id": "T93",
+      "title": "Block keys on translated_from",
+      "goal": "translated_from also records the block keys and a content hash per block of the source revision's blocks and rich-text fields, nested blocks included (gap G10). entry.get's variant derivation (T114) reports which block keys have changed in the source since the translation.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/VariantCommandsTest.php passes with a case where variant.create_from stores the keys, and after a revise of block k2 in the source (a nested one included) the staleness lists k2 alone",
+        "vendor/bin/pest packages/core/tests/Postgres/EntryReadsTest.php passes with the changed keys in entry.get, and composer check passes"
+      ],
+      "dependsOn": [
+        "T114",
+        "T113"
+      ],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/database/migrations"
+      ]
+    },
+    {
+      "id": "T94",
+      "title": "LinkV1 and link resolution in delivery",
+      "goal": "link.v1.json (gap G20): {kind entry|node|url, href, absolute, locale, resolved_locale, target_type, rel}.\n\nA port LinkResolver, with a fake and a LinkResolverBehaviour, reads in batches as the reader, with a constant number of statements per document:\n- An entry resolves to its canonical placement's URL in the locale: a path on the same site, an absolute URL from the configured origin on another site, and the source for a mount.\n- A node resolves to its route.\n- A url passes through with rel.\n- A target the reader cannot see has href null and no reason.\n\nDelivery writes link fields, rich-text links and menu items as LinkV1, and adds the targets' keys to Surrogate-Key. Preview parity comes in T117.",
+      "acceptance": [
+        "vendor/bin/pest packages/http/tests/Postgres/DeliveryLinksTest.php passes across two sites and a mount, with an invisible target as href null",
+        "The statement count is equal for 5 and 100 links in one document, and vendor/bin/pest --filter=LinkResolverBehaviour passes",
+        "vendor/bin/pest --testsuite=Codecs passes with LinkV1 validated against link.v1.json; composer docs:check passes with one page that declares link.v1.json with a running example",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T76",
+        "T91"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/link.v1.json",
+        "packages/core/src/Delivery",
+        "packages/core/src/Routing",
+        "packages/core/src/Codecs",
+        "packages/generators/src",
+        "docs/addons/delivery-json.md"
+      ]
+    },
+    {
+      "id": "T95",
+      "title": "References expanded inside blocks and rich text",
+      "goal": "A hydrated reference envelope, reference.v1.json (gap G19): {id, type, href (LinkV1), record}. The record is the target's record at public access, top-level fields only and with no further expansion, or null when the target is not visible.\n- Relation fields with expand: true are expanded at any depth, inside blocks and in rich-text sets and markDefs.\n- A document holds at most 200 references. A meta flag marks a document the ceiling cut, a telemetry counter counts the cuts, and the debug explanation names the cut.\n- Hydrated targets add their keys to Surrogate-Key.\n- The expander is a port with a fake and a ReferenceExpanderBehaviour, and it batches its statements.\n- The fixture nests 4 levels.",
+      "acceptance": [
+        "vendor/bin/pest packages/http/tests/Postgres/DeliveryReferencesTest.php passes on a 4-level nested fixture, with an invisible target as null and the hydrated keys in Surrogate-Key",
+        "The statement count is equal for 10 and 200 references, and a document with 201 references sets the meta flag, records the counter in FakeTelemetry and names the cut in the debug explanation",
+        "The Codecs suite validates the documents against reference.v1.json and delivery.v1.json; composer docs:check passes with one page that declares reference.v1.json with a running example",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T94",
+        "T78"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/reference.v1.json",
+        "packages/contracts/resources/schemas/delivery.v1.json",
+        "packages/core/src/Delivery",
+        "packages/generators/src",
+        "packages/core/src/Codecs/Boundary/Generated",
+        "docs/addons/delivery-json.md",
+        "docs/addons/contracts/telemetry.md"
+      ]
+    },
+    {
+      "id": "T96",
+      "title": "Resolve meta: alternates and breadcrumbs",
+      "goal": "delivery.v1.json meta gains alternates and breadcrumbs (gap G19, G21).\n- alternates holds every visible locale placement of the entry, on this site and on other sites, with absolute URLs for hreflang.\n- breadcrumbs runs from the site root to the placement's node. Each crumb has its route URL and its label from T66's node_labels.\n- The n- keys of the breadcrumb nodes join Surrogate-Key, so a label change invalidates the fragment.",
+      "acceptance": [
+        "vendor/bin/pest packages/http/tests/Postgres/DeliveryResolveTest.php passes: alternates cover two locales and two sites; breadcrumbs carry labels; a mount has its breadcrumbs; and after node.set_label on an ancestor the next request is a fragment miss with the new label",
+        "The Codecs suite validates the new meta, and composer check:generated shows no diff",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T95",
+        "T66"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/delivery.v1.json",
+        "packages/core/src/Delivery",
+        "packages/core/src/Routing",
+        "packages/core/src/Codecs/Boundary/Generated",
+        "docs/addons/delivery-json.md"
+      ]
+    },
+    {
+      "id": "T97",
+      "title": "Site document: GET /v1/site with globals and menus",
+      "goal": "GET /v1/site?site&locale (gap G21) is registered by DeliveryRoutes and answers site-document.v1.json. It holds:\n- The site's configuration: handle, origin, locales and fallback.\n- The released records of site-scoped and installation singletons, by type name.\n- Menus with their items resolved to LinkV1. Invisible targets are hidden.\n\nThe answer is stored as a fragment with the union of the keys (the site root's n- key included) and the lowest valid_until. The fragments subscriber invalidates it when a singleton, a menu target or a site locale changes. debug=1 gives an explanation of what was included and hidden, with telemetry for build time and size.",
+      "acceptance": [
+        "vendor/bin/pest packages/http/tests/Postgres/SiteDocumentTest.php passes: a menu item whose entry is unpublished disappears after the invalidation; site.add_locale invalidates the document; Surrogate-Key holds the keys; a second request is a fragment hit; the statement count is equal for menus of 20 and 200 items",
+        "The Codecs suite validates the document against site-document.v1.json; composer docs:check passes with one page that declares site-document.v1.json with a running example",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T96",
+        "T89",
+        "T87"
+      ],
+      "touches": [
+        "packages/contracts/resources/schemas/site-document.v1.json",
+        "packages/core/src/Delivery",
+        "packages/http/src/Delivery",
+        "packages/core/src/Fragments",
+        "workbench/routes/api.php",
+        "docs/developers/delivery.md",
+        "docs/addons/delivery-json.md"
+      ]
+    },
+    {
+      "id": "T117",
+      "title": "Preview parity for links and references",
+      "goal": "entry.preview (T102) gives the same LinkV1 objects and expanded references as delivery, for the draft or for a chosen revision. It reuses the LinkResolver and the reference expander at public access, and it never writes a fragment.",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/EntryPreviewTest.php passes with a case where the preview of a released revision equals the delivered document's links and references byte for byte, and no fragment is written",
+        "The statement count of entry.preview is equal for 10 and 200 references",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T94",
+        "T95",
+        "T102"
+      ],
+      "touches": [
+        "packages/core/src/Delivery",
+        "packages/core/src/Reads"
+      ]
+    },
+    {
+      "id": "T98",
+      "title": "entry.get and entry.list, with a variant-head contract for addons",
+      "goal": "The query entry.get returns:\n- the entry's type, home node and lifecycle;\n- each variant head, shared and locale variants alike: the draft and released revision numbers, the version, the release state and the draft fields at the reader's classification access;\n- the entry's placements with their locales and windows.\n\nThe query entry.list is a cross-type keyset list with system columns (type, home node, release state, last change).\n- It filters by type, node subtree and state.\n- It has a budget, and reads under RLS plus the explicit predicate.\n\nBoth run on REST, Inertia and MCP with codecs.\n\nA new #[Experimental] contract lets an addon read a variant head, with a testkit fake and a shared suite. With it, the fixture addon's KernelArticleHeads drops its cboxCms.internalUse waivers (B1-X17).",
+      "acceptance": [
+        "vendor/bin/pest packages/core/tests/Postgres/EntryReadsTest.php passes: an actor sees only entries whose home it reaches, and the statement count is equal for 20 and 200 entries",
+        "vendor/bin/pest --filter=SurfaceContract passes with query cases for entry.get and entry.list on REST, Inertia and MCP",
+        "vendor/bin/pest --testsuite=Contract --filter=VariantHead passes against the fake and the Postgres implementation",
+        "grep -c 'cboxCms.internalUse' -r workbench/addons/fixtureaddon/src prints 0; composer docs:check passes with the contract and the query schemas documented",
+        "composer check passes"
+      ],
+      "dependsOn": [],
+      "touches": [
+        "packages/core/src/Entries",
+        "packages/core/src/Reads",
+        "packages/contracts/src",
+        "packages/core/resources/schemas",
+        "workbench/addons/fixtureaddon/src",
+        "packages/testkit/src",
+        "docs/addons"
+      ]
+    },
+    {
+      "id": "T99",
+      "title": "Content list in the panel",
+      "goal": "Panel pages for content across all types and per type, following round-1 Content.dc.html.\n- Nav entries come per type from type.list, in the Content section.\n- Rows show the type, the title field from the editor descriptor, status pills and the last change.\n- The list has keyset pagination, filter chips by type and state, an empty state with the create action, and comfortable and compact density.\n- The page has loading and failing states.\n- New kit components get stories and baselines, and the docs get screenshots.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/ContentListTest.php passes: one nav entry per workbench type; pagination and the filter chips work; the empty, loading and failing states render; axe passes at 390, 820 and 1440 px; no console logs and no JavaScript errors",
+        "Screenshots of the list on mobile and desktop are committed in docs, and composer docs:check passes",
+        "npm run test:js and npm run storybook:test pass",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T98",
+        "T70"
+      ],
+      "touches": [
+        "packages/panel/src",
+        "js/panel/src/pages",
+        "js/ui-kit/src/components",
+        "js/panel/src/i18n",
+        "js/ui-kit/src/i18n",
+        "docs/users",
+        "docs/screenshots"
+      ]
+    },
+    {
+      "id": "T100",
+      "title": "EntryForm in the UI kit, rendered from the type editor descriptor",
+      "goal": "A kit component EntryForm renders a type editor descriptor through the TypeScript of type-editor.v1.json that T70 generates into js/ui-kit/src/generated.\n- It has inputs for text (plain, email, url), long text, integer, decimal, boolean, date, datetime, single and multiple select (per the ui display), and group and repeated group with a summary template.\n- It renders the layout's tabs, sections, sidebar and widths.\n- It applies when visibility and when_hidden clear, defaults on new entries, and the read_only and hidden ui.\n- It shows labels in the UI locale.\n- It validates on the client with the generated validation runtime (validation.ts) over the descriptor's ObjectRule constants, never a third validator. It shows errors at FieldPaths with key segments.\n- Inputs plug into an EntryFieldInput contract by base. Later inputs use the contract, and B11 can swap rich text behind it.",
+      "acceptance": [
+        "npm run test:js passes with Vitest tests per input and for when, defaults and layout",
+        "A Node parity test feeds the workbench's validator fixtures through EntryForm's client validation, the generated TypeScript validators and the PHP InputValidator, and all three give the same code and path",
+        "npm run storybook:test passes with a story and a baseline per field type, and npm run api:check passes with the updated kit API report",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T73",
+        "T70"
+      ],
+      "touches": [
+        "js/ui-kit/src/components",
+        "js/ui-kit/src/generated",
+        "js/ui-kit/src/i18n",
+        "js/ui-kit/tests",
+        "tests/Codecs"
+      ]
+    },
+    {
+      "id": "T101",
+      "title": "Entry editor page: create, edit and save",
+      "goal": "Panel pages content/{type}/new and content/{type}/{entry}, following round-1 Editor.dc.html.\n- They load entry.get and type.describe through page props and render EntryForm.\n- A save runs entry.create or entry.revise through the Inertia profile, with one idempotency key per save and the expected version.\n- Status comes from receipts.\n- ⌘↵ saves.\n- Server errors show at their fields.\n- The page has loading, empty and failing states.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/EntryEditorTest.php passes: create a fixture_article, edit it and save with ⌘↵; a server validation error shows at its field; the loading and failing states render; axe passes at 390, 820 and 1440 px",
+        "The packages/panel Feature tests for the page props pass",
+        "Screenshots of the editor are committed in docs, and composer docs:check passes",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T99",
+        "T100"
+      ],
+      "touches": [
+        "packages/panel/src",
+        "js/panel/src/pages",
+        "js/panel/src/forms",
+        "js/panel/src/i18n",
+        "docs/users",
+        "docs/screenshots"
+      ]
+    },
+    {
+      "id": "T116",
+      "title": "Editor conflicts, the leave guard and local recovery",
+      "goal": "For a single writer in v1:\n- A version_conflict shows who saved. It offers to reload while keeping the local edits for comparison per field.\n- A leave-page guard warns about unsaved changes.\n- Local recovery after a reload works per entry and version, in browser storage wrapped against failure.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/EntryEditorConflictTest.php passes: a save from another connection shows the conflict state with the other actor's name and a per-field comparison; the leave guard fires on navigation with unsaved changes; after a page reload with unsaved edits, the editor offers recovery and restores the edits for that entry and version only; axe passes at three widths",
+        "npm run test:js passes with the recovery store's tests, including a storage that throws",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T101"
+      ],
+      "touches": [
+        "js/panel/src/pages",
+        "js/panel/src/forms",
+        "js/panel/src/i18n",
+        "docs/users"
+      ]
+    },
+    {
+      "id": "T102",
+      "title": "Publish, release and preview in the editor",
+      "goal": "A publish panel in the editor:\n- shows a dry run with what becomes visible and the blast radius;\n- runs entry.publish, or variant.release followed by a placement window;\n- creates a placement with the NodePicker, a slug and a locale;\n- schedules a window and unpublishes.\n\nA Preview tab reads a new query entry.preview. It encodes the draft or a chosen revision through the record codecs at public access, exactly as delivery would. It shows a structured document view at reading width, with locale and width switches.\n\nPreview never writes and never touches the fragment store.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/EntryPublishTest.php passes: create, place, and publish with the dry run naming the placement; GET /v1/resolve answers 200 with the released fields; the Preview shows an unreleased change while /v1/resolve still shows the released state; axe passes at three widths",
+        "vendor/bin/pest packages/core/tests/Postgres/EntryPreviewTest.php passes with no fragment written and an equal statement count for an entry with 20 and 200 placements",
+        "vendor/bin/pest --filter=SurfaceContract passes with query cases for entry.preview",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T101"
+      ],
+      "touches": [
+        "packages/core/src/Delivery",
+        "packages/core/src/Reads",
+        "packages/panel/src",
+        "js/panel/src/pages",
+        "js/ui-kit/src/components",
+        "docs/users"
+      ]
+    },
+    {
+      "id": "T103",
+      "title": "Replicator input for blocks fields",
+      "goal": "A kit input for blocks (editing proposal 4.2).\n- It has an outline and cards drawn from each block type's preview: through kit preview layouts.\n- An insert picker opened by / or + lists the allowed sets by group, with example cards.\n- Blocks nest up to 4 levels.\n- Reordering works by drag, by Alt+Up and Alt+Down and from a menu, announced in a live region (WCAG 2.5.7).\n- Duplicate gives new keys, and pasting copied JSON regenerates keys.\n- Remove has a 10-second undo.\n- Blocks collapse.\n- Validation shows per block, by key.\n- On mobile the outline comes first and blocks open in sheets.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/BlocksEditorTest.php passes: insert three blocks; reorder by keyboard, with the announcement asserted; add a nested block; save; reload with the order persisted; see an error on a nested block at that block after a reorder; axe passes at three widths",
+        "npm run test:js and npm run storybook:test pass",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T102",
+        "T113"
+      ],
+      "touches": [
+        "js/ui-kit/src/components",
+        "js/panel/src/forms",
+        "js/ui-kit/src/i18n",
+        "docs/users",
+        "docs/screenshots"
+      ]
+    },
+    {
+      "id": "T104",
+      "title": "Relation and link pickers",
+      "goal": "A relation picker: a combobox that searches entry.list for the allowed types.\n- It supports multiple selections and reordering.\n- Broken or invisible targets are marked.\n- Without the right to create, it says who can.\n\nA link input with tabs for entry, node and URL, with URL validation and rel.\n\nCreating a new item from a picker in stacked slide-overs waits for the design round 2 approval, recorded in PROGRESS.md.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/EntryPickersTest.php passes: pick two related entries, reorder them and save; a target unpublished from another connection shows as broken after reload; an invalid URL shows its error; axe passes at three widths",
+        "npm run test:js and npm run storybook:test pass",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T103",
+        "T76"
+      ],
+      "touches": [
+        "js/ui-kit/src/components",
+        "js/panel/src/forms",
+        "js/ui-kit/src/i18n"
+      ]
+    },
+    {
+      "id": "T105",
+      "title": "Single-writer Portable Text editor",
+      "goal": "A rich-text input on an established editor library, pinned in package.json.\n\nBefore it is chosen, the library is checked against GUARDRAILS 1 (React 19, strict TypeScript) and the package's licence and SBOM rules. The licence must be MIT, Apache-2.0, BSD or ISC. The check is recorded under Tolkninger. If no library passes, the task is recorded under Blokeret instead.\n\nThe editor supports:\n- the blueprint's styles, marks and lists;\n- url, entry and node links through the link input;\n- inline sets drawn as replicator cards.\n\nKeys stay stable in ItemKey::PATTERN, and a paste is cleaned to the schema. The editor sits behind the EntryFieldInput contract, so B11 can swap it for the CRDT buffer.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/RichTextEditorTest.php passes: type, bold, a list, a link to an entry and an inserted set; save; a reload gives equal Portable Text; all of it with the keyboard alone; axe passes at three widths",
+        "npm run test:js passes with a round trip between Portable Text and the editor model on the workbench fixtures",
+        "npm audit in gate 9 passes, the licence check is in PROGRESS.md, and composer check passes"
+      ],
+      "dependsOn": [
+        "T104",
+        "T78"
+      ],
+      "touches": [
+        "js/ui-kit/src/components",
+        "js/panel/src/forms",
+        "package.json",
+        "package-lock.json",
+        "js/ui-kit/src/i18n"
+      ]
+    },
+    {
+      "id": "T106",
+      "title": "Inputs for money, properties, query, composite and derived fields",
+      "goal": "- A money input, formatted with Intl in minor units.\n- A properties editor that adds rows from the catalog, each with a typed value input and its unit.\n- A structured query-field editor: type, filters from the filterable fields with their operators, tokens, sort and limit.\n- Addon composite shapes rendered generically from their shape. A new replacement point entry.form.field@1, keyed on the field type like command.form.field@1, lets an addon replace the input for its own field type. The fixture addon fills it for its composite type.\n- Derived fields shown read-only.\n- Errors from rules and unique checks shown at their fields.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/EntryFieldInputsTest.php passes with each input, the fixture addon's replacement input, and a field_not_unique error at its field; axe passes at three widths",
+        "The point's schema is in packages/panel/resources/schemas/points, and composer generate:protocol and composer check:generated show no diff",
+        "npm run test:js and npm run storybook:test pass, and composer check passes"
+      ],
+      "dependsOn": [
+        "T105",
+        "T86"
+      ],
+      "touches": [
+        "js/ui-kit/src/components",
+        "js/panel/src/forms",
+        "js/ui-kit/src/i18n",
+        "packages/panel/resources/schemas/points",
+        "packages/panel/src",
+        "workbench/addons/fixtureaddon",
+        "docs/addons/panel"
+      ]
+    },
+    {
+      "id": "T107",
+      "title": "Language tabs and translation in the editor",
+      "goal": "The entry header gets language tabs (live, draft, + Translate), following round-1 Chrome.dc.html.\n- + Translate runs variant.create_from.\n- Shared and translatable fields are marked.\n- A save that covers several variants uses entry.revise v2, in one changeset.\n- A stale translation shows a badge that lists the changed block keys.\n- A translator with a one-locale grant can edit only the tabs the grant allows.\n- Deleting a translation runs variant.delete.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/LocalizedEditorTest.php passes: translate; edit da and a shared field in one save that gives one changeset; the stale badge with the changed key after the source is released; the translator's read-only tabs; deleting a translation; axe passes at three widths",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T106",
+        "T114",
+        "T93",
+        "T111"
+      ],
+      "touches": [
+        "js/panel/src/pages",
+        "js/panel/src/shell",
+        "js/ui-kit/src/components",
+        "packages/panel/src",
+        "js/panel/src/i18n"
+      ]
+    },
+    {
+      "id": "T108",
+      "title": "Singletons and menus in the panel",
+      "goal": "A singleton type's nav entry opens its one entry, per site with the site switcher for site scope, or it offers to create the entry.\n\nA menu field input edits a tree of up to 3 levels with the replicator's patterns:\n- drag and keyboard reorder;\n- indent and outdent;\n- items with the link input;\n- broken links marked.\n\nDesign round 2 (Globals, Menu) is still pending, so the input follows the approved round-1 Editor patterns.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/SingletonAndMenuTest.php passes: open a site singleton; build a 3-level menu by keyboard and save; axe passes at three widths",
+        "npm run test:js and npm run storybook:test pass",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T107",
+        "T89"
+      ],
+      "touches": [
+        "js/ui-kit/src/components",
+        "js/panel/src/pages",
+        "packages/panel/src",
+        "js/panel/src/i18n"
+      ]
+    },
+    {
+      "id": "T109",
+      "title": "B2 exit: a schema-only type in the panel",
+      "goal": "A new workbench fixture type, routable and draft-release, is added as one schema file plus its generated code and migration. It uses nested blocks, rich text with an entry link and a set, a relation, a link, money, properties, a when condition and a layout.\n\nA Browser test then:\n1. creates the entry, edits it and reorders its blocks;\n2. releases and publishes it;\n3. previews it in the panel;\n4. reads it from GET /v1/resolve.\n\nThe task's commit changes no file under packages/ or js/. The reference scenario with a real editor (GUARDRAILS 8) is recorded under 'Til review af Sylvester' as review pending.",
+      "acceptance": [
+        "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/SchemaOnlyTypeTest.php passes",
+        "git show --stat HEAD -- packages js prints nothing for the task commit",
+        "composer check:generated passes, and PROGRESS.md has the review-pending entry for the editor test",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T108",
+        "T116",
+        "T117"
+      ],
+      "touches": [
+        "workbench/schema",
+        "workbench/app/Cms/Generated",
+        "workbench/resources/js/cms/generated",
+        "workbench/database/migrations/cms",
+        "tests/Browser/Panel",
+        "PROGRESS.md"
+      ]
+    },
+    {
+      "id": "T118",
+      "title": "CI budget check and shard rebalance",
+      "goal": "Measure the containerized CI on main after B2's suites have grown. Record each part's wall time (the gates and each shard) in PROGRESS.md. Raise the shard count, B2-T64's single constant, when a part is above 13 minutes, so every part keeps margin within the 15 minutes of GUARDRAILS 10.",
+      "acceptance": [
+        "docker compose -f compose.ci.yaml run --rm ci exits 0 with every part under 15 minutes, and the per-part wall times are recorded in PROGRESS.md",
+        "tests/Feature/Tooling/Ci passes with the shard count used",
+        "composer check passes"
+      ],
+      "dependsOn": [
+        "T109"
+      ],
+      "touches": [
+        "bin/ci",
+        ".github/workflows/ci.yml",
+        "compose.ci.yaml",
+        "tools/src/Check",
+        "tests/Feature/Tooling/Ci",
+        "PROGRESS.md",
+        "CHECKS-LOG.md"
+      ]
+    }
+  ],
+  "exitCriteria": [
+    {
+      "id": "E1",
+      "description": "MILESTONES 1.6, B2 exit criterion: a new type, added only as a schema file, can be created, edited, reordered, released and previewed in the panel without a code change",
+      "command": "composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/SchemaOnlyTypeTest.php; and git show --stat <B2-T109 commit> -- packages js prints nothing"
+    },
+    {
+      "id": "E2",
+      "description": "MILESTONES 1.6, B2's stated purpose: a real site can go live without test fixtures, through commands for sites, nodes, routes, mounts and slugs, with sites reconciled from configuration and PRD 5.9's redirects",
+      "command": "composer image:run -- vendor/bin/pest tests/Postgres/WalkingSkeleton/SiteGoesLiveTest.php packages/cli/tests/Postgres/SitesSyncCommandTest.php packages/core/tests/Postgres/SlugHistoryTest.php packages/core/tests/Postgres/NodeMoveTest.php packages/core/tests/Postgres/MountCommandsTest.php"
+    },
+    {
+      "id": "E3",
+      "description": "The B2 model deliverables in MILESTONES 1.6 each have a passing test: variants with the shared variant (one changeset for da and shared, deleting one translation), relations with attributes and FK indexes, taxonomies, singletons, menus, merge and unmerge, and properties with GIN and expression indexes",
+      "command": "composer image:run -- vendor/bin/pest --testsuite=Postgres --filter='VariantCommands|VariantDelete|LocalizedTypeRows|RelationField|RelationStorage|RelationAttributes|ForeignKeyIndex|Taxonomy|Singleton|EntryMerge|EntryUnmerge|PropertiesField'"
+    },
+    {
+      "id": "E4",
+      "description": "The B2 delivery contract: references inside blocks and rich text expanded at 4 levels, the link object across two sites and a mount, locale fallback, alternates and breadcrumbs, the site document with globals and menus, and preview parity",
+      "command": "composer image:run -- vendor/bin/pest packages/http/tests/Postgres --filter='DeliveryLinks|DeliveryReferences|SiteDocument|DeliveryResolve' && composer image:run -- vendor/bin/pest packages/core/tests/Postgres/EntryPreviewTest.php && vendor/bin/pest --testsuite=Codecs"
+    },
+    {
+      "id": "E5",
+      "description": "The blueprint extensions from the gap report (layout, conditional fields, fieldsets and blocks with identity and nesting, composite field types, rules, unique fields, derived fields, the query field type) generate golden output, keep PHP and TypeScript validation in parity, and are seeded",
+      "command": "vendor/bin/pest packages/generators/tests && vendor/bin/pest tests/Codecs/TypeScriptValidatorsTest.php && composer check:generated && composer image:run -- vendor/bin/pest packages/core/tests/Postgres/SeedScaleTest.php"
+    },
+    {
+      "id": "E6",
+      "description": "Every new action, command and query alike, has its surface contract cases, and every new extension point and schema is documented",
+      "command": "vendor/bin/pest --filter=SurfaceContract && composer docs:check"
+    },
+    {
+      "id": "E7",
+      "description": "Regression: the exit tests of M1 and B1 still pass",
+      "command": "composer image:run -- vendor/bin/pest tests/Postgres/WalkingSkeleton && composer panel:build && composer image:run -- vendor/bin/pest tests/Browser/Panel/StaffJourneyTest.php"
+    },
+    {
+      "id": "E8",
+      "description": "Every gate passes on main: the local profile, the selftest, and containerized CI with every part (the gates and each shard) within the 15-minute budget of GUARDRAILS 10, measured in T118",
+      "command": "composer check && composer check:selftest && docker compose -f compose.ci.yaml run --rm ci (wall time per part recorded in PROGRESS.md)"
+    }
+  ],
+  "blockers": [
+    "The editing experience proposal (cms-planning/proposals/editing-experience.md) and its decisions D1 to D14 are not yet approved by Sylvester. T77 and T113 build D4 (cms_key and cms_type on block objects) and D7 (preview, inline and presentation) as additive changes before approval, as B2-T1 did with D3.",
+    "Gap report decision 17: is a hidden conditional field cleared or kept, and does a field left out of a REST or agent create get its form default? Plan around it: T73 requires when_hidden on every conditional field, so no default is chosen, and T72 applies defaults in the panel form only.",
+    "Design round 2 (Globals, Navigation, Stacked slide-overs in cms-planning/design) is not approved. T108 follows the approved round-1 Editor patterns for menus and singletons. T104's pickers select existing items only; creating an item from a picker in stacked slide-overs waits for the approval.",
+    "Open races under 'Til review af Sylvester' (B1-S4: a placement opened between an agent's read and its commit; B2-T2: node.archive against a window opened meanwhile) need an entry-level or subtree aggregate, or acceptance. T66 and T67 keep B2-T2's guard pattern until this is decided.",
+    "B2-T2: confirm that a route nested under another node's route (/sport next to /sport/live) is allowed. T110's prefix redirects resolve by longest prefix on that assumption.",
+    "Gap report decision 16 (commerce boundary): T80's money is one ISO 4217 currency per field. Markets and price lists are left to the commerce module.",
+    "Gap report decision 13: whether rich text is declared conformant with the Portable Text specification is Sylvester's call. T78 and T105 store and edit the kernel's existing Portable Text form.",
+    "Gap report decision 20 (slug templates and a default placement per type and site) is not in B2. The editor in T102 creates placements explicitly.",
+    "There is still no $id URL for the kernel's JSON Schemas. The new schemas (type-editor, link, reference, site-document, query-field) are published without one, as the existing ones are.",
+    "PRD 26 question 13 (the priority scale) still blocks priority_cap. T67's mount.set_override leaves it out, and the column stays null until curation (B9).",
+    "PRD 5.11's tombstone rule for entries with released inbound relations needs the tombstone command, which no block before B6 builds. T112 keeps the foreign keys ON DELETE RESTRICT, so no entry with edges can be removed physically, and records the deferral under Info.",
+    "T105 depends on finding a rich-text editor library with an MIT, Apache-2.0, BSD or ISC licence that fits React 19 and strict TypeScript. If none does, T105 is recorded under Blokeret for Sylvester to choose."
+  ]
+}
