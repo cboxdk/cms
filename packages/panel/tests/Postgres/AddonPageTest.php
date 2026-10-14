@@ -21,7 +21,8 @@ use Symfony\Component\HttpFoundation\Response;
  * real Postgres and Valkey as the app role over ShellWorld, signed in through the panel's login
  * form: /cms/x/tally/board renders the page Addon with the page's id and addon for a member of
  * staff who holds the page's permission, with the page among the pages a contribution may
- * navigate to and its nav entry in the shell, and the page's data, the result of its query run as
+ * navigate to, after the panel's own pages (OwnPage), which every person behind the login may
+ * open, and its nav entry in the shell, and the page's data, the result of its query run as
  * the viewer, as the deferred prop of its addon, equal to what GET /v1/queries/tally.board/v1
  * answers the same viewer over REST: a service actor with a service credential, the one kind of
  * viewer that reaches REST in part 1 of B1, served the page behind the credential by ShellWorld. A
@@ -34,6 +35,14 @@ final class AddonPageTest extends TestCase
     use RealPostgres;
 
     private const string BOARD = '/cms/x/tally/'.ContributionWorld::BOARD_PATH;
+
+    /**
+     * The panel's own pages as the pages list gives them, sorted by page id before any addon's:
+     * open to every person behind the login, so a viewer without a grant gets them too.
+     *
+     * @var list<array{page: string, url: string}>
+     */
+    private const array OWN_PAGES = [['page' => 'account.me', 'url' => '/cms/account/me'], ['page' => 'home', 'url' => '/cms']];
 
     private ?ShellWorld $shell = null;
 
@@ -69,7 +78,7 @@ final class AddonPageTest extends TestCase
 
         $contributions = (array) $page->json('props.'.ContributionProps::CMS.'.'.ContributionProps::CONTRIBUTIONS);
 
-        self::assertSame([['page' => 'home', 'url' => '/cms'], ['page' => ContributionWorld::BOARD, 'url' => self::BOARD]], $contributions['pages'] ?? null);
+        self::assertSame([...self::OWN_PAGES, ['page' => ContributionWorld::BOARD, 'url' => self::BOARD]], $contributions['pages'] ?? null);
         self::assertSame(['shell.nav@1', 'shell.page@1', 'shell.user-menu@1'], array_keys($this->pointsOf($page)));
         self::assertSame(['icon' => 'inbox', 'label' => 'tally.nav.board', 'page' => ContributionWorld::BOARD], $this->firstFill($page, 'shell.nav@1')['nav'] ?? null);
         self::assertTrue($this->firstFill($page, 'shell.page@1')['data'] ?? null);
@@ -125,7 +134,7 @@ final class AddonPageTest extends TestCase
 
         $contributions = (array) $this->visitPanel($viewer, '/cms')->assertOk()->json('props.'.ContributionProps::CMS.'.'.ContributionProps::CONTRIBUTIONS);
 
-        self::assertSame([['page' => 'home', 'url' => '/cms']], $contributions['pages'] ?? null);
+        self::assertSame(self::OWN_PAGES, $contributions['pages'] ?? null, 'The panel\'s own pages are open to every person behind the login, so both are listed, and no page of the addon.');
         self::assertSame([], $contributions['points'] ?? null, 'The viewer holds no permission of the shell\'s contributions, so none is listed, the nav entry included.');
     }
 
